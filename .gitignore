@@ -1,0 +1,7 @@
+gopherboy
+
+# Ignore Gameboy code and compiled files
+*.asm
+*.o
+*.gb
+*.inc
