@@ -2,208 +2,446 @@ package main
 
 import (
 	"fmt"
+	"math/bits"
 )
 
 // TODO(velovix): Document what instructions do to flags
 
-// ld8BitImmToReg loads the given 8-bit immediate value into the given
-// register.
-func (env *environment) ld8BitImmToReg(reg registerType, imm uint8) {
-	env.getReg(reg).set(uint16(imm))
+func nop(env *environment) int {
+	fmt.Printf("NOP\n")
+	return 4
 }
 
-// ld16BitImmToReg loads the given 16-bit immediate value into the given
-// register.
-func (env *environment) ld16BitImmToReg(reg registerType, imm uint16) {
-	env.getReg(reg).set(imm)
+// ld loads the value of reg2 into reg1.
+func ld(env *environment, reg1, reg2 registerType) int {
+	env.regs[reg1].set(env.regs[reg2].get())
+
+	fmt.Printf("LD %v,%v\n", reg1, reg2)
+	return 4
 }
 
-// ldRegToReg loads the value of reg2 into reg1.
-func (env *environment) ldRegToReg(reg1, reg2 registerType) {
-	env.getReg(reg1).set(env.getReg(reg2).get())
+// ld8BitImm loads an 8-bit immediate value into the given register.
+func (env *environment) ld8BitImm(reg registerType) int {
+	imm := env.incrementPC()
+
+	env.regs[reg].set(uint16(imm))
+
+	fmt.Printf("LD %v,%#x\n", reg, imm)
+	return 8
 }
 
-// addRegToReg adds the value of reg2 to reg1.
-func (env *environment) addRegToReg(reg1, reg2 registerType) {
-	a := env.getReg(reg1).get()
-	b := env.getReg(reg2).get()
+// ld16BitImm loads an 16-bit immediate value into the given register.
+func (env *environment) ld16BitImm(reg registerType) int {
+	lower := env.incrementPC()
+	upper := env.incrementPC()
 
-	// Figures out if a half carry has occurred. This algorithm extracts the
-	// first four bits of each register, adds them together, and checks the
-	// 5th bit to see if it's 1. If it is, that means the addition half-carried.
-	// TODO(velovix): Is this the right behavior for 16-bit registers?
-	env.setHalfCarryFlag(((a&0xF)+(b&0xF))&0x10 == 0x10)
-	// Check the 9th bit to see if an 8-bit addition carried over.
-	// TODO(velovix): Is this the right behavior for 16-bit registers?
-	env.setCarryFlag((a+b)&0x100 == 0x100)
+	imm := combine(lower, upper)
+	env.regs[reg].set(imm)
 
-	env.getReg(reg1).set(env.getReg(reg1).get() + env.getReg(reg2).get())
+	fmt.Printf("LD %v,%#x\n", reg, imm)
+	return 12
+}
 
-	env.setZeroFlag(env.getReg(reg1).get() == 0)
+// ldSPToMem loads a 16-bit address and saves the stack pointer at that
+// address.
+func (env *environment) ldSPToMem() int {
+	imm := combine(env.incrementPC(), env.incrementPC())
+
+	// Save each byte of the stack pointer into memory
+	lower, upper := split16(env.regs[regSP].get())
+	env.mem[imm] = lower
+	env.mem[imm+1] = upper
+
+	fmt.Printf("LD %#x,%v\n", imm, regSP)
+	return 20
+}
+
+// addToA adds the value of reg into register A.
+func (env *environment) addToA(reg registerType) int {
+	aVal := env.regs[regA].get()
+	regVal := env.regs[reg].get()
+
+	env.setHalfCarryFlag(isHalfCarry(uint8(aVal), uint8(regVal)))
+	env.setCarryFlag(isCarry(uint8(aVal), uint8(regVal)))
+
+	aVal = env.regs[regA].set(aVal + regVal)
+
+	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
+
+	fmt.Printf("ADD A,%v\n", reg)
+	if reg == regHL {
+		// It takes longer to add from a 16-bit register
+		return 8
+	}
+	return 4
 }
 
-// subRegToReg subtracts the value of reg2 from reg1.
-func (env *environment) subRegToReg(reg1, reg2 registerType) {
+// addToHL adds the value of reg into register HL.
+func (env *environment) addToHL(reg registerType) int {
+	hlVal := env.regs[regHL].get()
+	regVal := env.regs[reg].get()
+
+	env.setHalfCarryFlag(isHalfCarry16(hlVal, regVal))
+	env.setCarryFlag(isCarry16(hlVal, regVal))
+
+	hlVal = env.regs[regHL].set(hlVal + regVal)
+
+	env.setSubtractFlag(false)
+
+	fmt.Printf("ADD HL,%v\n", reg)
+	return 8
+}
+
+// addToSP loads an immediate 8-bit value and adds it to the stack pointer
+// register.
+func (env *environment) addToSP() int {
+	imm := asSigned(env.incrementPC())
+
 	// TODO(velovix): Set flags
 
-	env.getReg(reg1).set(env.getReg(reg1).get() - env.getReg(reg2).get())
+	env.regs[regSP].set(uint16(int(env.regs[regSP].get()) + int(imm)))
+
+	fmt.Printf("ADD SP,%#x\n", imm)
+	return 16
 }
 
-// decReg decrements the value of reg.
-func (env *environment) decReg(reg registerType) {
-	topNibbleBefore := uint8(env.getReg(reg).get() >> 4)
+// sub subtracts the value of reg from register A.
+func (env *environment) sub(reg registerType) int {
+	// TODO(velovix): Set flags
 
-	env.getReg(reg).set(env.getReg(reg).get() - 1)
+	env.regs[regA].set(env.regs[regA].get() - env.regs[reg].get())
 
-	// A half carry occurs if the top nibble has changed at all
-	env.setHalfCarryFlag(topNibbleBefore == uint8(env.getReg(reg).get()>>4))
-	env.setZeroFlag(env.getReg(reg).get() == 0)
-	env.setSubtractFlag(true)
+	fmt.Printf("SUB %v,%v\n", regA, reg)
+	if reg == regHL {
+		// 8-bit HL operations take longer
+		return 8
+	}
+	return 4
 }
 
-// andRegToReg performs a bitwise & on reg1 and reg2, storing the result in
-// reg1.
-func (env *environment) andRegToReg(reg1, reg2 registerType) {
-	env.getReg(reg1).set(env.getReg(reg1).get() & env.getReg(reg2).get())
+// dec decrements the value of reg.
+func (env *environment) dec(reg registerType) int {
+	_, upperNibbleBefore := split(uint8(env.regs[reg].get()))
 
-	env.setZeroFlag(env.getReg(reg1).get() == 0)
+	env.regs[reg].set(env.regs[reg].get() - 1)
+
+	_, upperNibbleAfter := split(uint8(env.regs[reg].get()))
+
+	// Only the 8-bit operation uses flags
+	if env.regs[reg].size() == 8 {
+		// A half carry occurs if the upper nibble has changed at all
+		env.setHalfCarryFlag(upperNibbleBefore == upperNibbleAfter)
+		env.setZeroFlag(env.regs[reg].get() == 0)
+		env.setSubtractFlag(true)
+	}
+
+	fmt.Printf("DEC %v\n", reg)
+	if reg == regHL {
+		// 8-bit HL operations take longer
+		return 12
+	}
+	return 4
+}
+
+// and performs a bitwise & on the given register and register A, storing the
+// result in register A.
+func (env *environment) and(reg registerType) int {
+	env.regs[regA].set(env.regs[regA].get() & env.regs[reg].get())
+
+	env.setZeroFlag(env.regs[regA].get() == 0)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(true)
 	env.setCarryFlag(false)
+
+	fmt.Printf("AND %v\n", reg)
+	if reg == regHL {
+		// 8-bit HL operations take longer
+		return 8
+	}
+	return 4
 }
 
-// ldiToMem loads reg2 into the memory address specified by reg1, then
-// increments reg1.
-func (env *environment) ldiToMem(reg1, reg2 registerType) {
-	env.mem[env.getReg(reg1).get()] = uint8(env.getReg(reg2).get())
+// and performs a bitwise & on register A and an immediate value, storing the
+// result in register A.
+func (env *environment) and8BitImm() int {
+	imm := uint16(env.incrementPC())
 
-	env.getReg(reg1).set(env.getReg(reg1).get() + 1)
+	env.regs[regA].set(env.regs[regA].get() & imm)
+
+	env.setZeroFlag(env.regs[regA].get() == 0)
+	env.setSubtractFlag(false)
+	env.setHalfCarryFlag(true)
+	env.setCarryFlag(false)
+
+	fmt.Printf("AND %#x\n", imm)
+	return 8
 }
 
-// lddToMem loads reg2 into the memory address specified by reg1, then
-// decrements reg1.
-func (env *environment) lddToMem(reg1, reg2 registerType) {
-	env.mem[env.getReg(reg1).get()] = uint8(env.getReg(reg2).get())
+// ldiToMem loads register A into the memory address specified by register HL,
+// then increments register HL.
+func (env *environment) ldiToMem() int {
+	env.mem[env.regs[regHL].get()] = uint8(env.regs[regA].get())
 
-	env.getReg(reg1).set(env.getReg(reg1).get() - 1)
+	env.regs[regHL].set(env.regs[regHL].get() + 1)
+
+	fmt.Printf("LD %v+,%v\n", regHL, regA)
+	return 8
 }
 
-// ldiFromMem puts the value stored in the memory address specified by reg2
-// into reg1, then increments reg2.
-func (env *environment) ldiFromMem(reg1, reg2 registerType) {
-	memVal := env.mem[env.getReg(reg2).get()]
-	env.getReg(reg1).set(uint16(memVal))
+// lddToMem loads register A into the memory address specified by register HL,
+// then decrements register HL.
+func (env *environment) lddToMem() int {
+	env.mem[env.regs[regHL].get()] = uint8(env.regs[regA].get())
 
-	env.getReg(reg2).set(env.getReg(reg2).get() + 1)
+	env.regs[regHL].set(env.regs[regHL].get() - 1)
+
+	fmt.Printf("LD %v-,%v\n", regHL, regA)
+	return 8
 }
 
-// lddFromMem puts the value stored in the memory address specified by reg2
-// into reg1, then decrements reg2.
-func (env *environment) lddFromMem(reg1, reg2 registerType) {
-	memVal := env.mem[env.getReg(reg2).get()]
-	env.getReg(reg1).set(uint16(memVal))
+// ldiFromMem puts the value stored in the memory address specified by register
+// HL into register A, then increments register HL.
+func (env *environment) ldiFromMem() int {
+	memVal := env.mem[env.regs[regHL].get()]
+	env.regs[regA].set(uint16(memVal))
 
-	env.getReg(reg2).set(env.getReg(reg2).get() - 1)
+	env.regs[regHL].set(env.regs[regHL].get() + 1)
+
+	fmt.Printf("LD %v,%v+\n", regA, regHL)
+	return 8
+}
+
+// lddFromMem puts the value stored in the memory address specified by register
+// HL into register A, then decrements register HL.
+func (env *environment) lddFromMem() int {
+	memVal := env.mem[env.regs[regHL].get()]
+	env.regs[regA].set(uint16(memVal))
+
+	env.regs[regHL].set(env.regs[regHL].get() - 1)
+
+	fmt.Printf("LD %v,%v-\n", regA, regHL)
+	return 8
 }
 
 // inc increments the given register by 1.
-func (env *environment) inc(reg registerType) {
-	originalVal := env.getReg(reg).get()
+func (env *environment) inc(reg registerType) int {
+	originalVal := env.regs[reg].get()
 
-	env.getReg(reg).set(originalVal + 1)
+	env.regs[reg].set(originalVal + 1)
 
 	// Only 8 bit register increments have flag effects
-	if env.getReg(reg).size() == 8 {
-		env.setZeroFlag(env.getReg(reg).get() == 0)
+	if env.regs[reg].size() == 8 {
+		env.setZeroFlag(env.regs[reg].get() == 0)
 		env.setSubtractFlag(false)
 		// A half carry occurs only if the bottom 4 bits of the number are 1,
 		// meaning all those "slots" are "filled"
 		env.setHalfCarryFlag(originalVal&0x0F == 0x0F)
 	}
+
+	fmt.Printf("INC %v\n", reg)
+	if env.regs[reg].size() == 8 {
+		return 4
+	}
+	// Incrementing 16 bit registers takes longer
+	return 8
 }
 
 // push decrements the stack pointer by 2, then puts the value of the given
 // register at its position.
-func (env *environment) push(reg registerType) {
-	env.getReg(regSP).set(env.getReg(regSP).get() - 2)
+func (env *environment) push(reg registerType) int {
+	lower, upper := split16(env.regs[reg].get())
+	env.pushToStack(lower)
+	env.pushToStack(upper)
 
-	// Put each byte of the register into memory
-	env.mem[env.getReg(regSP).get()+1] = uint8(env.getReg(reg).get() >> 4)
-	env.mem[env.getReg(regSP).get()] = uint8(env.getReg(reg).get() & 0x0F)
+	fmt.Printf("PUSH %v\n", reg)
+	return 16
 }
 
 // pop loads the two bytes at the top of the stack in the given register and
 // increments the stack pointer by 2.
-func (env *environment) pop(reg registerType) {
-	upperVal := env.mem[env.getReg(regSP).get()+1]
-	lowerVal := env.mem[env.getReg(regSP).get()]
+func (env *environment) pop(reg registerType) int {
+	upper := env.popFromStack()
+	lower := env.popFromStack()
 
-	env.getReg(reg).set(uint16(upperVal<<8) | uint16(lowerVal))
+	env.regs[reg].set(combine(lower, upper))
 
-	env.getReg(regSP).set(env.getReg(regSP).get() + 2)
+	fmt.Printf("POP %v\n", reg)
+	return 12
 }
 
 // rst pushes the current program counter to the stack and jumps to the given
 // address.
-func (env *environment) rst(address uint16) {
+func (env *environment) rst(address uint16) int {
 	env.push(regPC)
 
-	env.getReg(regPC).set(address)
+	env.regs[regPC].set(address)
+
+	return 16
 }
 
-// jr jumps to the operation at address PC + offset. In other words, it's a
-// jump relative to the current position.
-func (env *environment) jr(offset int8) {
+// jr loads a signed offset value, then jumps to the operation at address PC +
+// offset. In other words, it's a jump relative to the current position.
+func (env *environment) jr() int {
+	offset := asSigned(env.incrementPC())
 	// If we're going backwards, skip past the offset portion of the
 	// instruction
 	if offset < 0 {
 		offset--
 	}
-	env.getReg(regPC).set(uint16(int(env.getReg(regPC).get()) + int(offset)))
+	env.regs[regPC].set(uint16(int(env.regs[regPC].get()) + int(offset)))
+
+	return 12
 }
 
-// jrIfFlag jumps to the operation at address PC + offset if the given flag is
-// at the expected setting.
-func (env *environment) jrIfFlag(offset int8, flagMask uint16, isSet bool) {
-	flagState := env.getReg(regF).get()&flagMask == flagMask
+// jrIfFlag loads an offset value, then jumps to the operation at address PC +
+// offset if the given flag is at the expected setting.
+func (env *environment) jrIfFlag(flagMask uint16, isSet bool) int {
+	flagState := env.regs[regF].get()&flagMask == flagMask
 	if flagState == isSet {
-		env.jr(offset)
+		return env.jr()
+	} else {
+		// Throw out the offset value
+		env.incrementPC()
+		return 8
 	}
 }
 
-// jp jumps to the given address by setting the program counter.
-func (env *environment) jp(address uint16) {
-	env.getReg(regPC).set(address)
+// jp loads a 16-bit address and jumps to it.
+func (env *environment) jp() int {
+	address := combine(env.incrementPC(), env.incrementPC())
+	env.regs[regPC].set(address)
+
+	return 16
+}
+
+// call loads a 16-bit address, pushes the address of the next instruction onto
+// the stack, and jumps to the loaded address.
+func (env *environment) call() int {
+	address := combine(env.incrementPC(), env.incrementPC())
+	env.push(regPC)
+
+	env.regs[regPC].set(address)
+
+	return 24
 }
 
 // ret pops a 16-bit address from the stack and jumps to it.
-func (env *environment) ret() {
-	upperVal := env.mem[env.getReg(regSP).get()+1]
-	lowerVal := env.mem[env.getReg(regSP).get()]
+func (env *environment) ret() int {
+	upper := env.popFromStack()
+	lower := env.popFromStack()
 
-	env.getReg(regPC).set(uint16(upperVal<<8) | uint16(lowerVal))
+	addr := combine(lower, upper)
 
-	env.getReg(regSP).set(env.getReg(regSP).get() + 2)
+	env.regs[regPC].set(addr)
+
+	fmt.Printf("RET %#x\n", addr)
+	return 16
 }
 
-// ldhToMem saves the value of register A into the memory address 0xFF00 +
-// offset.
-func (env *environment) ldhToMem(offset uint8) {
-	env.mem[env.getReg(regPC).get()+uint16(offset)] = uint8(env.getReg(regA).get())
+// retIfFlag pops a 16-bit address from the stack and jumps to it, but only if
+// the given flag is at the expected value.
+func (env *environment) retIfFlag(flagMask uint16, isSet bool) int {
+	flagState := env.regs[regF].get()&flagMask == flagMask
+
+	var opClocks int
+	if flagState == isSet {
+		env.ret()
+		opClocks = 20
+	} else {
+		opClocks = 8
+	}
+
+	fmt.Printf("RET %#x - %v\n", flagMask, isSet)
+	return opClocks
 }
 
-// runInstruction runs the instruction pointed to by the program counter.
-func (env *environment) runInstruction() error {
-	opcode := env.incrementPC()
+// reti pops a 16-bit address from the stack and jumps to it, then enables
+// interrupts.
+func (env *environment) reti() int {
+	env.ret()
 
-	upperNibble := uint8(opcode >> 4)
-	lowerNibble := uint8(opcode & 0x0F)
+	// TODO(velovix): Enable interrupts when we have those
+	fmt.Printf("RETI\n")
+	return 16
+}
+
+// ldhToMem loads an offset value, then saves the value of register A into the
+// memory address 0xFF00 + offset.
+func (env *environment) ldhToMem() int {
+	offset := env.incrementPC()
+
+	env.mem[0xFF00+uint16(offset)] = uint8(env.regs[regA].get())
+
+	fmt.Printf("LDH %#x,%v\n", offset, regA)
+	return 12
+}
+
+// ldhFromMem loads an offset value, then loads the value at memory address
+// 0xFF00 + offset into register A.
+func (env *environment) ldhFromMem() int {
+	offset := env.incrementPC()
+
+	fromMem := env.mem[0xFF00+uint16(offset)]
+	env.regs[regA].set(uint16(fromMem))
+
+	fmt.Printf("LDH %v,%#x\n", regA, offset)
+	return 12
+}
+
+// rlca bit rotates register A left by one, which is equivalent to a left bit
+// shift where the most significant bit is carried over to the least
+// significant bit. This bit is also stored in the carry flag.
+func (env *environment) rlca() int {
+	rotated := bits.RotateLeft8(uint8(env.regs[regA].get()), 1)
+	env.regs[regA].set(uint16(rotated))
+
+	env.setZeroFlag(env.regs[regA].get() == 0)
+	env.setSubtractFlag(false)
+	env.setHalfCarryFlag(false)
+
+	carryBit := env.regs[regA].get() & 0x01
+	env.setCarryFlag(carryBit == 1)
+
+	fmt.Printf("RLCA\n")
+	return 4
+}
+
+// di sets the master interrupt flag to false, disabling all interrupt
+// handling.
+func di(env *environment) int {
+	env.interruptsEnabled = false
+
+	return 4
+}
+
+// di sets the master interrupt flag to true. Interrupts may still be disabled
+// using the interrupt flags memory register, however.
+func ei(env *environment) int {
+	env.interruptsEnabled = true
+
+	return 4
+}
+
+func halt(env *environment) int {
+	env.waitingForInterrupts = true
+
+	fmt.Printf("HALT\n")
+	return 4
+}
+
+// runOpcode runs the operation that maps to the given opcode.
+func runOpcode(env *environment, opcode uint8) (cycles int, err error) {
+	// Splits the 8-bit opcode into two nibbles
+	lowerNibble, upperNibble := split(opcode)
 
 	switch {
 	// NOP
 	case opcode == 0x00:
-		fmt.Println("NOP")
+		return nop(env), nil
+	// The CB prefix. Comes before an extended instruction set.
+	case opcode == 0xCB:
+		panic("CB prefix instructions are not supported")
 	// STOP 0
 	case opcode == 0x10:
 		// TODO(velovix): Blank the screen when I eventually have graphics support
@@ -213,116 +451,96 @@ func (env *environment) runInstruction() error {
 		fmt.Println("STOP called, freezing execution")
 		for {
 		}
+
+		return 4, nil
+	// DI
 	case opcode == 0xF3:
-		// TODO(velovix): Implement this when I have interrupts
-		fmt.Println("Ignoring DI")
-	// HALT 1,4
+		return di(env), nil
+	// EI
+	case opcode == 0xFB:
+		return ei(env), nil
+	// HALT
 	case opcode == 0x76:
-		panic("HALT 1 4 not implemented!")
+		return halt(env), nil
 	// LD BC,A
 	case opcode == 0x02:
-		env.ldRegToReg(regBC, regA)
-		fmt.Printf("LD %v,%v\n", regBC, regA)
+		return ld(env, regBC, regA), nil
 	// LD DE,A
 	case opcode == 0x12:
-		env.ldRegToReg(regDE, regA)
-		fmt.Printf("LD %v,%v\n", regDE, regA)
+		return ld(env, regDE, regA), nil
 	// LD A,BC
 	case opcode == 0x0A:
-		env.ldRegToReg(regA, regBC)
-		fmt.Printf("LD %v,%v\n", regA, regBC)
+		return ld(env, regA, regBC), nil
 	// LD A,DE
 	case opcode == 0x1A:
-		env.ldRegToReg(regA, regDE)
-		fmt.Printf("LD %v,%v\n", regA, regDE)
+		return ld(env, regA, regDE), nil
 	// LDH (a8),A
 	case opcode == 0xE0:
-		offset := env.incrementPC()
-
-		env.ldhToMem(offset)
-		fmt.Printf("LDH %#x,%v\n", offset, regA)
+		return env.ldhToMem(), nil
+	// LDH A,(a8)
+	case opcode == 0xF0:
+		return env.ldhFromMem(), nil
 	// JR NZ,n
 	case opcode == 0x20:
-		offset := asSigned(env.incrementPC())
-
-		env.jrIfFlag(offset, zeroFlag, false)
-		fmt.Printf("JR NZ,%#x\n", offset)
+		return env.jrIfFlag(zeroFlag, false), nil
 	// JR Z,n
 	case opcode == 0x28:
-		offset := asSigned(env.incrementPC())
-
-		env.jrIfFlag(offset, zeroFlag, true)
-		fmt.Printf("JR Z,%#x\n", offset)
+		return env.jrIfFlag(zeroFlag, true), nil
 	// JR NC,n
 	case opcode == 0x30:
-		offset := asSigned(env.incrementPC())
-
-		env.jrIfFlag(offset, halfCarryFlag, false)
-		fmt.Printf("JR NC,%#x\n", offset)
+		return env.jrIfFlag(halfCarryFlag, false), nil
 	// JR C,n
 	case opcode == 0x30:
-		offset := asSigned(env.incrementPC())
-
-		env.jrIfFlag(offset, halfCarryFlag, true)
-		fmt.Printf("JR C,%#x\n", offset)
+		return env.jrIfFlag(halfCarryFlag, true), nil
 	// JP nn
 	case opcode == 0xC3:
-		// Load the 16-bit address
-		addr := combine(env.incrementPC(), env.incrementPC())
-
-		env.jp(addr)
-		fmt.Printf("JP %#x\n", addr)
+		return env.jp(), nil
 	// RET
 	case opcode == 0xC9:
-		env.ret()
-		fmt.Printf("RET\n")
+		return env.ret(), nil
+	// RET NZ
+	case opcode == 0xC0:
+		return env.retIfFlag(zeroFlag, false), nil
+	// RET Z
+	case opcode == 0xC8:
+		return env.retIfFlag(zeroFlag, true), nil
+	// RET NC
+	case opcode == 0xD0:
+		return env.retIfFlag(carryFlag, false), nil
+	// RET C
+	case opcode == 0xD8:
+		return env.retIfFlag(carryFlag, true), nil
+	// RETI
+	case opcode == 0xD9:
+		return env.reti(), nil
+	// CALL address
+	case opcode == 0xCD:
+		return env.call(), nil
+	// RLCA
+	case opcode == 0x07:
+		return env.rlca(), nil
 	// Opcodes for loading to and from memory with HL
 	case opcode == 0x2A:
-		env.ldiFromMem(regA, regHL)
-		fmt.Printf("LDI %v,%v\n", regA, regHL)
+		return env.ldiFromMem(), nil
 	case opcode == 0x3A:
-		env.lddFromMem(regA, regHL)
-		fmt.Printf("LDD %v,%v\n", regA, regHL)
+		return env.lddFromMem(), nil
 	case opcode == 0x22:
-		env.ldiToMem(regHL, regA)
-		fmt.Printf("LDI %v,%v\n", regHL, regA)
+		return env.ldiToMem(), nil
 	case opcode == 0x32:
-		env.lddToMem(regHL, regA)
-		fmt.Printf("LDD %v,%v\n", regHL, regA)
+		return env.lddToMem(), nil
 	// JR nn
 	case opcode == 0x18:
-		offset := asSigned(env.incrementPC())
-		env.jr(offset)
-		fmt.Printf("JR %#x\n", offset)
-	// Check if the opcode is in the "ADD HL,16BitReg1" section
+		return env.jr(), nil
+	// ADD HL,nn"
 	case lowerNibble == 0x09 && upperNibble <= 0x03:
-		env.addRegToReg(regHL, indexTo16BitRegister[upperNibble])
-		fmt.Printf("ADD %v,%v\n",
-			regHL,
-			indexTo16BitRegister[upperNibble])
-	// Check if the opcode is in the "LD 16BitReg1,16BitImm" section
+		return env.addToHL(indexTo16BitRegister[upperNibble]), nil
+	// LD 16BitReg,nn
 	case lowerNibble == 0x01 && upperNibble <= 0x03:
-		// Load the 16-bit immediate value
-		imm := combine(env.incrementPC(), env.incrementPC())
-
-		env.ld16BitImmToReg(indexTo16BitRegister[upperNibble], imm)
-		fmt.Printf("LD %v,%#x\n",
-			indexTo16BitRegister[upperNibble],
-			imm)
-	// LD SP,address - Saves the current stack pointer into memory at the
-	// given address
+		return env.ld16BitImm(indexTo16BitRegister[upperNibble]), nil
+	// LD nn,SP
 	case opcode == 0x08:
-		// Load the 16-bit immediate value
-		imm := combine(env.incrementPC(), env.incrementPC())
-
-		// Save each byte of the stack pointer into memory
-		env.mem[imm] = uint8(env.getReg(regSP).get() >> 4)
-		env.mem[imm+1] = uint8(env.getReg(regSP).get() & 0x0F)
-
-		fmt.Printf("LD %#x,%v\n",
-			imm,
-			regSP)
-	// Check if the opcode is in the "LD reg1,reg2" block
+		return env.ldSPToMem(), nil
+	// LD reg1,reg2
 	case opcode >= 0x40 && opcode <= 0x7F:
 		row := upperNibble - 0x04
 		col := lowerNibble
@@ -330,105 +548,64 @@ func (env *environment) runInstruction() error {
 		toRegIndex := (row*0x0F + col) / 8
 		fromRegIndex := col % 8
 
-		env.ldRegToReg(
-			indexToRegister[toRegIndex],
-			indexToRegister[fromRegIndex])
-		fmt.Printf("LD %v,%v\n",
-			indexToRegister[toRegIndex],
-			indexToRegister[fromRegIndex])
-	// Check if the opcode is in one of the "LD reg1,8-bit value" sections
+		return ld(env, indexToRegister[toRegIndex], indexToRegister[fromRegIndex]), nil
+	// LD reg,n
 	case upperNibble <= 0x03 && (lowerNibble == 0x06 || lowerNibble == 0x0E):
 		regIndex := upperNibble * 2
 		if lowerNibble == 0x0E {
 			regIndex++
 		}
-		imm := env.incrementPC()
-
-		env.ld8BitImmToReg(indexToRegister[regIndex], imm)
-		fmt.Printf("LD %v,%#x\n",
-			indexToRegister[regIndex],
-			imm)
-	// Check if the opcode is within the "LD reg1,8-bit immediate" sections
-	case upperNibble <= 0x03 && (lowerNibble == 0x06 || lowerNibble == 0x0E):
-		regIndex := upperNibble * 2
-		if lowerNibble == 0x0E {
-			regIndex++
-		}
-		imm := env.incrementPC()
-
-		env.ld8BitImmToReg(indexToRegister[regIndex], imm)
-		fmt.Printf("LD %v,%#x\n",
-			indexToRegister[regIndex],
-			imm)
-	// Check if the opcode is in the "ADD A,reg1" section
+		return env.ld8BitImm(indexToRegister[regIndex]), nil
+	// ADD A,reg
 	case opcode >= 0x80 && opcode <= 0x87:
-		env.addRegToReg(regA, indexToRegister[lowerNibble])
-		fmt.Printf("ADD %v,%v\n",
-			regA,
-			indexToRegister[lowerNibble])
-	// Check if the opcode is in the "DEC reg1" section
+		return env.addToA(indexToRegister[lowerNibble]), nil
+	// DEC reg
 	case upperNibble <= 0x03 && (lowerNibble == 0x05 || lowerNibble == 0x0D):
 		regIndex := upperNibble * 2
 		if lowerNibble == 0x0D {
 			regIndex += 1
 		}
 
-		env.decReg(indexToRegister[regIndex])
-		fmt.Printf("DEC %v\n", indexToRegister[regIndex])
-	// Check if the opcode is in the "AND reg1" section
+		return env.dec(indexToRegister[regIndex]), nil
+	// AND reg
 	case opcode >= 0xA0 && opcode <= 0xA7:
-		env.andRegToReg(regA, indexToRegister[lowerNibble])
-		fmt.Printf("AND %v\n",
-			indexToRegister[lowerNibble])
-	// Check if the opcode is in the "SUB reg1" section
+		return env.and(indexToRegister[lowerNibble]), nil
+	// AND n
+	case opcode == 0xE6:
+		return env.and8BitImm(), nil
+	// SUB reg
 	case opcode >= 0x90 && opcode <= 0x96:
-		env.subRegToReg(regA, indexToRegister[lowerNibble])
-		fmt.Printf("SUB %v\n",
-			indexToRegister[lowerNibble])
-	// Check if the opcode is in the "INC reg1" sections
+		return env.sub(indexToRegister[lowerNibble]), nil
+	// INC reg
 	case upperNibble <= 0x03 && (lowerNibble == 0x04 || lowerNibble == 0x0C):
 		regIndex := upperNibble * 2
 		if lowerNibble == 0x0C {
 			regIndex++
 		}
 
-		env.inc(indexToRegister[regIndex])
-		fmt.Printf("INC %v\n",
-			indexToRegister[regIndex])
-	// Check if the opcode is in the "INC 16BitReg1" section
+		return env.inc(indexToRegister[regIndex]), nil
+	// INC 16BitReg
 	case upperNibble <= 0x03 && lowerNibble == 0x03:
-		env.inc(indexTo16BitRegister[upperNibble])
-		fmt.Printf("INC %v\n",
-			indexTo16BitRegister[upperNibble])
-	// Check if the opcode is in the "POP 16BitReg1" section
+		return env.inc(indexTo16BitRegister[upperNibble]), nil
+	// POP 16BitReg
 	case upperNibble >= 0x0C && lowerNibble == 0x01:
 		regIndex := upperNibble - 0x0C
-		env.pop(indexTo16BitRegister[regIndex])
-		fmt.Printf("POP %v\n",
-			indexTo16BitRegister[regIndex])
-	// Check if the opcode is in the "PUSH 16BitReg1" section
+		return env.pop(indexTo16BitRegister[regIndex]), nil
+	// PUSH 16BitReg
 	case upperNibble >= 0x0C && lowerNibble == 0x05:
 		regIndex := upperNibble - 0x0C
-		env.push(indexTo16BitRegister[regIndex])
-		fmt.Printf("PUSH %v\n",
-			indexTo16BitRegister[regIndex])
-	// Check if the opcode is in the "RST address" section
+		return env.push(indexTo16BitRegister[regIndex]), nil
+	// RST address
 	case upperNibble >= 0x0C && (lowerNibble == 0x07 || lowerNibble == 0x0F):
 		restartIndex := (upperNibble - 0x0C) * 2
 		if lowerNibble == 0x0F {
 			restartIndex++
 		}
 
-		env.rst(indexToRestartAddress[restartIndex])
-		fmt.Printf("RST %#x\n",
-			indexToRestartAddress[restartIndex])
+		return env.rst(indexToRestartAddress[restartIndex]), nil
 	default:
-		return fmt.Errorf("unknown opcode %#x", opcode)
+		return 0, fmt.Errorf("unknown opcode %#x", opcode)
 	}
-
-	fmt.Printf("SP:%#x | PC:%#x\n", env.getReg(regSP).get(), env.getReg(regPC).get())
-
-	return nil
 }
 
 // indexToRegister maps an index value to an 8-bit register. This helps reduce

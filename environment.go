@@ -2,8 +2,8 @@ package main
 
 type register interface {
 	// set sets the register's value. If the register is too small for the
-	// value, it will be truncated bit-wise.
-	set(val uint16)
+	// value, it will be truncated bit-wise. Returns the set result.
+	set(val uint16) uint16
 	// get returns the register's value.
 	get() uint16
 	// size returns the size in bits of the register.
@@ -14,8 +14,9 @@ type register8Bit struct {
 	val uint8
 }
 
-func (reg *register8Bit) set(val uint16) {
+func (reg *register8Bit) set(val uint16) uint16 {
 	reg.val = uint8(val)
+	return reg.get()
 }
 
 func (reg *register8Bit) get() uint16 {
@@ -30,8 +31,9 @@ type register16Bit struct {
 	val uint16
 }
 
-func (reg *register16Bit) set(val uint16) {
+func (reg *register16Bit) set(val uint16) uint16 {
 	reg.val = val
+	return reg.get()
 }
 
 func (reg *register16Bit) get() uint16 {
@@ -46,9 +48,11 @@ type registerCombined struct {
 	first, second register
 }
 
-func (reg *registerCombined) set(val uint16) {
+func (reg *registerCombined) set(val uint16) uint16 {
 	reg.first.set(uint16(uint8(val >> 8)))
 	reg.second.set(uint16(uint8(val)))
+
+	return reg.get()
 }
 
 func (reg *registerCombined) get() uint16 {
@@ -61,14 +65,22 @@ func (reg *registerCombined) size() int {
 }
 
 type environment struct {
+	// A map of register names to their corresponding register.
 	regs map[registerType]register
-	mem  []uint8
+	// All memory in the Gameboy
+	mem []uint8
+	// The master interrupt switch. If this is false, no interrupts will be
+	// processed.
+	interruptsEnabled bool
+	// If true, the processor will not run instructions until an interrupt
+	// occurs.
+	waitingForInterrupts bool
 }
 
-func newEnvironment() environment {
-	env := environment{
+func newEnvironment() *environment {
+	env := &environment{
 		regs: make(map[registerType]register),
-		mem:  make([]uint8, 0xFFFF),
+		mem:  make([]uint8, 0x10000),
 	}
 
 	env.regs[regA] = &register8Bit{0}
@@ -100,15 +112,22 @@ func newEnvironment() environment {
 	// Set registers to their initial value
 	// This value depends on the system being emulated.
 	// GB/SGB: 0x01 | GBP: 0xFF | CGB: 0x11
-	env.getReg(regAF).set(0x01)
+	env.regs[regAF].set(0x01)
 	// Set the stack pointer to a high initial value
-	env.getReg(regSP).set(0xFFFE)
+	env.regs[regSP].set(0xFFFE)
 	// I don't know why these values are set this way
-	env.getReg(regF).set(0xB0)
-	env.getReg(regBC).set(0x0013)
-	env.getReg(regDE).set(0x00D8)
-	env.getReg(regHL).set(0x014D)
-	// TODO(velovix): Set a bunch of other memory addresses
+	env.regs[regF].set(0xB0)
+	env.regs[regBC].set(0x0013)
+	env.regs[regDE].set(0x00D8)
+	env.regs[regHL].set(0x014D)
+
+	// Set memory addresses
+	// Set the timer values
+	env.mem[timaAddr] = 0x00
+	env.mem[tmaAddr] = 0x00
+	env.mem[tacAddr] = 0x00
+	env.mem[ieAddr] = 0x00
+	// TODO(velovix): Set even more memory addresses
 
 	return env
 }
@@ -124,6 +143,23 @@ func (env *environment) incrementPC() uint8 {
 	env.regs[regPC].set(env.regs[regPC].get() + 1)
 
 	return poppedVal
+}
+
+// popFromStack reads a value from the current stack position and increments
+// the stack pointer.
+func (env *environment) popFromStack() uint8 {
+	val := env.mem[env.regs[regSP].get()]
+
+	env.regs[regSP].set(env.regs[regSP].get() + 1)
+
+	return val
+}
+
+// pushToStack decrements the stack pointer and writes the given value.
+func (env *environment) pushToStack(val uint8) {
+	env.regs[regSP].set(env.regs[regSP].get() - 1)
+
+	env.mem[env.regs[regSP].get()] = val
 }
 
 func (env *environment) setZeroFlag(on bool) {

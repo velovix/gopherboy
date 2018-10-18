@@ -6,10 +6,11 @@ import (
 	"io/ioutil"
 )
 
-func loadROM(data io.Reader) error {
-	env := newEnvironment()
-
+func loadROM(env *environment, data io.Reader) error {
 	cartridgeData, err := ioutil.ReadAll(data)
+	if err != nil {
+		return fmt.Errorf("loading cartridge data: %v", err)
+	}
 
 	fmt.Println("Cartridge Header:")
 
@@ -88,18 +89,12 @@ func loadROM(data io.Reader) error {
 	// Put cartridge data into memory, up until the expected size. I've found
 	// that ROMs can have a lot of padding at the end, so they don't end where
 	// you would expect
-	if err != nil {
-		return fmt.Errorf("loading cartridge data: %v", err)
-	}
 	for i := 0; i < 0x3FFF; i++ {
 		env.mem[i] = cartridgeData[i]
 	}
 
 	// 0x100 is the designated entry point of a Gameboy ROM
-	env.getReg(regPC).set(0x100)
+	env.regs[regPC].set(0x100)
 
-	for err = nil; err == nil; err = env.runInstruction() {
-	}
-
-	return err
+	return nil
 }
