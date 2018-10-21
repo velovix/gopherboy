@@ -162,6 +162,14 @@ func (env *environment) pushToStack(val uint8) {
 	env.mem[env.regs[regSP].get()] = val
 }
 
+// pushToStack16 pushes a 16-bit value to the stack, decrementing the stack
+// pointer twice.
+func (env *environment) pushToStack16(val uint16) {
+	lower, upper := split16(val)
+	env.pushToStack(lower)
+	env.pushToStack(upper)
+}
+
 func (env *environment) setZeroFlag(on bool) {
 	mask := uint16(0x80)
 	if on {

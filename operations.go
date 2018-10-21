@@ -20,6 +20,14 @@ func ld(env *environment, reg1, reg2 registerType) int {
 	return 4
 }
 
+// ldToMem loads the value of reg2 into the memory address specified by reg1.
+func ldToMem(env *environment, reg1, reg2 registerType) int {
+	env.mem[env.regs[reg1].get()] = uint8(env.regs[reg2].get())
+
+	fmt.Printf("LD %v,%v\n", reg2, reg1)
+	return 12
+}
+
 // ld8BitImm loads an 8-bit immediate value into the given register.
 func (env *environment) ld8BitImm(reg registerType) int {
 	imm := env.incrementPC()
@@ -250,9 +258,7 @@ func (env *environment) inc(reg registerType) int {
 // push decrements the stack pointer by 2, then puts the value of the given
 // register at its position.
 func (env *environment) push(reg registerType) int {
-	lower, upper := split16(env.regs[reg].get())
-	env.pushToStack(lower)
-	env.pushToStack(upper)
+	env.pushToStack16(env.regs[reg].get())
 
 	fmt.Printf("PUSH %v\n", reg)
 	return 16
@@ -298,11 +304,18 @@ func (env *environment) jr() int {
 // offset if the given flag is at the expected setting.
 func (env *environment) jrIfFlag(flagMask uint16, isSet bool) int {
 	flagState := env.regs[regF].get()&flagMask == flagMask
+	offset := asSigned(env.incrementPC())
+
+	fmt.Printf("JR %#x==%v,%#x\n", flagMask, isSet, offset)
 	if flagState == isSet {
-		return env.jr()
+		// If we're going backwards, skip past the offset portion of the
+		// instruction
+		if offset < 0 {
+			offset--
+		}
+		env.regs[regPC].set(uint16(int(env.regs[regPC].get()) + int(offset)))
+		return 12
 	} else {
-		// Throw out the offset value
-		env.incrementPC()
 		return 8
 	}
 }
@@ -323,6 +336,7 @@ func (env *environment) call() int {
 
 	env.regs[regPC].set(address)
 
+	fmt.Printf("CALL %#x\n", address)
 	return 24
 }
 
@@ -346,7 +360,12 @@ func (env *environment) retIfFlag(flagMask uint16, isSet bool) int {
 
 	var opClocks int
 	if flagState == isSet {
-		env.ret()
+		upper := env.popFromStack()
+		lower := env.popFromStack()
+
+		addr := combine(lower, upper)
+
+		env.regs[regPC].set(addr)
 		opClocks = 20
 	} else {
 		opClocks = 8
@@ -359,7 +378,12 @@ func (env *environment) retIfFlag(flagMask uint16, isSet bool) int {
 // reti pops a 16-bit address from the stack and jumps to it, then enables
 // interrupts.
 func (env *environment) reti() int {
-	env.ret()
+	upper := env.popFromStack()
+	lower := env.popFromStack()
+
+	addr := combine(lower, upper)
+
+	env.regs[regPC].set(addr)
 
 	// TODO(velovix): Enable interrupts when we have those
 	fmt.Printf("RETI\n")
@@ -412,6 +436,7 @@ func (env *environment) rlca() int {
 func di(env *environment) int {
 	env.interruptsEnabled = false
 
+	fmt.Printf("DI\n")
 	return 4
 }
 
@@ -420,6 +445,7 @@ func di(env *environment) int {
 func ei(env *environment) int {
 	env.interruptsEnabled = true
 
+	fmt.Printf("EI\n")
 	return 4
 }
 
@@ -434,6 +460,8 @@ func halt(env *environment) int {
 func runOpcode(env *environment, opcode uint8) (cycles int, err error) {
 	// Splits the 8-bit opcode into two nibbles
 	lowerNibble, upperNibble := split(opcode)
+
+	fmt.Printf("%#x: ", opcode)
 
 	switch {
 	// NOP
@@ -464,10 +492,10 @@ func runOpcode(env *environment, opcode uint8) (cycles int, err error) {
 		return halt(env), nil
 	// LD BC,A
 	case opcode == 0x02:
-		return ld(env, regBC, regA), nil
+		return ldToMem(env, regBC, regA), nil
 	// LD DE,A
 	case opcode == 0x12:
-		return ld(env, regDE, regA), nil
+		return ldToMem(env, regDE, regA), nil
 	// LD A,BC
 	case opcode == 0x0A:
 		return ld(env, regA, regBC), nil
@@ -534,14 +562,16 @@ func runOpcode(env *environment, opcode uint8) (cycles int, err error) {
 	// ADD HL,nn"
 	case lowerNibble == 0x09 && upperNibble <= 0x03:
 		return env.addToHL(indexTo16BitRegister[upperNibble]), nil
-	// LD 16BitReg,nn
-	case lowerNibble == 0x01 && upperNibble <= 0x03:
-		return env.ld16BitImm(indexTo16BitRegister[upperNibble]), nil
 	// LD nn,SP
 	case opcode == 0x08:
 		return env.ldSPToMem(), nil
+	// LD 16BitReg,nn
+	case lowerNibble == 0x01 && upperNibble <= 0x03:
+		return env.ld16BitImm(indexTo16BitRegister[upperNibble]), nil
 	// LD reg1,reg2
 	case opcode >= 0x40 && opcode <= 0x7F:
+		// TODO(velovix): This behavior just isn't correct. There are a few
+		// address-based ops in this block.
 		row := upperNibble - 0x04
 		col := lowerNibble
 

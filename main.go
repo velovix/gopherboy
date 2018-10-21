@@ -28,8 +28,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Start the display controller
+	vc, err := newVideoController(env)
+	if err != nil {
+		fmt.Println("Error while creating video controller:", err)
+		os.Exit(1)
+	}
+	defer vc.destroy()
+
 	// Start running
-	err = startMainLoop(env)
+	err = startMainLoop(env, &vc)
 	if err != nil {
 		fmt.Println("Error while running ROM:", err)
 		os.Exit(1)
