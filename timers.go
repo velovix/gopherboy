@@ -1,6 +1,14 @@
 package main
 
-const mClockRate = 1048576
+const (
+	// tClockRate is the rate at which the tClock increments. Completely not
+	// coincidentally, this is also the Game Boy's clock speed.
+	tClockRate = 4194304
+	// mClockRate is the rate at which the mClock increments.
+	mClockRate = tClockRate / 4
+	// dividerClockRate is the rate at which the divider increments.
+	dividerClockRate = mClockRate / 64
+)
 
 // timers keeps track of all timers in the Gameboy, including the TIMA.
 type timers struct {
@@ -40,10 +48,10 @@ func (t *timers) tick(amount int) {
 	timaRate, timaRunning := parseTAC(*t.tac)
 
 	// Increment the clock
-	for i := 0; i < amount; i++ {
-		t.tClock++
-		if t.tClock%4 == 0 {
-			t.mClock++
+	for i := 0; i < amount; i += 4 {
+		t.mClock++
+		if t.mClock >= mClockRate {
+			t.mClock = 0
 		}
 		if t.mClock%64 == 0 {
 			*t.divider++
@@ -61,6 +69,7 @@ func (t *timers) tick(amount int) {
 			}
 		}
 	}
+
 }
 
 // parseTAC takes in a control byte and returns the configuration it supplies.

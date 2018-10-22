@@ -155,6 +155,15 @@ func (env *environment) popFromStack() uint8 {
 	return val
 }
 
+// popFromStack16 reads a 16-bit value from the current stack position and
+// decrements the stack pointer twice.
+func (env *environment) popFromStack16() uint16 {
+	upper := env.popFromStack()
+	lower := env.popFromStack()
+
+	return combine(lower, upper)
+}
+
 // pushToStack decrements the stack pointer and writes the given value.
 func (env *environment) pushToStack(val uint8) {
 	env.regs[regSP].set(env.regs[regSP].get() - 1)
@@ -170,6 +179,24 @@ func (env *environment) pushToStack16(val uint16) {
 	env.pushToStack(upper)
 }
 
+// relativeJump moves the program counter by the given signed value, including
+// some special rules relative jumps have.
+func (env *environment) relativeJump(offset int) {
+	// Special case where backwards jumps always move back one more than the
+	// given value
+	if offset < 0 {
+		offset--
+	}
+	env.regs[regPC].set(uint16(int(env.regs[regPC].get()) + offset))
+}
+
+// getZeroFlag returns the state of the zero bit in the flag register.
+func (env *environment) getZeroFlag() bool {
+	mask := uint16(0x80)
+	return env.regs[regF].get()&mask == mask
+}
+
+// setZeroFlag sets the zero bit in the flag register to the given value.
 func (env *environment) setZeroFlag(on bool) {
 	mask := uint16(0x80)
 	if on {
@@ -179,6 +206,14 @@ func (env *environment) setZeroFlag(on bool) {
 	}
 }
 
+// getSubtractFlag returns the state of the subtract bit in the flag register.
+func (env *environment) getSubtractFlag() bool {
+	mask := uint16(0x40)
+	return env.regs[regF].get()&mask == mask
+}
+
+// setSubtractFlag sets the subtract bit in the flag register to the given
+// value.
 func (env *environment) setSubtractFlag(on bool) {
 	mask := uint16(0x40)
 	if on {
@@ -188,6 +223,15 @@ func (env *environment) setSubtractFlag(on bool) {
 	}
 }
 
+// getHalfCarryFlag returns the state of the half carry bit in the flag
+// register.
+func (env *environment) getHalfCarryFlag() bool {
+	mask := uint16(0x20)
+	return env.regs[regF].get()&mask == mask
+}
+
+// setHalfCarryFlag sets the half carry bit in the flag register to the given
+// value.
 func (env *environment) setHalfCarryFlag(on bool) {
 	mask := uint16(0x20)
 	if on {
@@ -197,6 +241,13 @@ func (env *environment) setHalfCarryFlag(on bool) {
 	}
 }
 
+// getCarryFlag returns the state of the carry bit in the flag register.
+func (env *environment) getCarryFlag() bool {
+	mask := uint16(0x10)
+	return env.regs[regF].get()&mask == mask
+}
+
+// setCarryFlag sets the carry bit in the flag register to the given value.
 func (env *environment) setCarryFlag(on bool) {
 	mask := uint16(0x10)
 	if on {
@@ -218,10 +269,10 @@ const (
 	regH              = "H"
 	regL              = "L"
 
-	regAF = "(AF)"
-	regBC = "(BC)"
-	regDE = "(DE)"
-	regHL = "(HL)"
+	regAF = "AF"
+	regBC = "BC"
+	regDE = "DE"
+	regHL = "HL"
 
 	regSP = "SP"
 	regF  = "F"

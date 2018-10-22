@@ -1,8 +1,16 @@
 package main
 
+import (
+	"fmt"
+	"time"
+)
+
 // startMainLoop starts the main processing loop of the Gameboy.
 func startMainLoop(env *environment, vc *videoController) error {
 	timers := newTimers(env)
+
+	lastSecond := time.Now()
+	frameCnt := 0
 
 	for {
 		var err error
@@ -24,6 +32,12 @@ func startMainLoop(env *environment, vc *videoController) error {
 
 		if vc.shouldRedraw(timers) {
 			vc.update()
+			frameCnt++
+			if time.Since(lastSecond) >= time.Second {
+				fmt.Println("FPS:", frameCnt)
+				lastSecond = time.Now()
+				frameCnt = 0
+			}
 		}
 
 		// TODO(velovix): Should interrupt flags be unset here if the interrupt
@@ -62,6 +76,8 @@ func startMainLoop(env *environment, vc *videoController) error {
 			}
 
 			if target != 0 {
+				// Disable all other interrupts
+				env.interruptsEnabled = false
 				env.waitingForInterrupts = false
 				// Push the current program counter to the stack for later use
 				env.pushToStack16(env.regs[regPC].get())

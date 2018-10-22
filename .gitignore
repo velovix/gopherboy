@@ -5,3 +5,6 @@ gopherboy
 *.o
 *.gb
 *.inc
+
+# Ignore memory dumps
+*.dump

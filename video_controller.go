@@ -93,14 +93,7 @@ func (vc *videoController) drawTile(lcdc lcdcConfig, tile uint8, tileX, tileY in
 		panic(fmt.Sprintf("unknown tile data table %#x", tileDataAddr))
 	}
 
-	var tileData []uint8
-	if tile == 0 {
-		// Fill the tile with zeros
-		// TODO(velovix): Is this really what I'm supposed to do?
-		tileData = make([]uint8, tileBytes)
-	} else {
-		tileData = vc.env.mem[tileDataAddr : tileDataAddr+tileBytes]
-	}
+	tileData := vc.env.mem[tileDataAddr : tileDataAddr+tileBytes]
 
 	// Draw the tile on-screen
 	for y := 0; y < bgTileHeight; y++ {
@@ -128,12 +121,21 @@ func (vc *videoController) drawTile(lcdc lcdcConfig, tile uint8, tileX, tileY in
 				panic(fmt.Sprintf("Invalid palette ID %#x", paletteID))
 			}
 
-			// In order to make the background "wrap", surround the background
-			// with clones of itself.
-			vc.renderer.DrawPoint(int32(tileX+x), int32(tileY+y))
-			vc.renderer.DrawPoint(int32(tileX+x-bgWidth), int32(tileY+y-bgHeight))
-			vc.renderer.DrawPoint(int32(tileX+x-bgWidth), int32(tileY+y))
-			vc.renderer.DrawPoint(int32(tileX+x), int32(tileY+y-bgHeight))
+			wrappedX := tileX + x
+			if wrappedX > bgWidth {
+				wrappedX -= bgWidth
+			} else if wrappedX < 0 {
+				wrappedX += bgWidth
+			}
+
+			wrappedY := tileY + y
+			if wrappedY > bgHeight {
+				wrappedY -= bgHeight
+			} else if wrappedY < 0 {
+				wrappedY += bgHeight
+			}
+
+			vc.renderer.DrawPoint(int32(wrappedX), int32(wrappedY))
 
 			lower <<= 1
 			upper <<= 1

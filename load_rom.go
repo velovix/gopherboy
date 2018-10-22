@@ -4,7 +4,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strings"
 )
+
+// noNullTerms removes null terminators from the given string.
+func noNullTerms(str string) string {
+	return strings.Trim(str, "\000")
+}
 
 func loadROM(env *environment, data io.Reader) error {
 	cartridgeData, err := ioutil.ReadAll(data)
@@ -16,11 +22,11 @@ func loadROM(env *environment, data io.Reader) error {
 
 	// Read the cartridge title. Earlier games used 16 characters for this but
 	// we're assuming 11 since that's what it is from CGB onwards
-	title := string(cartridgeData[0x0134:0x0140])
-	fmt.Println("  Title:", title)
+	title := noNullTerms(string(cartridgeData[0x0134:0x0140]))
+	fmt.Println("  Title:", strings.Trim(title, "\000"))
 
 	// Read the manufacturer code, a 4 character code. Not useful for anything.
-	manufacturerCode := string(cartridgeData[0x013F:0x0143])
+	manufacturerCode := noNullTerms(string(cartridgeData[0x013F:0x0143]))
 	fmt.Println("  Manufacturer Code:", manufacturerCode)
 
 	// Read the CGB flag, which tells us if the game is compatible with the
@@ -33,7 +39,7 @@ func loadROM(env *environment, data io.Reader) error {
 
 	// Read the licensee code, a two character ASCII code. Not actually useful
 	// for us.
-	licenseeCode := string(cartridgeData[0x0144:0x0146])
+	licenseeCode := noNullTerms(string(cartridgeData[0x0144:0x0146]))
 	fmt.Println("  Licensee Code:", licenseeCode)
 
 	// Read the SGB flag, telling us if this ROM is SGB-compatible
