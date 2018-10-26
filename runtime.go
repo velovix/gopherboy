@@ -28,6 +28,21 @@ func startMainLoop(env *environment, vc *videoController) error {
 			}
 		}
 
+		// Process any delayed requests to toggle the master interrupt switch.
+		// These are created by the EI and DI instructions.
+		if env.enableInterruptsTimer > 0 {
+			env.enableInterruptsTimer--
+			if env.enableInterruptsTimer == 0 {
+				env.interruptsEnabled = true
+			}
+		}
+		if env.disableInterruptsTimer > 0 {
+			env.disableInterruptsTimer--
+			if env.disableInterruptsTimer == 0 {
+				env.interruptsEnabled = false
+			}
+		}
+
 		timers.tick(opTime)
 
 		if vc.shouldRedraw(timers) {
@@ -44,11 +59,11 @@ func startMainLoop(env *environment, vc *videoController) error {
 		// is disabled?
 
 		// Check if any interrupts need to be processed
-		if env.interruptsEnabled && env.mem[ifAddr] != 0 {
+		if env.interruptsEnabled && env.mbc.at(ifAddr) != 0 {
 			var target uint16
 
-			interruptEnable := env.mem[ieAddr]
-			interruptFlag := env.mem[ifAddr]
+			interruptEnable := env.mbc.at(ieAddr)
+			interruptFlag := env.mbc.at(ifAddr)
 
 			// Check each bit of the interrupt flag to see if an interrupt
 			// happened, and each bit of the interrupt enable flag to check if

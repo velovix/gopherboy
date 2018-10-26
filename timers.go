@@ -34,10 +34,10 @@ type timers struct {
 
 func newTimers(env *environment) timers {
 	return timers{
-		divider: &env.mem[dividerAddr],
-		tima:    &env.mem[timaAddr],
-		tma:     &env.mem[tmaAddr],
-		tac:     &env.mem[tacAddr],
+		divider: env.mbc.pointerTo(dividerAddr),
+		tima:    env.mbc.pointerTo(timaAddr),
+		tma:     env.mbc.pointerTo(tmaAddr),
+		tac:     env.mbc.pointerTo(tacAddr),
 		env:     env,
 	}
 }
@@ -63,7 +63,7 @@ func (t *timers) tick(amount int) {
 			*t.tima++
 			if *t.tima == 0 {
 				// Flag a TIMA overflow interrupt
-				t.env.mem[ifAddr] |= 0x04
+				t.env.mbc.set(ifAddr, t.env.mbc.at(ifAddr)|0x04)
 				// Start back up at the specified modulo value
 				*t.tima = *t.tma
 			}

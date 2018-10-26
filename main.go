@@ -1,8 +1,10 @@
+// Package main is a Game Boy emulator.
 package main
 
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
 )
@@ -15,19 +17,30 @@ func main() {
 		os.Exit(1)
 	}
 
-	env := newEnvironment()
+	// Load the ROM file
+	cartridgeData, err := ioutil.ReadFile(flag.Args()[0])
+	if err != nil {
+		fmt.Println("Error: While reading cartridge:", err)
+		os.Exit(1)
+	}
 
-	// Load up the ROM
-	romFile, err := os.Open(flag.Args()[0])
-	if err != nil {
-		fmt.Println("Error while opening ROM file:", err)
+	// Load the header
+	header := loadROMHeader(cartridgeData)
+	fmt.Println(header)
+
+	// Create a memory bank controller for this ROM
+	var mbc mbc
+	switch header.cartridgeType {
+	case romOnlyCartridgeType:
+		mbc = newROMOnlyMBC(cartridgeData)
+	case mbc1CartridgeType:
+		mbc = newMBC1(cartridgeData)
+	default:
+		fmt.Println("Error: Unknown cartridge type", header.cartridgeType)
 		os.Exit(1)
 	}
-	err = loadROM(env, romFile)
-	if err != nil {
-		fmt.Println("Error while reading ROM:", err)
-		os.Exit(1)
-	}
+
+	env := newEnvironment(mbc)
 
 	// Start the display controller
 	vc, err := newVideoController(env)
@@ -40,25 +53,7 @@ func main() {
 	// Memory dump on SIGINT
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
-	go func() {
-		for range sigint {
-			fmt.Println("\n\nSIGINT captured, dumping memory")
-
-			dump, err := os.Create("memory.dump")
-			if err != nil {
-				fmt.Println("while creating dump file: %v", err)
-				os.Exit(1)
-			}
-			defer dump.Close()
-
-			dump.Write(env.mem)
-			fmt.Println("Done dumping (tee hee!)")
-
-			break
-		}
-
-		os.Exit(1)
-	}()
+	go dumpOnSigint(env, sigint)
 
 	// Start running
 	err = startMainLoop(env, &vc)
@@ -66,4 +61,27 @@ func main() {
 		fmt.Println("Error while running ROM:", err)
 		os.Exit(1)
 	}
+}
+
+// dumpOnSigint dumps the current memory to "memory.dump" when something is
+// received on the notifier channel.
+func dumpOnSigint(env *environment, notifier chan os.Signal) {
+	for range notifier {
+		fmt.Println("\n\nSIGINT captured, dumping memory")
+
+		dump, err := os.Create("memory.dump")
+		if err != nil {
+			fmt.Println("Error while creating dump file: %v", err)
+			os.Exit(1)
+		}
+		defer dump.Close()
+
+		dump.Write(env.mbc.dump())
+		fmt.Println("Done dumping (tee hee!)")
+
+		break
+	}
+
+	os.Exit(1)
+
 }

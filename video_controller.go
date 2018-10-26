@@ -60,17 +60,17 @@ func (vc *videoController) update() {
 	vc.renderer.SetDrawColor(255, 255, 255, 255)
 	vc.renderer.Clear()
 
-	lcdc := parseLCDC(vc.env.mem[lcdcAddr])
+	lcdc := parseLCDC(vc.env.mbc.at(lcdcAddr))
 
 	// Get the values of the memory registers that control the background
 	// position
-	scrollX := asSigned(vc.env.mem[scrollXAddr])
-	scrollY := asSigned(vc.env.mem[scrollYAddr])
+	scrollX := asSigned(vc.env.mbc.at(scrollXAddr))
+	scrollY := asSigned(vc.env.mbc.at(scrollYAddr))
 
 	for y := uint16(0); y < 32; y++ {
 		for x := uint16(0); x < 32; x++ {
 			tileAddr := lcdc.bgTileMapAddr + (y*32 + x)
-			tile := vc.env.mem[tileAddr]
+			tile := vc.env.mbc.at(tileAddr)
 			tileX := int(x*bgTileWidth) - int(scrollX)
 			tileY := int(y*bgTileHeight) - int(scrollY)
 			vc.drawTile(lcdc, tile, tileX, tileY)
@@ -93,7 +93,7 @@ func (vc *videoController) drawTile(lcdc lcdcConfig, tile uint8, tileX, tileY in
 		panic(fmt.Sprintf("unknown tile data table %#x", tileDataAddr))
 	}
 
-	tileData := vc.env.mem[tileDataAddr : tileDataAddr+tileBytes]
+	tileData := vc.env.mbc.atRange(tileDataAddr, tileDataAddr+tileBytes)
 
 	// Draw the tile on-screen
 	for y := 0; y < bgTileHeight; y++ {
@@ -150,18 +150,8 @@ func (vc *videoController) destroy() {
 
 const (
 	_ uint16 = 0x0000
-	// Memory addresses for the two available tile data tables.
-	// Note that this data table actually starts at 0x8800, but tile values
-	// that reference this table can be negative, allowing them to access the
-	// data before this address.
-	tileDataTable0 = 0x8800
-	tileDataTable1 = 0x8000
 
-	// Memory addresses for the two available tile maps.
-	tileMap0 = 0x9800
-	tileMap1 = 0x9C00
-
-	// tileSize represents the size of tile data in bytes.
+	// tileBytes represents the size of tile data in bytes.
 	tileBytes = 16
 	// bgTileWidth is the width in pixels of a background tile.
 	bgTileWidth = 8

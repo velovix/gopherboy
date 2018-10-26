@@ -70,6 +70,25 @@ const (
 	//   1: Both are on
 	lcdcAddr = 0xFF40
 
+	// This is the last address of ROM bank 0, a bank that always contains the
+	// first 0x3FFF bytes of cartridge data.
+	romBank0End = 0x4000
+	// videoRAMStart is the address where video RAM starts in memory.
+	videoRAMStart = 0x8000
+	// videoRAMEnd is the address where video RAM stops in memory.
+	videoRAMEnd = 0xA000
+
+	// Memory addresses for the two available tile data tables.
+	// Note that this data table actually starts at 0x8800, but tile values
+	// that reference this table can be negative, allowing them to access the
+	// data before this address.
+	tileDataTable0 = 0x8800
+	tileDataTable1 = 0x8000
+
+	// Memory addresses for the two available tile maps.
+	tileMap0 = 0x9800
+	tileMap1 = 0x9C00
+
 	// vblankInterruptTarget points to the location that will be jumped to on a
 	// vblank interrupt.
 	vblankInterruptTarget = 0x0040

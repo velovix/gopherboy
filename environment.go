@@ -1,74 +1,19 @@
 package main
 
-type register interface {
-	// set sets the register's value. If the register is too small for the
-	// value, it will be truncated bit-wise. Returns the set result.
-	set(val uint16) uint16
-	// get returns the register's value.
-	get() uint16
-	// size returns the size in bits of the register.
-	size() int
-}
-
-type register8Bit struct {
-	val uint8
-}
-
-func (reg *register8Bit) set(val uint16) uint16 {
-	reg.val = uint8(val)
-	return reg.get()
-}
-
-func (reg *register8Bit) get() uint16 {
-	return uint16(reg.val)
-}
-
-func (reg *register8Bit) size() int {
-	return 8
-}
-
-type register16Bit struct {
-	val uint16
-}
-
-func (reg *register16Bit) set(val uint16) uint16 {
-	reg.val = val
-	return reg.get()
-}
-
-func (reg *register16Bit) get() uint16 {
-	return reg.val
-}
-
-func (reg *register16Bit) size() int {
-	return 16
-}
-
-type registerCombined struct {
-	first, second register
-}
-
-func (reg *registerCombined) set(val uint16) uint16 {
-	reg.first.set(uint16(uint8(val >> 8)))
-	reg.second.set(uint16(uint8(val)))
-
-	return reg.get()
-}
-
-func (reg *registerCombined) get() uint16 {
-	return (reg.first.get() << 8) |
-		uint16(uint8(reg.second.get()))
-}
-
-func (reg *registerCombined) size() int {
-	return 16
-}
-
+// environment holds the entire state of the Game Boy.
 type environment struct {
 	// A map of register names to their corresponding register.
 	regs map[registerType]register
-	// All memory in the Gameboy
-	mem []uint8
+	// The active memory bank controller.
+	mbc mbc
+	// If this value is >0, it is decremented after every operation. When this
+	// timer decrements to 0, interrupts are enabled. This is used to emulate
+	// the EI instruction's delayed effects.
+	enableInterruptsTimer int
+	// If this value is >0, it is decremented after every operation. When this
+	// timer decrements to 0, interrupts are disabled. This is used to emulate
+	// the DI instruction's delayed effects.
+	disableInterruptsTimer int
 	// The master interrupt switch. If this is false, no interrupts will be
 	// processed.
 	interruptsEnabled bool
@@ -77,10 +22,12 @@ type environment struct {
 	waitingForInterrupts bool
 }
 
-func newEnvironment() *environment {
+// newEnvironment creates a new Game Boy environment with special memory
+// addresses initialized in accordance with the Game Boy's start up sequence.
+func newEnvironment(mbc mbc) *environment {
 	env := &environment{
 		regs: make(map[registerType]register),
-		mem:  make([]uint8, 0x10000),
+		mbc:  mbc,
 	}
 
 	env.regs[regA] = &register8Bit{0}
@@ -110,6 +57,8 @@ func newEnvironment() *environment {
 	env.regs[regPC] = &register16Bit{0}
 
 	// Set registers to their initial value
+	// 0x100 is the designated entry point of a Gameboy ROM
+	env.regs[regPC].set(0x100)
 	// This value depends on the system being emulated.
 	// GB/SGB: 0x01 | GBP: 0xFF | CGB: 0x11
 	env.regs[regAF].set(0x01)
@@ -123,23 +72,19 @@ func newEnvironment() *environment {
 
 	// Set memory addresses
 	// Set the timer values
-	env.mem[timaAddr] = 0x00
-	env.mem[tmaAddr] = 0x00
-	env.mem[tacAddr] = 0x00
-	env.mem[ieAddr] = 0x00
+	env.mbc.set(timaAddr, 0x00)
+	env.mbc.set(tmaAddr, 0x00)
+	env.mbc.set(tacAddr, 0x00)
+	env.mbc.set(ieAddr, 0x00)
 	// TODO(velovix): Set even more memory addresses
 
 	return env
 }
 
-func (env *environment) getReg(reg registerType) register {
-	return env.regs[reg]
-}
-
 // incrementPC increments the program counter by 1 and returns the value that
 // was at its previous location.
 func (env *environment) incrementPC() uint8 {
-	poppedVal := env.mem[env.regs[regPC].get()]
+	poppedVal := env.mbc.at(env.regs[regPC].get())
 	env.regs[regPC].set(env.regs[regPC].get() + 1)
 
 	return poppedVal
@@ -148,7 +93,7 @@ func (env *environment) incrementPC() uint8 {
 // popFromStack reads a value from the current stack position and increments
 // the stack pointer.
 func (env *environment) popFromStack() uint8 {
-	val := env.mem[env.regs[regSP].get()]
+	val := env.mbc.at(env.regs[regSP].get())
 
 	env.regs[regSP].set(env.regs[regSP].get() + 1)
 
@@ -168,7 +113,7 @@ func (env *environment) popFromStack16() uint16 {
 func (env *environment) pushToStack(val uint8) {
 	env.regs[regSP].set(env.regs[regSP].get() - 1)
 
-	env.mem[env.regs[regSP].get()] = val
+	env.mbc.set(env.regs[regSP].get(), val)
 }
 
 // pushToStack16 pushes a 16-bit value to the stack, decrementing the stack
@@ -256,28 +201,6 @@ func (env *environment) setCarryFlag(on bool) {
 		env.regs[regF].set(env.regs[regF].get() & ^mask)
 	}
 }
-
-type registerType string
-
-const (
-	_    registerType = ""
-	regA              = "A"
-	regB              = "B"
-	regC              = "C"
-	regD              = "D"
-	regE              = "E"
-	regH              = "H"
-	regL              = "L"
-
-	regAF = "AF"
-	regBC = "BC"
-	regDE = "DE"
-	regHL = "HL"
-
-	regSP = "SP"
-	regF  = "F"
-	regPC = "PC"
-)
 
 // flagMask is a bit mask that can be applied to the flag register to check the
 // flag's value.
