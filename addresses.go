@@ -69,6 +69,48 @@ const (
 	//   0: Both are off
 	//   1: Both are on
 	lcdcAddr = 0xFF40
+	// bgpAddr points to the BGP memory register, which controls the
+	// background and window palette. This register maps dot data to actual
+	// colors.
+	//
+	// Colors go from 0b11 to 0b00, where 0b11 is the darkest and 0b00 is the
+	// lightest.
+	//
+	// Bits 7-6: The color for dot data 0b11
+	// Bits 5-4: The color for dot data 0b10
+	// Bits 3-2: The color for dot data 0b01
+	// Bits 1-0: The color for dot data 0b00
+	bgpAddr = 0xFF47
+	// lyAddr points to the LCD Current Scanline memory register, which
+	// indicates what line of the display is currently being drawn. Starts at 0
+	// and ends at 153.
+	lyAddr = 0xFF44
+	// lycAddr points to the LY Compare memory register. Users can write a
+	// value to this register. When the LY memory register value is the same as
+	// this register's value, an interrupt can be generated.
+	lycAddr = 0xFF45
+	// statAddr points to the STAT memory register. This register is used to
+	// check the status of the LCD and to configure LCD-related interrupts.
+	//
+	// Bit 7: Unused, always 1 (read-only)
+	// Bit 6: If 1, an interrupt will be triggered when the LY register equals
+	//        the LYC register
+	// Bit 5: If 1, the LCDC interrupt will be triggered when the video
+	//        controller enters mode 2.
+	// Bit 4: If 1, the LCDC interrupt will be triggered when the video
+	//        controller enters mode 1.
+	// Bit 3: If 1, the LCDC interrupt will be triggered when the video
+	//        controller enters mode 0.
+	// Bit 2: Set to 1 if the LY memory register value is the same as the LYC
+	//        memory register value. (read-only)
+	// Bit 1-0: The current mode as a 2-bit number.
+	//     Mode 0: We're in an HBlank period
+	//     Mode 1: We're in a VBlank period
+	//     Mode 2: Controller is reading from OAM RAM. OAM cannot be written
+	//             to.
+	//     Mode 3: Controller is transferring data from OAM and VRAM. OAM and
+	//             VRAM cannot be written to.
+	statAddr = 0xFF41
 
 	// This is the last address of ROM bank 0, a bank that always contains the
 	// first 0x3FFF bytes of cartridge data.

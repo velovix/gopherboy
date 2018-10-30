@@ -1,8 +1,12 @@
 package main
 
+import "fmt"
+
 // nop does nothing.
 func nop(env *environment) int {
-	//fmt.Printf("NOP\n")
+	if printInstructions {
+		fmt.Printf("NOP\n")
+	}
 	return 4
 }
 
@@ -11,7 +15,9 @@ func nop(env *environment) int {
 func di(env *environment) int {
 	env.disableInterruptsTimer = 2
 
-	//fmt.Printf("DI\n")
+	if printInstructions {
+		fmt.Printf("DI\n")
+	}
 	return 4
 }
 
@@ -21,7 +27,9 @@ func di(env *environment) int {
 func ei(env *environment) int {
 	env.enableInterruptsTimer = 2
 
-	//fmt.Printf("EI\n")
+	if printInstructions {
+		fmt.Printf("EI\n")
+	}
 	return 4
 }
 
@@ -29,7 +37,9 @@ func ei(env *environment) int {
 func halt(env *environment) int {
 	env.waitingForInterrupts = true
 
-	//fmt.Printf("HALT\n")
+	if printInstructions {
+		fmt.Printf("HALT\n")
+	}
 	return 4
 }
 
@@ -41,6 +51,9 @@ func cpl(env *environment) int {
 	env.setHalfCarryFlag(true)
 	env.setSubtractFlag(true)
 
+	if printInstructions {
+		fmt.Printf("CPL\n")
+	}
 	return 4
 }
 
@@ -51,6 +64,9 @@ func ccf(env *environment) int {
 	env.setHalfCarryFlag(false)
 	env.setSubtractFlag(false)
 
+	if printInstructions {
+		fmt.Printf("CCF\n")
+	}
 	return 4
 }
 
@@ -60,5 +76,8 @@ func scf(env *environment) int {
 	env.setHalfCarryFlag(false)
 	env.setSubtractFlag(false)
 
+	if printInstructions {
+		fmt.Printf("SCF\n")
+	}
 	return 4
 }

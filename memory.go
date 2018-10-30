@@ -1,10 +1,13 @@
 package main
 
-type mbc interface {
+import "fmt"
+
+// mmu describes the interface a memory management unit provides. A memory
+// management unit provides access to the memory. Reading or writing to memory
+// may have special effects depending on the memory bank controller being used.
+type mmu interface {
 	// at returns the value found at the given address.
 	at(addr uint16) uint8
-	// atRange returns a slice of values found in the range [start:end).
-	atRange(start, end uint16) []uint8
 	// set sets the value at the given address to the given value.
 	set(addr uint16, val uint8)
 	// pointerTo returns a pointer to the place in memory specified by the
@@ -15,14 +18,14 @@ type mbc interface {
 	dump() []byte
 }
 
-// romOnlyMBC isn't actually a memory bank controller. It's for games that only
-// use bank 0 of ROM with no actual MBC of their own.
-type romOnlyMBC struct {
+// romOnly is a simple memory management unit for games that only use bank 0 of
+// ROM with no additional ROMs or special devices.
+type romOnly struct {
 	mem []uint8
 }
 
-func newROMOnlyMBC(cartridgeData []byte) romOnlyMBC {
-	m := romOnlyMBC{
+func newROMOnly(cartridgeData []byte) romOnly {
+	m := romOnly{
 		mem: make([]uint8, 0x10000),
 	}
 
@@ -34,26 +37,22 @@ func newROMOnlyMBC(cartridgeData []byte) romOnlyMBC {
 	return m
 }
 
-func (m romOnlyMBC) at(addr uint16) uint8 {
+func (m romOnly) at(addr uint16) uint8 {
 	return m.mem[addr]
 }
 
-func (m romOnlyMBC) atRange(start, end uint16) []uint8 {
-	return m.mem[start:end]
-}
-
-func (m romOnlyMBC) set(addr uint16, val uint8) {
+func (m romOnly) set(addr uint16, val uint8) {
 	if addr <= romBank0End {
 		panic("Attempt to write to ROM space")
 	}
 	m.mem[addr] = val
 }
 
-func (m romOnlyMBC) pointerTo(addr uint16) *uint8 {
+func (m romOnly) pointerTo(addr uint16) *uint8 {
 	return &m.mem[addr]
 }
 
-func (m romOnlyMBC) dump() []byte {
+func (m romOnly) dump() []byte {
 	output := make([]byte, len(m.mem))
 	copy(output, m.mem)
 	return output
@@ -77,6 +76,12 @@ type mbc1 struct {
 	ramBank int
 	// True if RAM turned on.
 	ramEnabled bool
+	// Controls how any bits written to 0x4000-0x6000 are interpreted. If this
+	// value is 0, they are interpreted as the upper bits of the ROM bank
+	// selection, where the lower bits are whatever is written to
+	// 0x4000-0x8000. If this value is 1, they are interpreted as the RAM bank
+	// selection.
+	bankSelectionMode uint8
 	// The full cartridge dump. Consulted for when bank switching occurs.
 	cartridgeData []byte
 }
@@ -114,29 +119,16 @@ func (m *mbc1) at(addr uint16) uint8 {
 	}
 }
 
-func (m *mbc1) atRange(start, end uint16) []uint8 {
-	if start < romBank0End && end >= romBank0End ||
-		start < videoRAMStart && end >= videoRAMStart {
-		panic("crossing RAM boundaries in atRange is not yet supported")
-	}
-	if start < romBank0End {
-		return m.romBank0[start:end]
-	} else if start >= romBank0End && start < videoRAMStart {
-		if m.romBankX == nil {
-			// TODO(velovix): Is this actually illegal? If not, what is the
-			// default bank?
-			panic("attempt to access ROM bank area with no bank selected")
-		} else {
-			return m.romBankX[start-romBank0End : end-romBank0End]
-		}
-	} else {
-		return m.systemMem[start-videoRAMStart : end-videoRAMStart]
-	}
-}
-
 func (m *mbc1) set(addr uint16, val uint8) {
 	if addr < 0x2000 {
-		panic("Turning RAM on is not supported")
+		lower, _ := split(val)
+		if lower == 0x0A {
+			fmt.Printf("RAM enabled: %#x\n", val)
+			m.ramEnabled = true
+		} else {
+			fmt.Printf("RAM disabled: %#x\n", val)
+			m.ramEnabled = false
+		}
 	} else if addr >= 0x2000 && addr < 0x4000 {
 		// Switch banks
 		if val == 0x0 {
@@ -149,15 +141,19 @@ func (m *mbc1) set(addr uint16, val uint8) {
 			val++
 		}
 
+		fmt.Println("Switching to ROM bank", val)
 		bankStart := mbc1BankBytes * int(val)
 		m.romBankX = m.cartridgeData[bankStart : bankStart+mbc1BankBytes]
 	} else if addr >= 0x4000 && addr < 0x6000 {
-		// TODO(velovix): Figure out in what order the upper and lower bits of
-		// the ROM bank selection are supposed to be written
-		panic("Selecting RAM banks and selecting ROM banks higher than 31 " +
-			"is not supported")
+		bank := val & 0x03
+		if m.bankSelectionMode == 1 {
+			fmt.Println("Switching to RAM bank", bank)
+		} else {
+			panic("Switching ROM banks with upper bits is not yet supported")
+		}
 	} else if addr >= 0x6000 && addr < 0x8000 {
-		panic("RAM bank switching is not supported, so it can't be turned on")
+		// Switch bank selection modes
+		m.bankSelectionMode = val & 0x01
 	} else {
 		// Set some in-memory register value or whatever
 		m.systemMem[addr-videoRAMStart] = val
@@ -168,7 +164,13 @@ func (m *mbc1) pointerTo(addr uint16) *uint8 {
 	if addr < romBank0End {
 		return &m.romBank0[addr]
 	} else if addr >= romBank0End && addr < videoRAMStart {
-		return &m.romBankX[addr-romBank0End]
+		if m.romBankX == nil {
+			// TODO(velovix): Is this actually illegal? If not, what is the
+			// default bank?
+			panic("attempt to access ROM bank area with no bank selected")
+		} else {
+			return &m.romBankX[addr-romBank0End]
+		}
 	} else {
 		return &m.systemMem[addr-videoRAMStart]
 	}

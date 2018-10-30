@@ -1,17 +1,7 @@
 package main
 
-import (
-	"fmt"
-	"time"
-)
-
 // startMainLoop starts the main processing loop of the Gameboy.
-func startMainLoop(env *environment, vc *videoController) error {
-	timers := newTimers(env)
-
-	lastSecond := time.Now()
-	frameCnt := 0
-
+func startMainLoop(env *environment, vc *videoController, timers *timers) error {
 	for {
 		var err error
 
@@ -44,50 +34,41 @@ func startMainLoop(env *environment, vc *videoController) error {
 		}
 
 		timers.tick(opTime)
-
-		if vc.shouldRedraw(timers) {
-			vc.update()
-			frameCnt++
-			if time.Since(lastSecond) >= time.Second {
-				fmt.Println("FPS:", frameCnt)
-				lastSecond = time.Now()
-				frameCnt = 0
-			}
-		}
+		vc.tick(opTime)
 
 		// TODO(velovix): Should interrupt flags be unset here if the interrupt
 		// is disabled?
 
 		// Check if any interrupts need to be processed
-		if env.interruptsEnabled && env.mbc.at(ifAddr) != 0 {
+		if env.interruptsEnabled && env.mmu.at(ifAddr) != 0 {
 			var target uint16
 
-			interruptEnable := env.mbc.at(ieAddr)
-			interruptFlag := env.mbc.at(ifAddr)
+			interruptEnable := env.mmu.at(ieAddr)
+			interruptFlag := env.mmu.pointerTo(ifAddr)
 
 			// Check each bit of the interrupt flag to see if an interrupt
 			// happened, and each bit of the interrupt enable flag to check if
 			// we should process it. Then, reset the interrupt flag.
-			if interruptEnable&interruptFlag&0x01 == 0x01 {
+			if interruptEnable&*interruptFlag&0x01 == 0x01 {
 				// VBlank interrupt
 				target = vblankInterruptTarget
-				interruptFlag &= ^uint8(0x01)
-			} else if interruptEnable&interruptFlag&0x02 == 0x02 {
+				*interruptFlag &= ^uint8(0x01)
+			} else if interruptEnable&*interruptFlag&0x02 == 0x02 {
 				// LCDC interrupt
 				target = lcdcInterruptTarget
-				interruptFlag &= ^uint8(0x02)
-			} else if interruptEnable&interruptFlag&0x04 == 0x04 {
+				*interruptFlag &= ^uint8(0x02)
+			} else if interruptEnable&*interruptFlag&0x04 == 0x04 {
 				// TIMA overflow interrupt
 				target = timaOverflowInterruptTarget
-				interruptFlag &= ^uint8(0x04)
-			} else if interruptEnable&interruptFlag&0x08 == 0x08 {
+				*interruptFlag &= ^uint8(0x04)
+			} else if interruptEnable&*interruptFlag&0x08 == 0x08 {
 				// Serial interrupt
 				target = serialInterruptTarget
-				interruptFlag &= ^uint8(0x08)
-			} else if interruptEnable&interruptFlag&0x10 == 0x10 {
+				*interruptFlag &= ^uint8(0x08)
+			} else if interruptEnable&*interruptFlag&0x10 == 0x10 {
 				// P1 thru P4 interrupt
 				target = p1Thru4InterruptTarget
-				interruptFlag &= ^uint8(0x10)
+				*interruptFlag &= ^uint8(0x10)
 			}
 
 			if target != 0 {

@@ -9,6 +9,10 @@ import (
 	"os/signal"
 )
 
+// printInstructions controls whether or not instructions are printed. This is
+// useful for debugging but slows emulation to a crawl.
+const printInstructions = false
+
 func main() {
 	flag.Parse()
 
@@ -29,21 +33,24 @@ func main() {
 	fmt.Println(header)
 
 	// Create a memory bank controller for this ROM
-	var mbc mbc
+	var mmu mmu
 	switch header.cartridgeType {
 	case romOnlyCartridgeType:
-		mbc = newROMOnlyMBC(cartridgeData)
+		mmu = newROMOnly(cartridgeData)
 	case mbc1CartridgeType:
-		mbc = newMBC1(cartridgeData)
+		mmu = newMBC1(cartridgeData)
 	default:
 		fmt.Println("Error: Unknown cartridge type", header.cartridgeType)
 		os.Exit(1)
 	}
 
-	env := newEnvironment(mbc)
+	env := newEnvironment(mmu)
+
+	// Start the timers
+	timers := newTimers(env)
 
 	// Start the display controller
-	vc, err := newVideoController(env)
+	vc, err := newVideoController(env, timers)
 	if err != nil {
 		fmt.Println("Error while creating video controller:", err)
 		os.Exit(1)
@@ -56,7 +63,7 @@ func main() {
 	go dumpOnSigint(env, sigint)
 
 	// Start running
-	err = startMainLoop(env, &vc)
+	err = startMainLoop(env, &vc, timers)
 	if err != nil {
 		fmt.Println("Error while running ROM:", err)
 		os.Exit(1)
@@ -76,7 +83,7 @@ func dumpOnSigint(env *environment, notifier chan os.Signal) {
 		}
 		defer dump.Close()
 
-		dump.Write(env.mbc.dump())
+		dump.Write(env.mmu.dump())
 		fmt.Println("Done dumping (tee hee!)")
 
 		break

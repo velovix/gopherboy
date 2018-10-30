@@ -32,12 +32,12 @@ type timers struct {
 	env *environment
 }
 
-func newTimers(env *environment) timers {
-	return timers{
-		divider: env.mbc.pointerTo(dividerAddr),
-		tima:    env.mbc.pointerTo(timaAddr),
-		tma:     env.mbc.pointerTo(tmaAddr),
-		tac:     env.mbc.pointerTo(tacAddr),
+func newTimers(env *environment) *timers {
+	return &timers{
+		divider: env.mmu.pointerTo(dividerAddr),
+		tima:    env.mmu.pointerTo(timaAddr),
+		tma:     env.mmu.pointerTo(tmaAddr),
+		tac:     env.mmu.pointerTo(tacAddr),
 		env:     env,
 	}
 }
@@ -61,9 +61,11 @@ func (t *timers) tick(amount int) {
 		clocksPerTimer := mClockRate / timaRate
 		if timaRunning && t.mClock%clocksPerTimer == 0 {
 			*t.tima++
-			if *t.tima == 0 {
+
+			timaInterruptEnabled := t.env.mmu.at(ieAddr)&0x04 == 0x04
+			if t.env.interruptsEnabled && timaInterruptEnabled && *t.tima == 0 {
 				// Flag a TIMA overflow interrupt
-				t.env.mbc.set(ifAddr, t.env.mbc.at(ifAddr)|0x04)
+				t.env.mmu.set(ifAddr, t.env.mmu.at(ifAddr)|0x04)
 				// Start back up at the specified modulo value
 				*t.tima = *t.tma
 			}

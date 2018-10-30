@@ -6,6 +6,7 @@ gopherboy
 *.gb
 *.inc
 roms/
+docs/
 
 # Ignore memory dumps
 *.dump

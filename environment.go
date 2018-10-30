@@ -4,8 +4,8 @@ package main
 type environment struct {
 	// A map of register names to their corresponding register.
 	regs map[registerType]register
-	// The active memory bank controller.
-	mbc mbc
+	// The active memory management unit.
+	mmu mmu
 	// If this value is >0, it is decremented after every operation. When this
 	// timer decrements to 0, interrupts are enabled. This is used to emulate
 	// the EI instruction's delayed effects.
@@ -24,10 +24,10 @@ type environment struct {
 
 // newEnvironment creates a new Game Boy environment with special memory
 // addresses initialized in accordance with the Game Boy's start up sequence.
-func newEnvironment(mbc mbc) *environment {
+func newEnvironment(mmu mmu) *environment {
 	env := &environment{
 		regs: make(map[registerType]register),
-		mbc:  mbc,
+		mmu:  mmu,
 	}
 
 	env.regs[regA] = &register8Bit{0}
@@ -72,10 +72,12 @@ func newEnvironment(mbc mbc) *environment {
 
 	// Set memory addresses
 	// Set the timer values
-	env.mbc.set(timaAddr, 0x00)
-	env.mbc.set(tmaAddr, 0x00)
-	env.mbc.set(tacAddr, 0x00)
-	env.mbc.set(ieAddr, 0x00)
+	env.mmu.set(timaAddr, 0x00)
+	env.mmu.set(tmaAddr, 0x00)
+	env.mmu.set(tacAddr, 0x00)
+	env.mmu.set(ieAddr, 0x00)
+	// Set the display register defaults
+	env.mmu.set(lcdcAddr, 0x91)
 	// TODO(velovix): Set even more memory addresses
 
 	return env
@@ -84,7 +86,7 @@ func newEnvironment(mbc mbc) *environment {
 // incrementPC increments the program counter by 1 and returns the value that
 // was at its previous location.
 func (env *environment) incrementPC() uint8 {
-	poppedVal := env.mbc.at(env.regs[regPC].get())
+	poppedVal := env.mmu.at(env.regs[regPC].get())
 	env.regs[regPC].set(env.regs[regPC].get() + 1)
 
 	return poppedVal
@@ -93,7 +95,7 @@ func (env *environment) incrementPC() uint8 {
 // popFromStack reads a value from the current stack position and increments
 // the stack pointer.
 func (env *environment) popFromStack() uint8 {
-	val := env.mbc.at(env.regs[regSP].get())
+	val := env.mmu.at(env.regs[regSP].get())
 
 	env.regs[regSP].set(env.regs[regSP].get() + 1)
 
@@ -113,7 +115,7 @@ func (env *environment) popFromStack16() uint16 {
 func (env *environment) pushToStack(val uint8) {
 	env.regs[regSP].set(env.regs[regSP].get() - 1)
 
-	env.mbc.set(env.regs[regSP].get(), val)
+	env.mmu.set(env.regs[regSP].get(), val)
 }
 
 // pushToStack16 pushes a 16-bit value to the stack, decrementing the stack
