@@ -12,10 +12,6 @@ func runOpcode(env *environment, opcode uint8) (cycles int, err error) {
 	lowerNibble, upperNibble := split(opcode)
 
 	if printInstructions {
-		fmt.Printf("BC: %#x | ", env.regs16[regBC].get())
-		fmt.Printf("AF: %#x | ", env.regs16[regAF].get())
-		fmt.Printf("DE: %#x | ", env.regs16[regDE].get())
-		fmt.Printf("SP: %#x | ", env.regs16[regSP].get())
 		fmt.Printf("%#x: ", opcode)
 	}
 

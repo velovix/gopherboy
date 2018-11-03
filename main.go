@@ -9,12 +9,27 @@ import (
 	"os/signal"
 )
 
-// printInstructions controls whether or not instructions are printed. This is
-// useful for debugging but slows emulation to a crawl.
-const printInstructions = false
+var (
+	// printInstructions controls whether or not instructions are printed. This is
+	// useful for debugging but slows emulation to a crawl.
+	printInstructions = false
+	// breakOpcode selects an opcode to break at, if any.
+	breakOpcode *uint8 = nil
+)
 
 func main() {
+	debug := flag.Bool("debug", false, "Start in debug mode")
+	breakAt := flag.Int("break-at", -1, "An opcode to break at")
+
 	flag.Parse()
+
+	if *debug {
+		printInstructions = true
+	}
+	if *breakAt != -1 {
+		op := uint8(*breakAt)
+		breakOpcode = &op
+	}
 
 	if len(flag.Args()) < 1 {
 		fmt.Println("Usage: gopherboy [OPTIONS] rom_file")

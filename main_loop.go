@@ -1,7 +1,15 @@
 package main
 
+import (
+	"bufio"
+	"fmt"
+	"os"
+)
+
 // startMainLoop starts the main processing loop of the Gameboy.
 func startMainLoop(env *environment, vc *videoController, timers *timers) error {
+	stepping := false
+
 	for {
 		var err error
 
@@ -11,11 +19,56 @@ func startMainLoop(env *environment, vc *videoController, timers *timers) error 
 			opTime = 4
 		} else {
 			// Fetch and run an operation
-			opcode := env.incrementPC()
+			opcode := env.incrementNextPCVal()
+
+			if (breakOpcode != nil && opcode == *breakOpcode) || stepping {
+				fmt.Printf("BREAK: %#02x\n", opcode)
+				fmt.Printf("   A:   %#02x |  B:   %#02x\n",
+					env.regs8[regA].get(),
+					env.regs8[regB].get())
+				fmt.Printf("   C:   %#02x |  D:   %#02x\n",
+					env.regs8[regC].get(),
+					env.regs8[regD].get())
+				fmt.Printf("   E:   %#02x |  H:   %#02x\n",
+					env.regs8[regE].get(),
+					env.regs8[regH].get())
+				fmt.Printf("   L:   %#02x |  F:   %#02x\n",
+					env.regs8[regL].get(),
+					env.regs8[regF].get())
+				fmt.Printf("  AF: %#04x | BC: %#04x\n",
+					env.regs16[regAF].get(),
+					env.regs16[regBC].get())
+				fmt.Printf("  DE: %#04x | HL: %#04x\n",
+					env.regs16[regDE].get(),
+					env.regs16[regHL].get())
+				fmt.Printf("  SP: %#04x | PC: %#04x\n",
+					env.regs16[regSP].get(),
+					env.regs16[regPC].get())
+
+				reader := bufio.NewReader(os.Stdin)
+				for {
+					fmt.Print("Now what? ")
+					command, _ := reader.ReadString('\n')
+					if command == "c\n" {
+						fmt.Println("Continuing")
+						stepping = false
+						break
+					} else if command == "n\n" {
+						fmt.Println("Stepping")
+						stepping = true
+						break
+					} else {
+						fmt.Printf("Unknown command '%v'\n", command)
+						continue
+					}
+				}
+			}
+
 			opTime, err = runOpcode(env, opcode)
 			if err != nil {
 				return err
 			}
+			env.updatePC()
 		}
 
 		// Process any delayed requests to toggle the master interrupt switch.
