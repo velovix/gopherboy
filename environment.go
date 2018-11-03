@@ -3,7 +3,7 @@ package main
 // environment holds the entire state of the Game Boy.
 type environment struct {
 	// A map of 8-bit register names to their corresponding register.
-	regs8 map[registerType]*register8
+	regs8 map[registerType]register8
 	// A map of 16-bit register names to their corresponding register.
 	regs16 map[registerType]register16
 	// The active memory management unit.
@@ -28,20 +28,20 @@ type environment struct {
 // addresses initialized in accordance with the Game Boy's start up sequence.
 func newEnvironment(mmu mmu) *environment {
 	env := &environment{
-		regs8:  make(map[registerType]*register8),
+		regs8:  make(map[registerType]register8),
 		regs16: make(map[registerType]register16),
 		mmu:    mmu,
 	}
 
-	env.regs8[regA] = &register8{0}
-	env.regs8[regB] = &register8{0}
-	env.regs8[regC] = &register8{0}
-	env.regs8[regD] = &register8{0}
-	env.regs8[regE] = &register8{0}
-	env.regs8[regH] = &register8{0}
-	env.regs8[regL] = &register8{0}
+	env.regs8[regA] = &normalRegister8{0}
+	env.regs8[regB] = &normalRegister8{0}
+	env.regs8[regC] = &normalRegister8{0}
+	env.regs8[regD] = &normalRegister8{0}
+	env.regs8[regE] = &normalRegister8{0}
+	env.regs8[regH] = &normalRegister8{0}
+	env.regs8[regL] = &normalRegister8{0}
 
-	env.regs8[regF] = &register8{0}
+	env.regs8[regF] = &flagRegister8{0}
 
 	env.regs16[regAF] = &registerCombined{
 		first:  env.regs8[regA],

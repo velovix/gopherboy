@@ -1,17 +1,42 @@
 package main
 
-// register8 represents a normal 8-bit register. Registers A, B, C, D, E, H, L,
-// and F are all of this type.
-type register8 struct {
+// register8 represents an 8-bit register. Registers A, B, C, D, E, H, L, and F
+// are all of this type.
+type register8 interface {
+	set(val uint8) uint8
+	get() uint8
+}
+
+// normalRegister8 is a regular 8-bit register. It stores 8-bit values with no
+// other special behavior.
+type normalRegister8 struct {
 	val uint8
 }
 
-func (reg *register8) set(val uint8) uint8 {
+func (reg *normalRegister8) set(val uint8) uint8 {
 	reg.val = val
 	return reg.get()
 }
 
-func (reg *register8) get() uint8 {
+func (reg *normalRegister8) get() uint8 {
+	return reg.val
+}
+
+// flagRegister8 is the 8-bit flag register. It is distinct from a normal 8-bit
+// register because bits 3 through 0 are always zero. Any attempts to write to
+// these bits will be ignored
+type flagRegister8 struct {
+	val uint8
+}
+
+func (reg *flagRegister8) set(val uint8) uint8 {
+	// Mask away unused bits
+	val &= 0xF0
+	reg.val = val
+	return reg.get()
+}
+
+func (reg *flagRegister8) get() uint8 {
 	return reg.val
 }
 
@@ -41,7 +66,7 @@ func (reg *normalRegister16) get() uint16 {
 // registerCombined represents a 16-bit register backed by two 8-bit registers.
 // Writes to this register are reflected in the two registers it is backed by.
 type registerCombined struct {
-	first, second *register8
+	first, second register8
 }
 
 func (reg *registerCombined) set(val uint16) uint16 {

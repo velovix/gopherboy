@@ -35,15 +35,12 @@ func startMainLoop(env *environment, vc *videoController, timers *timers) error 
 				fmt.Printf("   L:   %#02x |  F:   %#02x\n",
 					env.regs8[regL].get(),
 					env.regs8[regF].get())
-				fmt.Printf("  AF: %#04x | BC: %#04x\n",
-					env.regs16[regAF].get(),
-					env.regs16[regBC].get())
-				fmt.Printf("  DE: %#04x | HL: %#04x\n",
-					env.regs16[regDE].get(),
-					env.regs16[regHL].get())
-				fmt.Printf("  SP: %#04x | PC: %#04x\n",
-					env.regs16[regSP].get(),
-					env.regs16[regPC].get())
+				fmt.Printf("  AF: %#04x\n", env.regs16[regAF].get())
+				fmt.Printf("  BC: %#04x\n", env.regs16[regBC].get())
+				fmt.Printf("  DE: %#04x\n", env.regs16[regDE].get())
+				fmt.Printf("  HL: %#04x\n", env.regs16[regHL].get())
+				fmt.Printf("  SP: %#04x\n", env.regs16[regSP].get())
+				fmt.Printf("  PC: %#04x\n", env.regs16[regPC].get()-1) // We've already incremented once to find the instruction
 
 				reader := bufio.NewReader(os.Stdin)
 				for {
