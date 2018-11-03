@@ -18,34 +18,23 @@ type timers struct {
 	mClock int
 	// A clock that increments every 64 clock cycles. Available as a register
 	// in memory.
-	divider *uint8
+	divider uint8
 	// A configurable timer, also known as the "counter" but technically
 	// referred to as the TIMA. Available as a register in memory.
-	tima *uint8
-	// The value that the TIMA should start back at after overflowing. Also
-	// known as the "modulo". Can be written by the user in memory.
-	tma *uint8
-	// A memory register used to control various aspects of the TIMA. Also
-	// known as "control".
-	tac *uint8
+	tima uint8
 
 	env *environment
 }
 
 func newTimers(env *environment) *timers {
-	return &timers{
-		divider: env.mmu.pointerTo(dividerAddr),
-		tima:    env.mmu.pointerTo(timaAddr),
-		tma:     env.mmu.pointerTo(tmaAddr),
-		tac:     env.mmu.pointerTo(tacAddr),
-		env:     env,
-	}
+	return &timers{env: env}
 }
 
 // tick increments the timers given the amount of cycles that have passed since
 // the last call to tick. Flags interrupts as needed.
 func (t *timers) tick(amount int) {
-	timaRate, timaRunning := parseTAC(*t.tac)
+	tac := t.env.mmu.at(tacAddr)
+	timaRate, timaRunning := parseTAC(tac)
 
 	// Increment the clock
 	for i := 0; i < amount; i += 4 {
@@ -54,22 +43,26 @@ func (t *timers) tick(amount int) {
 			t.mClock = 0
 		}
 		if t.mClock%64 == 0 {
-			*t.divider++
+			t.divider++
 		}
 		// Finds how many m-clock increments should happen before a
 		// TIMA increment should happen.
 		clocksPerTimer := mClockRate / timaRate
 		if timaRunning && t.mClock%clocksPerTimer == 0 {
-			*t.tima++
+			t.tima++
 
 			timaInterruptEnabled := t.env.mmu.at(ieAddr)&0x04 == 0x04
-			if t.env.interruptsEnabled && timaInterruptEnabled && *t.tima == 0 {
+			if t.env.interruptsEnabled && timaInterruptEnabled && t.tima == 0 {
 				// Flag a TIMA overflow interrupt
 				t.env.mmu.set(ifAddr, t.env.mmu.at(ifAddr)|0x04)
 				// Start back up at the specified modulo value
-				*t.tima = *t.tma
+				t.tima = t.env.mmu.at(tmaAddr)
 			}
 		}
+
+		// Update the timers in memory
+		t.env.mmu.set(dividerAddr, t.divider)
+		t.env.mmu.set(timaAddr, t.tima)
 	}
 
 }

@@ -5,7 +5,7 @@ import "fmt"
 // call loads a 16-bit address, pushes the address of the next instruction onto
 // the stack, and jumps to the loaded address.
 func call(env *environment) int {
-	address := combine(env.incrementPC(), env.incrementPC())
+	address := combine16(env.incrementPC(), env.incrementPC())
 	env.pushToStack16(env.regs[regPC].get())
 
 	env.regs[regPC].set(address)
@@ -21,15 +21,17 @@ func call(env *environment) int {
 // expected setting.
 func callIfFlag(env *environment, flagMask uint16, isSet bool) int {
 	flagState := env.regs[regF].get()&flagMask == flagMask
-	address := combine(env.incrementPC(), env.incrementPC())
+	address := combine16(env.incrementPC(), env.incrementPC())
 
-	conditional := getConditionalStr(flagMask, isSet)
 	if printInstructions {
+		conditional := getConditionalStr(flagMask, isSet)
 		fmt.Printf("CALL %v,%#x\n", conditional, address)
 	}
+
 	if flagState == isSet {
 		env.pushToStack16(env.regs[regPC].get())
 		env.regs[regPC].set(address)
+
 		return 24
 	} else {
 		return 12
@@ -61,8 +63,8 @@ func retIfFlag(env *environment, flagMask uint16, isSet bool) int {
 		opClocks = 8
 	}
 
-	conditional := getConditionalStr(flagMask, isSet)
 	if printInstructions {
+		conditional := getConditionalStr(flagMask, isSet)
 		fmt.Printf("RET %v\n", conditional)
 	}
 	return opClocks

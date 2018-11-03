@@ -1,8 +1,13 @@
 package main
 
-// combine combines the given upper and lower uint8 values into a single
+// combine combines the given upper and lower nibbles into a single uint8.
+func combine(lower, upper uint8) uint8 {
+	return (upper << 4) | lower
+}
+
+// combine16 combines the given upper and lower uint8 values into a single
 // uint16.
-func combine(lower, upper uint8) uint16 {
+func combine16(lower, upper uint8) uint16 {
 	return (uint16(upper) << 8) | uint16(lower)
 }
 

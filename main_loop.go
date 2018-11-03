@@ -44,32 +44,34 @@ func startMainLoop(env *environment, vc *videoController, timers *timers) error 
 			var target uint16
 
 			interruptEnable := env.mmu.at(ieAddr)
-			interruptFlag := env.mmu.pointerTo(ifAddr)
+			interruptFlag := env.mmu.at(ifAddr)
 
 			// Check each bit of the interrupt flag to see if an interrupt
 			// happened, and each bit of the interrupt enable flag to check if
 			// we should process it. Then, reset the interrupt flag.
-			if interruptEnable&*interruptFlag&0x01 == 0x01 {
+			if interruptEnable&interruptFlag&0x01 == 0x01 {
 				// VBlank interrupt
 				target = vblankInterruptTarget
-				*interruptFlag &= ^uint8(0x01)
-			} else if interruptEnable&*interruptFlag&0x02 == 0x02 {
+				interruptFlag &= ^uint8(0x01)
+			} else if interruptEnable&interruptFlag&0x02 == 0x02 {
 				// LCDC interrupt
 				target = lcdcInterruptTarget
-				*interruptFlag &= ^uint8(0x02)
-			} else if interruptEnable&*interruptFlag&0x04 == 0x04 {
+				interruptFlag &= ^uint8(0x02)
+			} else if interruptEnable&interruptFlag&0x04 == 0x04 {
 				// TIMA overflow interrupt
 				target = timaOverflowInterruptTarget
-				*interruptFlag &= ^uint8(0x04)
-			} else if interruptEnable&*interruptFlag&0x08 == 0x08 {
+				interruptFlag &= ^uint8(0x04)
+			} else if interruptEnable&interruptFlag&0x08 == 0x08 {
 				// Serial interrupt
 				target = serialInterruptTarget
-				*interruptFlag &= ^uint8(0x08)
-			} else if interruptEnable&*interruptFlag&0x10 == 0x10 {
+				interruptFlag &= ^uint8(0x08)
+			} else if interruptEnable&interruptFlag&0x10 == 0x10 {
 				// P1 thru P4 interrupt
 				target = p1Thru4InterruptTarget
-				*interruptFlag &= ^uint8(0x10)
+				interruptFlag &= ^uint8(0x10)
 			}
+
+			env.mmu.set(ifAddr, interruptFlag)
 
 			if target != 0 {
 				// Disable all other interrupts

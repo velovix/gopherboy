@@ -36,7 +36,7 @@ func jrIfFlag(env *environment, flagMask uint16, isSet bool) int {
 
 // jp loads a 16-bit address and jumps to it.
 func jp(env *environment) int {
-	address := combine(env.incrementPC(), env.incrementPC())
+	address := combine16(env.incrementPC(), env.incrementPC())
 	env.regs[regPC].set(address)
 
 	if printInstructions {
@@ -49,7 +49,7 @@ func jp(env *environment) int {
 // expected setting.
 func jpIfFlag(env *environment, flagMask uint16, isSet bool) int {
 	flagState := env.regs[regF].get()&flagMask == flagMask
-	address := combine(env.incrementPC(), env.incrementPC())
+	address := combine16(env.incrementPC(), env.incrementPC())
 
 	if printInstructions {
 		conditional := getConditionalStr(flagMask, isSet)

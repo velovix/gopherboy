@@ -402,6 +402,9 @@ func runOpcode(env *environment, opcode uint8) (cycles int, err error) {
 	// SCF
 	case opcode == 0x37:
 		return scf(env), nil
+	// DAA
+	case opcode == 0x27:
+		return daa(env), nil
 	default:
 		return 0, fmt.Errorf("unknown opcode %#x", opcode)
 	}
@@ -418,6 +421,35 @@ func runCBOpcode(env *environment, opcode uint8) (cycles int, err error) {
 	}
 
 	switch {
+	// RLC r
+	case opcode <= 0x05:
+		return rlc(env, indexToRegister[opcode]), nil
+	// RLC (HL)
+	case opcode == 0x06:
+		return rlcMemHL(env), nil
+	// RLC A
+	case opcode == 0x07:
+		return rlc(env, regA), nil
+	// RRC r
+	case opcode >= 0x08 && opcode <= 0x0D:
+		regIndex := opcode - 0x08
+		return rrc(env, indexToRegister[regIndex]), nil
+	// RRC (HL)
+	case opcode == 0x0E:
+		return rrcMemHL(env), nil
+	// RRC A
+	case opcode == 0x0F:
+		return rrc(env, regA), nil
+	// RL r
+	case opcode >= 0x10 && opcode <= 0x15:
+		regIndex := opcode - 0x10
+		return rl(env, indexToRegister[regIndex]), nil
+	// RL (HL)
+	case opcode == 0x16:
+		return rlMemHL(env), nil
+	// RL A
+	case opcode == 0x17:
+		return rl(env, regA), nil
 	// RR A
 	case opcode == 0x1F:
 		return rr(env, regA), nil
@@ -428,6 +460,35 @@ func runCBOpcode(env *environment, opcode uint8) (cycles int, err error) {
 	case opcode >= 0x18 && opcode <= 0x1D:
 		regIndex := opcode - 0x18
 		return rr(env, indexToRegister[regIndex]), nil
+	// SLA r
+	case opcode >= 0x20 && opcode <= 0x25:
+		regIndex := opcode - 0x20
+		return sla(env, indexToRegister[regIndex]), nil
+	// SLA (HL)
+	case opcode == 0x26:
+		return slaMemHL(env), nil
+	// SLA A
+	case opcode == 0x27:
+		return sla(env, regA), nil
+	// SRA r
+	case opcode >= 0x28 && opcode <= 0x2D:
+		regIndex := opcode - 0x28
+		return sra(env, indexToRegister[regIndex]), nil
+	// SRA (HL)
+	case opcode == 0x2E:
+		return sraMemHL(env), nil
+	// SRA A
+	case opcode == 0x2F:
+		return sra(env, regA), nil
+	// SWAP r
+	case opcode >= 0x30 && opcode <= 0x35:
+		return swap(env, indexToRegister[lowerNibble]), nil
+	// SWAP (HL)
+	case opcode == 0x36:
+		return swapMemHL(env), nil
+	// SWAP A
+	case opcode == 0x37:
+		return swap(env, regA), nil
 	// SRL a
 	case opcode == 0x3F:
 		return srl(env, regA), nil
@@ -438,15 +499,56 @@ func runCBOpcode(env *environment, opcode uint8) (cycles int, err error) {
 	case opcode >= 0x38 && opcode <= 0x3D:
 		regIndex := opcode - 0x38
 		return srl(env, indexToRegister[regIndex]), nil
+	// BIT b,A
+	case upperNibble >= 0x04 && upperNibble <= 0x07 &&
+		lowerNibble == 0x07 || lowerNibble == 0x0F:
+		bitNum := (upperNibble - 0x04) * 2
+		if lowerNibble == 0x0F {
+			bitNum++
+		}
+
+		return bit(env, bitNum, regA), nil
+	// BIT b,(HL)
+	case upperNibble >= 0x04 && upperNibble <= 0x07 &&
+		(lowerNibble == 0x06 || lowerNibble == 0x0E):
+		bitNum := (upperNibble - 0x04) * 2
+		if lowerNibble == 0x0E {
+			bitNum++
+		}
+
+		return bitMemHL(env, bitNum), nil
+	// BIT b,r
+	case upperNibble >= 0x04 && upperNibble <= 0x07 &&
+		((lowerNibble >= 0x00 && lowerNibble <= 0x5) ||
+			(lowerNibble >= 0x07 && lowerNibble <= 0x0D)):
+		regIndex := lowerNibble
+		if lowerNibble >= 0x08 {
+			regIndex -= 0x08
+		}
+
+		bitNum := (upperNibble - 0x08) * 2
+		if lowerNibble >= 0x08 {
+			bitNum++
+		}
+		return bit(env, bitNum, indexToRegister[regIndex]), nil
 	// RES b,A
 	case upperNibble >= 0x08 && upperNibble <= 0x0B &&
-		lowerNibble == 0x07 || lowerNibble == 0x0F:
+		(lowerNibble == 0x07 || lowerNibble == 0x0F):
 		bit := (upperNibble - 0x08) * 2
 		if lowerNibble == 0x0F {
 			bit++
 		}
 
 		return res(env, bit, regA), nil
+	// RES b,(HL)
+	case upperNibble >= 0x08 && upperNibble <= 0x0B &&
+		(lowerNibble == 0x06 || lowerNibble == 0x0E):
+		bitNum := (upperNibble - 0x08) * 2
+		if lowerNibble == 0x0E {
+			bitNum++
+		}
+
+		return resMemHL(env, bitNum), nil
 	// RES b,r
 	case upperNibble >= 0x08 && upperNibble <= 0x0B &&
 		((lowerNibble >= 0x00 && lowerNibble <= 0x5) ||
@@ -461,12 +563,38 @@ func runCBOpcode(env *environment, opcode uint8) (cycles int, err error) {
 			bit++
 		}
 		return res(env, bit, indexToRegister[regIndex]), nil
-	// SWAP A
-	case opcode == 0x37:
-		return swap(env, regA), nil
-	// SWAP r
-	case opcode >= 0x30 && opcode <= 0x35:
-		return swap(env, indexToRegister[lowerNibble]), nil
+	// SET b,A
+	case upperNibble >= 0x0C && upperNibble <= 0x0F &&
+		(lowerNibble == 0x07 || lowerNibble == 0x0F):
+		bit := (upperNibble - 0x0C) * 2
+		if lowerNibble == 0x0F {
+			bit++
+		}
+
+		return set(env, bit, regA), nil
+	// SET b,(HL)
+	case upperNibble >= 0x0C && upperNibble <= 0x0F &&
+		(lowerNibble == 0x06 || lowerNibble == 0x0E):
+		bitNum := (upperNibble - 0x0C) * 2
+		if lowerNibble == 0x0E {
+			bitNum++
+		}
+
+		return setMemHL(env, bitNum), nil
+	// SET b,r
+	case upperNibble >= 0x0C && upperNibble <= 0x0F &&
+		((lowerNibble >= 0x00 && lowerNibble <= 0x5) ||
+			(lowerNibble >= 0x07 && lowerNibble <= 0x0D)):
+		regIndex := lowerNibble
+		if lowerNibble >= 0x08 {
+			regIndex -= 0x08
+		}
+
+		bit := (upperNibble - 0x08) * 2
+		if lowerNibble >= 0x08 {
+			bit++
+		}
+		return set(env, bit, indexToRegister[regIndex]), nil
 	default:
 		return 0, fmt.Errorf("unknown CB-prefixed opcode %#x", opcode)
 	}

@@ -112,9 +112,6 @@ const (
 	//             VRAM cannot be written to.
 	statAddr = 0xFF41
 
-	// This is the last address of ROM bank 0, a bank that always contains the
-	// first 0x3FFF bytes of cartridge data.
-	romBank0End = 0x4000
 	// videoRAMStart is the address where video RAM starts in memory.
 	videoRAMStart = 0x8000
 	// videoRAMEnd is the address where video RAM stops in memory.

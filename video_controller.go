@@ -271,12 +271,14 @@ func (vc *videoController) destroy() {
 // setMode updates the necessary registers to show what mode the video
 // controller is in.
 func (vc *videoController) setMode(mode vcMode) {
-	statReg := vc.env.mmu.pointerTo(statAddr)
+	statVal := vc.env.mmu.at(statAddr)
 
 	// Clear the current mode value
-	*statReg &= 0xFC
+	statVal &= 0xFC
 	// Set the mode
-	*statReg |= uint8(mode)
+	statVal |= uint8(mode)
+
+	vc.env.mmu.set(statAddr, statVal)
 }
 
 const (
@@ -417,36 +419,38 @@ func (vc *videoController) loadSTAT() statConfig {
 
 // saveSTAT saves the given STAT configuration into the memory register.
 func (vc *videoController) saveSTAT(config statConfig) {
-	stat := vc.env.mmu.pointerTo(statAddr)
+	statVal := vc.env.mmu.at(statAddr)
 
 	if config.lyEqualsLYCInterruptOn {
-		*stat |= 0x40
+		statVal |= 0x40
 	} else {
-		*stat &= ^uint8(0x40)
+		statVal &= ^uint8(0x40)
 	}
 	if config.mode2InterruptOn {
-		*stat |= 0x20
+		statVal |= 0x20
 	} else {
-		*stat &= ^uint8(0x20)
+		statVal &= ^uint8(0x20)
 	}
 	if config.mode1InterruptOn {
-		*stat |= 0x10
+		statVal |= 0x10
 	} else {
-		*stat &= ^uint8(0x10)
+		statVal &= ^uint8(0x10)
 	}
 	if config.mode0InterruptOn {
-		*stat |= 0x08
+		statVal |= 0x08
 	} else {
-		*stat &= ^uint8(0x08)
+		statVal &= ^uint8(0x08)
 	}
 	if config.lyEqualsLYC {
-		*stat |= 0x04
+		statVal |= 0x04
 	} else {
-		*stat &= ^uint8(0x04)
+		statVal &= ^uint8(0x04)
 	}
 	// Clear and set the mode
-	*stat &= 0xFC
-	*stat |= uint8(config.mode)
+	statVal &= 0xFC
+	statVal |= uint8(config.mode)
+
+	vc.env.mmu.set(statAddr, statVal)
 }
 
 // loadBGPalette inspects the BGP register value and returns a map that maps

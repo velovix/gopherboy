@@ -11,7 +11,7 @@ import (
 
 // printInstructions controls whether or not instructions are printed. This is
 // useful for debugging but slows emulation to a crawl.
-const printInstructions = false
+const printInstructions = true
 
 func main() {
 	flag.Parse()
@@ -38,7 +38,7 @@ func main() {
 	case romOnlyCartridgeType:
 		mmu = newROMOnly(cartridgeData)
 	case mbc1CartridgeType:
-		mmu = newMBC1(cartridgeData)
+		mmu = newMBC1(cartridgeData, header)
 	default:
 		fmt.Println("Error: Unknown cartridge type", header.cartridgeType)
 		os.Exit(1)

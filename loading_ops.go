@@ -7,7 +7,9 @@ func ld(env *environment, reg1, reg2 registerType) int {
 	env.regs[reg1].set(env.regs[reg2].get())
 
 	if printInstructions {
-		fmt.Printf("LD %v,%v\n", reg1, reg2)
+		fmt.Printf("LD %v,%v (%#x,%#x)\n",
+			reg1, reg2,
+			env.regs[reg1].get(), env.regs[reg2].get())
 	}
 	return 4
 }
@@ -60,7 +62,7 @@ func ld8BitImm(env *environment, reg registerType) int {
 
 // ld16BitImm loads a 16-bit immediate value into the given 16-bit register.
 func ld16BitImm(env *environment, reg registerType) int {
-	imm := combine(env.incrementPC(), env.incrementPC())
+	imm := combine16(env.incrementPC(), env.incrementPC())
 	env.regs[reg].set(imm)
 
 	if printInstructions {
@@ -72,7 +74,7 @@ func ld16BitImm(env *environment, reg registerType) int {
 // ldTo16BitImmMem saves the value of register A to an address in memory
 // specified by a 16-bit immediate value.
 func ldTo16BitImmMem(env *environment) int {
-	imm := combine(env.incrementPC(), env.incrementPC())
+	imm := combine16(env.incrementPC(), env.incrementPC())
 	aVal := uint8(env.regs[regA].get())
 
 	env.mmu.set(imm, aVal)
@@ -86,7 +88,7 @@ func ldTo16BitImmMem(env *environment) int {
 // ldFrom16BitImmMem loads the value in memory at the address specified by a
 // 16-bit immediate value into register A.
 func ldFrom16BitImmMem(env *environment) int {
-	imm := combine(env.incrementPC(), env.incrementPC())
+	imm := combine16(env.incrementPC(), env.incrementPC())
 	memVal := uint16(env.mmu.at(imm))
 
 	env.regs[regA].set(memVal)
@@ -113,7 +115,7 @@ func ld8BitImmToMemHL(env *environment) int {
 // ldSPToMem loads a 16-bit address and saves the stack pointer at that
 // address.
 func ldSPToMem(env *environment) int {
-	imm := combine(env.incrementPC(), env.incrementPC())
+	imm := combine16(env.incrementPC(), env.incrementPC())
 
 	// Save each byte of the stack pointer into memory
 	lower, upper := split16(env.regs[regSP].get())

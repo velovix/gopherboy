@@ -108,7 +108,7 @@ func (env *environment) popFromStack16() uint16 {
 	upper := env.popFromStack()
 	lower := env.popFromStack()
 
-	return combine(lower, upper)
+	return combine16(lower, upper)
 }
 
 // pushToStack decrements the stack pointer and writes the given value.

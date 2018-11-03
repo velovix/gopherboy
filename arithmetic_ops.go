@@ -89,7 +89,9 @@ func addToSP(env *environment) int {
 	env.setSubtractFlag(false)
 	// TODO(velovix): Find out what this operation is supposed to do with flags
 
-	fmt.Printf("ADD SP,%#x\n", imm)
+	if printInstructions {
+		fmt.Printf("ADD SP,%#x\n", imm)
+	}
 	return 16
 }
 
@@ -139,7 +141,9 @@ func adcFromMemHL(env *environment) int {
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
 
-	fmt.Printf("ADC %v,(%v)\n", regA, regHL)
+	if printInstructions {
+		fmt.Printf("ADC %v,(%v)\n", regA, regHL)
+	}
 	return 4
 }
 
@@ -638,7 +642,10 @@ func cp(env *environment, reg registerType) int {
 	env.setSubtractFlag(true)
 
 	if printInstructions {
-		fmt.Printf("CP %v\n", reg)
+		fmt.Printf("CP %v (%#x,%#x)\n",
+			reg,
+			env.regs[regA].get(),
+			env.regs[reg].get())
 	}
 	return 4
 }
@@ -698,4 +705,62 @@ func cp8BitImm(env *environment) int {
 		fmt.Printf("CP %#x\n", imm)
 	}
 	return 8
+}
+
+// daa "corrects" the result of a previous add or subtract operation by
+// reformatting it to fit the BCD format. It's a weird instruction.
+//
+// BCD stands for "binary coded decimal", and it's a special way to format
+// numbers in binary that is based on decimal number formatting. Each decimal
+// digit is separately represented by 4 bits.
+//
+// For example, the number 26 is represented as 0b11010 in normal binary, but
+// in BCD it is represented as 0b00100110. If we split it up into 4-bit nibbles,
+// we can see that the first nibble is 2 and the second nibble is 6.
+//
+// BCD:     0010  0110
+// Decimal:    2     6
+//
+// Now, imagine that you have two BCD-encoded numbers and you add them together
+// with an add instruction. The CPU doesn't know that these numbers are BCD and
+// so it will add them together like they are normal binary numbers. The result
+// will, as a result, be incorrect from a BCD perspective.
+//
+// That's where this instructions comes in. This instruction makes the
+// necessary corrections to the result of the last operation to make it once
+// again BCD encoded. If you're doing math with BCD numbers, this instruction
+// would be called after every add or subtract instruction.
+func daa(env *environment) int {
+	aVal := env.regs[regA].get()
+
+	var correction uint16
+
+	// Check if there was a half borrow or if the least significant nibble
+	// (which represents the first decimal digit) is overfilled. If it is, a
+	// correction needs to be performed.
+	if env.getHalfCarryFlag() || (!env.getSubtractFlag() && (aVal&0xF) > 9) {
+		correction = 0x06
+	}
+
+	// Check if there was a full borrow or if the most significant nibble
+	// (which represents the second decimal digit) is overfilled (I think?). If
+	// it is, a correction needs to be performed.
+	if env.getCarryFlag() || (!env.getSubtractFlag() && aVal > 0x99) {
+		correction |= 0x60
+		env.setCarryFlag(true)
+	} else {
+		env.setCarryFlag(false)
+	}
+
+	// The direction of the correction depends on what the last operation was
+	if env.getSubtractFlag() {
+		aVal = env.regs[regA].set(aVal - correction)
+	} else {
+		aVal = env.regs[regA].set(aVal + correction)
+	}
+
+	env.setZeroFlag(aVal == 0)
+	env.setHalfCarryFlag(false)
+
+	return 4
 }
