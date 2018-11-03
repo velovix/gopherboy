@@ -19,7 +19,7 @@ func startMainLoop(env *environment, vc *videoController, timers *timers) error 
 			opTime = 4
 		} else {
 			// Fetch and run an operation
-			opcode := env.incrementNextPCVal()
+			opcode := env.incrementPC()
 
 			if (breakOpcode != nil && opcode == *breakOpcode) || stepping {
 				fmt.Printf("BREAK: %#02x\n", opcode)
@@ -68,7 +68,6 @@ func startMainLoop(env *environment, vc *videoController, timers *timers) error 
 			if err != nil {
 				return err
 			}
-			env.updatePC()
 		}
 
 		// Process any delayed requests to toggle the master interrupt switch.

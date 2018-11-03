@@ -241,7 +241,7 @@ func ldhFromMem(env *environment) int {
 // result is stored in register HL.
 func ldhl(env *environment) int {
 	imm := uint16(env.incrementPC())
-	spVal := env.regs16[regPC].get()
+	spVal := env.regs16[regSP].get()
 
 	env.setHalfCarryFlag(isHalfCarry16(spVal, imm))
 	env.setCarryFlag(isCarry16(spVal, imm))
