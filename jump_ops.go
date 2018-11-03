@@ -17,8 +17,8 @@ func jr(env *environment) int {
 
 // jrIfFlag loads an offset value, then jumps to the operation at address PC +
 // offset if the given flag is at the expected setting.
-func jrIfFlag(env *environment, flagMask uint16, isSet bool) int {
-	flagState := env.regs[regF].get()&flagMask == flagMask
+func jrIfFlag(env *environment, flagMask uint8, isSet bool) int {
+	flagState := env.regs8[regF].get()&flagMask == flagMask
 	offset := asSigned(env.incrementPC())
 
 	if printInstructions {
@@ -37,7 +37,7 @@ func jrIfFlag(env *environment, flagMask uint16, isSet bool) int {
 // jp loads a 16-bit address and jumps to it.
 func jp(env *environment) int {
 	address := combine16(env.incrementPC(), env.incrementPC())
-	env.regs[regPC].set(address)
+	env.regs16[regPC].set(address)
 
 	if printInstructions {
 		fmt.Printf("JP %#x\n", address)
@@ -47,8 +47,8 @@ func jp(env *environment) int {
 
 // jpIfFlag loads a 16-bit address and jumps to it if the given flag is at the
 // expected setting.
-func jpIfFlag(env *environment, flagMask uint16, isSet bool) int {
-	flagState := env.regs[regF].get()&flagMask == flagMask
+func jpIfFlag(env *environment, flagMask uint8, isSet bool) int {
+	flagState := env.regs8[regF].get()&flagMask == flagMask
 	address := combine16(env.incrementPC(), env.incrementPC())
 
 	if printInstructions {
@@ -57,7 +57,7 @@ func jpIfFlag(env *environment, flagMask uint16, isSet bool) int {
 	}
 
 	if flagState == isSet {
-		env.regs[regPC].set(address)
+		env.regs16[regPC].set(address)
 		return 16
 	} else {
 		return 12
@@ -66,9 +66,9 @@ func jpIfFlag(env *environment, flagMask uint16, isSet bool) int {
 
 // jpToHL jumps to the address specified by register HL.
 func jpToHL(env *environment) int {
-	hlVal := env.regs[regHL].get()
+	hlVal := env.regs16[regHL].get()
 
-	env.regs[regPC].set(hlVal)
+	env.regs16[regPC].set(hlVal)
 
 	if printInstructions {
 		fmt.Printf("JP (%v)\n", regHL)

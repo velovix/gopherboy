@@ -4,9 +4,9 @@ import "fmt"
 
 // res sets the specified bit of the given register to zero.
 func res(env *environment, bitNum uint8, reg registerType) int {
-	regVal := env.regs[reg].get()
+	regVal := env.regs8[reg].get()
 
-	env.regs[reg].set(regVal & ^(0x1 << bitNum))
+	env.regs8[reg].set(regVal & ^(0x1 << bitNum))
 
 	if printInstructions {
 		fmt.Printf("RES %v,%v\n", bitNum, reg)
@@ -17,7 +17,7 @@ func res(env *environment, bitNum uint8, reg registerType) int {
 // resMemHL sets the specified bit of the value at the address specified by
 // register HL to zero.
 func resMemHL(env *environment, bitNum uint8) int {
-	hlVal := env.regs[regHL].get()
+	hlVal := env.regs16[regHL].get()
 	memVal := env.mmu.at(hlVal)
 
 	memVal &= ^(0x1 << bitNum)
@@ -31,7 +31,7 @@ func resMemHL(env *environment, bitNum uint8) int {
 
 // bit checks the given bit of the given register value.
 func bit(env *environment, bitNum uint8, reg registerType) int {
-	regVal := env.regs[reg].get()
+	regVal := env.regs8[reg].get()
 
 	bitSet := regVal&(0x1<<bitNum) == (0x1 << bitNum)
 
@@ -48,7 +48,7 @@ func bit(env *environment, bitNum uint8, reg registerType) int {
 // bitMemHL checks the given bit of the value at the address specified by
 // register HL.
 func bitMemHL(env *environment, bitNum uint8) int {
-	hlVal := env.regs[regHL].get()
+	hlVal := env.regs16[regHL].get()
 	memVal := env.mmu.at(hlVal)
 
 	bitSet := memVal&(0x1<<bitNum) == (0x1 << bitNum)
@@ -65,10 +65,10 @@ func bitMemHL(env *environment, bitNum uint8) int {
 
 // swap swaps the upper and lower nibbles of the given register.
 func swap(env *environment, reg registerType) int {
-	regVal := env.regs[reg].get()
+	regVal := env.regs8[reg].get()
 
-	lower, upper := split(uint8(regVal))
-	regVal = env.regs[reg].set(uint16(combine(upper, lower)))
+	lower, upper := split(regVal)
+	regVal = env.regs8[reg].set(combine(upper, lower))
 
 	env.setZeroFlag(regVal == 0)
 	env.setSubtractFlag(false)
@@ -81,7 +81,7 @@ func swap(env *environment, reg registerType) int {
 // swapMemHL swaps the upper and lower nibbles of the value in memory at the
 // address specified by register HL.
 func swapMemHL(env *environment) int {
-	hlVal := env.regs[regHL].get()
+	hlVal := env.regs16[regHL].get()
 	memVal := env.mmu.at(hlVal)
 
 	lower, upper := split(memVal)
@@ -98,9 +98,9 @@ func swapMemHL(env *environment) int {
 
 // set sets the specified bit of the given register to one.
 func set(env *environment, bitNum uint8, reg registerType) int {
-	regVal := env.regs[reg].get()
+	regVal := env.regs8[reg].get()
 
-	env.regs[reg].set(regVal | (0x1 << bitNum))
+	env.regs8[reg].set(regVal | (0x1 << bitNum))
 
 	if printInstructions {
 		fmt.Printf("SET %v,%v\n", bitNum, reg)
@@ -111,7 +111,7 @@ func set(env *environment, bitNum uint8, reg registerType) int {
 // setMemHL sets the specified bit of the value at the address specified by
 // register HL to one.
 func setMemHL(env *environment, bitNum uint8) int {
-	hlVal := env.regs[regHL].get()
+	hlVal := env.regs16[regHL].get()
 	memVal := env.mmu.at(hlVal)
 
 	memVal |= 0x1 << bitNum

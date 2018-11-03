@@ -11,7 +11,7 @@ import (
 
 // printInstructions controls whether or not instructions are printed. This is
 // useful for debugging but slows emulation to a crawl.
-const printInstructions = true
+const printInstructions = false
 
 func main() {
 	flag.Parse()

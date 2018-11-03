@@ -6,9 +6,9 @@ import "fmt"
 // the stack, and jumps to the loaded address.
 func call(env *environment) int {
 	address := combine16(env.incrementPC(), env.incrementPC())
-	env.pushToStack16(env.regs[regPC].get())
+	env.pushToStack16(env.regs16[regPC].get())
 
-	env.regs[regPC].set(address)
+	env.regs16[regPC].set(address)
 
 	if printInstructions {
 		fmt.Printf("CALL %#x\n", address)
@@ -19,8 +19,8 @@ func call(env *environment) int {
 // call loads a 16-bit address, pushes the address of the next instruction onto
 // the stack, and jumps to the loaded address if the given flag is at the
 // expected setting.
-func callIfFlag(env *environment, flagMask uint16, isSet bool) int {
-	flagState := env.regs[regF].get()&flagMask == flagMask
+func callIfFlag(env *environment, flagMask uint8, isSet bool) int {
+	flagState := env.regs8[regF].get()&flagMask == flagMask
 	address := combine16(env.incrementPC(), env.incrementPC())
 
 	if printInstructions {
@@ -29,8 +29,8 @@ func callIfFlag(env *environment, flagMask uint16, isSet bool) int {
 	}
 
 	if flagState == isSet {
-		env.pushToStack16(env.regs[regPC].get())
-		env.regs[regPC].set(address)
+		env.pushToStack16(env.regs16[regPC].get())
+		env.regs16[regPC].set(address)
 
 		return 24
 	} else {
@@ -41,7 +41,7 @@ func callIfFlag(env *environment, flagMask uint16, isSet bool) int {
 // ret pops a 16-bit address from the stack and jumps to it.
 func ret(env *environment) int {
 	addr := env.popFromStack16()
-	env.regs[regPC].set(addr)
+	env.regs16[regPC].set(addr)
 
 	if printInstructions {
 		fmt.Printf("RET\n", addr)
@@ -51,13 +51,13 @@ func ret(env *environment) int {
 
 // retIfFlag pops a 16-bit address from the stack and jumps to it, but only if
 // the given flag is at the expected value.
-func retIfFlag(env *environment, flagMask uint16, isSet bool) int {
-	flagState := env.regs[regF].get()&flagMask == flagMask
+func retIfFlag(env *environment, flagMask uint8, isSet bool) int {
+	flagState := env.regs8[regF].get()&flagMask == flagMask
 
 	var opClocks int
 	if flagState == isSet {
 		addr := env.popFromStack16()
-		env.regs[regPC].set(addr)
+		env.regs16[regPC].set(addr)
 		opClocks = 20
 	} else {
 		opClocks = 8
@@ -74,7 +74,7 @@ func retIfFlag(env *environment, flagMask uint16, isSet bool) int {
 // interrupts.
 func reti(env *environment) int {
 	addr := env.popFromStack16()
-	env.regs[regPC].set(addr)
+	env.regs16[regPC].set(addr)
 
 	env.interruptsEnabled = true
 
@@ -87,9 +87,9 @@ func reti(env *environment) int {
 // rst pushes the current program counter to the stack and jumps to the given
 // address.
 func rst(env *environment, address uint16) int {
-	env.pushToStack16(env.regs[regPC].get())
+	env.pushToStack16(env.regs16[regPC].get())
 
-	env.regs[regPC].set(address)
+	env.regs16[regPC].set(address)
 
 	if printInstructions {
 		fmt.Printf("RST %#x\n", address)

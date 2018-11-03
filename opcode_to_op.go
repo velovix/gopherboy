@@ -12,6 +12,10 @@ func runOpcode(env *environment, opcode uint8) (cycles int, err error) {
 	lowerNibble, upperNibble := split(opcode)
 
 	if printInstructions {
+		fmt.Printf("BC: %#x | ", env.regs16[regBC].get())
+		fmt.Printf("AF: %#x | ", env.regs16[regAF].get())
+		fmt.Printf("DE: %#x | ", env.regs16[regDE].get())
+		fmt.Printf("SP: %#x | ", env.regs16[regSP].get())
 		fmt.Printf("%#x: ", opcode)
 	}
 
@@ -637,7 +641,7 @@ var indexToRestartAddress = map[uint8]uint16{
 
 // getConditionalStr creates a string representation of a conditional flag
 // check.
-func getConditionalStr(flagMask uint16, isSet bool) string {
+func getConditionalStr(flagMask uint8, isSet bool) string {
 	var conditional string
 	switch flagMask {
 	case zeroFlag:

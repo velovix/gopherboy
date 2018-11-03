@@ -4,13 +4,13 @@ import "fmt"
 
 // add adds the value of reg, an 8-bit register, into register A.
 func add(env *environment, reg registerType) int {
-	aVal := env.regs[regA].get()
-	regVal := env.regs[reg].get()
+	aVal := env.regs8[regA].get()
+	regVal := env.regs8[reg].get()
 
-	env.setHalfCarryFlag(isHalfCarry(uint8(aVal), uint8(regVal)))
-	env.setCarryFlag(isCarry(uint8(aVal), uint8(regVal)))
+	env.setHalfCarryFlag(isHalfCarry(aVal, regVal))
+	env.setCarryFlag(isCarry(aVal, regVal))
 
-	aVal = env.regs[regA].set(aVal + regVal)
+	aVal = env.regs8[regA].set(aVal + regVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -24,13 +24,14 @@ func add(env *environment, reg registerType) int {
 // addFromMemHL adds the value stored in the memory address specified by HL
 // into register A.
 func addFromMemHL(env *environment) int {
-	aVal := uint8(env.regs[regA].get())
-	memVal := env.mmu.at(env.regs[regHL].get())
+	aVal := env.regs8[regA].get()
+	hlVal := env.regs16[regHL].get()
+	memVal := env.mmu.at(hlVal)
 
 	env.setHalfCarryFlag(isHalfCarry(aVal, memVal))
 	env.setCarryFlag(isCarry(aVal, memVal))
 
-	aVal = uint8(env.regs[regA].set(uint16(aVal + memVal)))
+	aVal = env.regs8[regA].set(aVal + memVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -41,16 +42,16 @@ func addFromMemHL(env *environment) int {
 	return 8
 }
 
-// addToHL adds the value of reg into register HL.
+// addToHL adds the value of the given 16-bit register into register HL.
 func addToHL(env *environment, reg registerType) int {
-	hlVal := env.regs[regHL].get()
-	regVal := env.regs[reg].get()
+	hlVal := env.regs16[regHL].get()
+	regVal := env.regs16[reg].get()
 
 	env.setHalfCarryFlag(isHalfCarry16(hlVal, regVal))
 	env.setCarryFlag(isCarry16(hlVal, regVal))
 	env.setSubtractFlag(false)
 
-	hlVal = env.regs[regHL].set(hlVal + regVal)
+	hlVal = env.regs16[regHL].set(hlVal + regVal)
 
 	if printInstructions {
 		fmt.Printf("ADD HL,%v\n", reg)
@@ -62,12 +63,12 @@ func addToHL(env *environment, reg registerType) int {
 // the results in register A.
 func add8BitImm(env *environment) int {
 	imm := env.incrementPC()
-	aVal := env.regs[regA].get()
+	aVal := env.regs8[regA].get()
 
-	env.setHalfCarryFlag(isHalfCarry(uint8(aVal), imm))
-	env.setCarryFlag(isCarry(uint8(aVal), imm))
+	env.setHalfCarryFlag(isHalfCarry(aVal, imm))
+	env.setCarryFlag(isCarry(aVal, imm))
 
-	aVal = env.regs[regA].set(uint16(imm) + aVal)
+	aVal = env.regs8[regA].set(imm + aVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -82,8 +83,9 @@ func add8BitImm(env *environment) int {
 // register.
 func addToSP(env *environment) int {
 	imm := asSigned(env.incrementPC())
+	spVal := env.regs16[regSP].get()
 
-	env.regs[regSP].set(uint16(int(env.regs[regSP].get()) + int(imm)))
+	env.regs16[regSP].set(uint16(int(spVal) + int(imm)))
 
 	env.setZeroFlag(false)
 	env.setSubtractFlag(false)
@@ -100,17 +102,17 @@ func addToSP(env *environment) int {
 //
 // regA = regA + reg + carry bit
 func adc(env *environment, reg registerType) int {
-	aVal := env.regs[regA].get()
-	regVal := env.regs[reg].get()
+	aVal := env.regs8[regA].get()
+	regVal := env.regs8[reg].get()
 
 	if env.getCarryFlag() {
 		regVal++
 	}
 
-	env.setHalfCarryFlag(isHalfCarry(uint8(aVal), uint8(regVal)))
-	env.setCarryFlag(isCarry(uint8(aVal), uint8(regVal)))
+	env.setHalfCarryFlag(isHalfCarry(aVal, regVal))
+	env.setCarryFlag(isCarry(aVal, regVal))
 
-	aVal = env.regs[regA].set(aVal + regVal)
+	aVal = env.regs8[regA].set(aVal + regVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -126,17 +128,17 @@ func adc(env *environment, reg registerType) int {
 //
 // regA = regA + mem[regHL] + carry bit
 func adcFromMemHL(env *environment) int {
-	aVal := env.regs[regA].get()
-	memVal := env.mmu.at(env.regs[regHL].get())
+	aVal := env.regs8[regA].get()
+	memVal := env.mmu.at(env.regs16[regHL].get())
 
 	if env.getCarryFlag() {
 		memVal++
 	}
 
-	env.setHalfCarryFlag(isHalfCarry(uint8(aVal), memVal))
-	env.setCarryFlag(isCarry(uint8(aVal), memVal))
+	env.setHalfCarryFlag(isHalfCarry(aVal, memVal))
+	env.setCarryFlag(isCarry(aVal, memVal))
 
-	aVal = env.regs[regA].set(aVal + uint16(memVal))
+	aVal = env.regs8[regA].set(aVal + memVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -152,17 +154,17 @@ func adcFromMemHL(env *environment) int {
 //
 // regA = regA + imm + carry bit
 func adc8BitImm(env *environment) int {
-	aVal := env.regs[regA].get()
-	imm := uint16(env.incrementPC())
+	aVal := env.regs8[regA].get()
+	imm := env.incrementPC()
 
 	if env.getCarryFlag() {
 		imm++
 	}
 
-	env.setHalfCarryFlag(isHalfCarry(uint8(aVal), uint8(imm)))
-	env.setCarryFlag(isCarry(uint8(aVal), uint8(imm)))
+	env.setHalfCarryFlag(isHalfCarry(aVal, imm))
+	env.setCarryFlag(isCarry(aVal, imm))
 
-	aVal = env.regs[regA].set(aVal + imm)
+	aVal = env.regs8[regA].set(aVal + imm)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -175,18 +177,18 @@ func adc8BitImm(env *environment) int {
 
 // sub subtracts the value of reg, an 8-bit register, from register A.
 func sub(env *environment, reg registerType) int {
-	aVal := env.regs[regA].get()
-	regVal := env.regs[reg].get()
+	aVal := env.regs8[regA].get()
+	regVal := env.regs8[reg].get()
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(regVal > aVal)
 
-	_, upperNibbleBefore := split(uint8(aVal))
+	_, upperNibbleBefore := split(aVal)
 
-	aVal = env.regs[regA].set(aVal - regVal)
+	aVal = env.regs8[regA].set(aVal - regVal)
 
-	_, upperNibbleAfter := split(uint8(aVal))
+	_, upperNibbleAfter := split(aVal)
 
 	// A half carry occurs if the upper nibble has changed at all
 	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
@@ -202,18 +204,18 @@ func sub(env *environment, reg registerType) int {
 // subFromMemHL subtracts the value in memory at the address specified by HL
 // from register A.
 func subFromMemHL(env *environment) int {
-	aVal := env.regs[regA].get()
-	memVal := uint16(env.mmu.at(env.regs[regHL].get()))
+	aVal := env.regs8[regA].get()
+	memVal := env.mmu.at(env.regs16[regHL].get())
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(memVal > aVal)
 
-	_, upperNibbleBefore := split(uint8(aVal))
+	_, upperNibbleBefore := split(aVal)
 
-	aVal = env.regs[regA].set(aVal - memVal)
+	aVal = env.regs8[regA].set(aVal - memVal)
 
-	_, upperNibbleAfter := split(uint8(aVal))
+	_, upperNibbleAfter := split(aVal)
 
 	// A half carry occurs if the upper nibble has changed at all
 	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
@@ -229,18 +231,18 @@ func subFromMemHL(env *environment) int {
 // sub8BitImm loads an 8-bit immediate value and subtracts it from register A,
 // storing the result in register A.
 func sub8BitImm(env *environment) int {
-	imm := uint16(env.incrementPC())
-	aVal := env.regs[regA].get()
+	imm := env.incrementPC()
+	aVal := env.regs8[regA].get()
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(imm > aVal)
 
-	_, upperNibbleBefore := split(uint8(aVal))
+	_, upperNibbleBefore := split(aVal)
 
-	aVal = env.regs[regA].set(aVal - imm)
+	aVal = env.regs8[regA].set(aVal - imm)
 
-	_, upperNibbleAfter := split(uint8(aVal))
+	_, upperNibbleAfter := split(aVal)
 
 	// A half carry occurs if the upper nibble has changed at all
 	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
@@ -258,8 +260,8 @@ func sub8BitImm(env *environment) int {
 //
 // regA = regA - reg - carry bit
 func sbc(env *environment, reg registerType) int {
-	aVal := env.regs[regA].get()
-	regVal := env.regs[reg].get()
+	aVal := env.regs8[regA].get()
+	regVal := env.regs8[reg].get()
 
 	if env.getCarryFlag() {
 		regVal++
@@ -269,11 +271,11 @@ func sbc(env *environment, reg registerType) int {
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(regVal > aVal)
 
-	_, upperNibbleBefore := split(uint8(aVal))
+	_, upperNibbleBefore := split(aVal)
 
-	aVal = env.regs[regA].set(aVal - regVal)
+	aVal = env.regs8[regA].set(aVal - regVal)
 
-	_, upperNibbleAfter := split(uint8(aVal))
+	_, upperNibbleAfter := split(aVal)
 
 	// A half carry occurs if the upper nibble has changed at all
 	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
@@ -292,8 +294,8 @@ func sbc(env *environment, reg registerType) int {
 //
 // regA = regA - mem[regHL] - carry bit
 func sbcFromMemHL(env *environment) int {
-	aVal := env.regs[regA].get()
-	memVal := uint16(env.mmu.at(env.regs[regHL].get()))
+	aVal := env.regs8[regA].get()
+	memVal := env.mmu.at(env.regs16[regHL].get())
 
 	if env.getCarryFlag() {
 		memVal++
@@ -303,11 +305,11 @@ func sbcFromMemHL(env *environment) int {
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(memVal > aVal)
 
-	_, upperNibbleBefore := split(uint8(aVal))
+	_, upperNibbleBefore := split(aVal)
 
-	aVal = env.regs[regA].set(aVal - memVal)
+	aVal = env.regs8[regA].set(aVal - memVal)
 
-	_, upperNibbleAfter := split(uint8(aVal))
+	_, upperNibbleAfter := split(aVal)
 
 	// A half carry occurs if the upper nibble has changed at all
 	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
@@ -325,8 +327,8 @@ func sbcFromMemHL(env *environment) int {
 //
 // regA = regA - imm - carry bit
 func sbc8BitImm(env *environment) int {
-	aVal := env.regs[regA].get()
-	imm := uint16(env.incrementPC())
+	aVal := env.regs8[regA].get()
+	imm := env.incrementPC()
 
 	if env.getCarryFlag() {
 		imm++
@@ -336,11 +338,11 @@ func sbc8BitImm(env *environment) int {
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(imm > aVal)
 
-	_, upperNibbleBefore := split(uint8(aVal))
+	_, upperNibbleBefore := split(aVal)
 
-	aVal = env.regs[regA].set(aVal - imm)
+	aVal = env.regs8[regA].set(aVal - imm)
 
-	_, upperNibbleAfter := split(uint8(aVal))
+	_, upperNibbleAfter := split(aVal)
 
 	// A half carry occurs if the upper nibble has changed at all
 	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
@@ -356,9 +358,12 @@ func sbc8BitImm(env *environment) int {
 // and performs a bitwise & on the given register and register A, storing the
 // result in register A.
 func and(env *environment, reg registerType) int {
-	env.regs[regA].set(env.regs[regA].get() & env.regs[reg].get())
+	aVal := env.regs8[regA].get()
+	regVal := env.regs8[reg].get()
 
-	env.setZeroFlag(env.regs[regA].get() == 0)
+	aVal = env.regs8[regA].set(aVal & regVal)
+
+	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(true)
 	env.setCarryFlag(false)
@@ -372,10 +377,10 @@ func and(env *environment, reg registerType) int {
 // andFromMemHL performs a bitwise & on the value in memory at the address
 // specified by register HL and register A, storing the result in register A.
 func andFromMemHL(env *environment) int {
-	aVal := env.regs[regA].get()
-	memVal := uint16(env.mmu.at(env.regs[regHL].get()))
+	aVal := env.regs8[regA].get()
+	memVal := env.mmu.at(env.regs16[regHL].get())
 
-	aVal = env.regs[regA].set(aVal & memVal)
+	aVal = env.regs8[regA].set(aVal & memVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -391,11 +396,12 @@ func andFromMemHL(env *environment) int {
 // and8BitImm performs a bitwise & on register A and an immediate value,
 // storing the result in register A.
 func and8BitImm(env *environment) int {
-	imm := uint16(env.incrementPC())
+	imm := env.incrementPC()
+	aVal := env.regs8[regA].get()
 
-	env.regs[regA].set(env.regs[regA].get() & imm)
+	aVal = env.regs8[regA].set(aVal & imm)
 
-	env.setZeroFlag(env.regs[regA].get() == 0)
+	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(true)
 	env.setCarryFlag(false)
@@ -409,9 +415,12 @@ func and8BitImm(env *environment) int {
 // or performs a bitwise | on the given register and register A, storing the
 // result in register A.
 func or(env *environment, reg registerType) int {
-	env.regs[regA].set(env.regs[regA].get() | env.regs[reg].get())
+	aVal := env.regs8[regA].get()
+	regVal := env.regs8[reg].get()
 
-	env.setZeroFlag(env.regs[regA].get() == 0)
+	aVal = env.regs8[regA].set(aVal | regVal)
+
+	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 	env.setCarryFlag(false)
@@ -425,10 +434,10 @@ func or(env *environment, reg registerType) int {
 // orFromMemHL performs a bitwise | on the value in memory at the address
 // specified by register HL and register A, storing the result in register A.
 func orFromMemHL(env *environment) int {
-	aVal := env.regs[regA].get()
-	memVal := uint16(env.mmu.at(env.regs[regHL].get()))
+	aVal := env.regs8[regA].get()
+	memVal := env.mmu.at(env.regs16[regHL].get())
 
-	aVal = env.regs[regA].set(aVal | memVal)
+	aVal = env.regs8[regA].set(aVal | memVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -444,11 +453,12 @@ func orFromMemHL(env *environment) int {
 // or8BitImm performs a bitwise | on register A and an immediate value,
 // storing the result in register A.
 func or8BitImm(env *environment) int {
-	imm := uint16(env.incrementPC())
+	aVal := env.regs8[regA].get()
+	imm := env.incrementPC()
 
-	env.regs[regA].set(env.regs[regA].get() | imm)
+	aVal = env.regs8[regA].set(aVal | imm)
 
-	env.setZeroFlag(env.regs[regA].get() == 0)
+	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 	env.setCarryFlag(false)
@@ -462,10 +472,10 @@ func or8BitImm(env *environment) int {
 // xor performs a bitwise ^ on register A and the given register, storing the
 // result in register A.
 func xor(env *environment, reg registerType) int {
-	aVal := env.regs[regA].get()
-	regVal := env.regs[reg].get()
+	aVal := env.regs8[regA].get()
+	regVal := env.regs8[reg].get()
 
-	aVal = env.regs[regA].set(aVal ^ regVal)
+	aVal = env.regs8[regA].set(aVal ^ regVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -481,10 +491,10 @@ func xor(env *environment, reg registerType) int {
 // xorFromMemHL performs a bitwise ^ on the value in memory specified by
 // register HL and register A, storing the result in register A.
 func xorFromMemHL(env *environment) int {
-	aVal := env.regs[regA].get()
-	memVal := uint16(env.mmu.at(env.regs[regHL].get()))
+	aVal := env.regs8[regA].get()
+	memVal := env.mmu.at(env.regs16[regHL].get())
 
-	aVal = env.regs[regA].set(aVal ^ memVal)
+	aVal = env.regs8[regA].set(aVal ^ memVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -500,11 +510,12 @@ func xorFromMemHL(env *environment) int {
 // xor8BitImm performs a bitwise ^ on register A and an immediate value,
 // storing the result in register A.
 func xor8BitImm(env *environment) int {
-	imm := uint16(env.incrementPC())
+	imm := env.incrementPC()
+	aVal := env.regs8[regA].get()
 
-	env.regs[regA].set(env.regs[regA].get() ^ imm)
+	aVal = env.regs8[regA].set(aVal ^ imm)
 
-	env.setZeroFlag(env.regs[regA].get() == 0)
+	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 	env.setCarryFlag(false)
@@ -517,8 +528,8 @@ func xor8BitImm(env *environment) int {
 
 // inc8Bit increments the given 8-bit register by 1.
 func inc8Bit(env *environment, reg registerType) int {
-	oldVal := env.regs[reg].get()
-	newVal := env.regs[reg].set(oldVal + 1)
+	oldVal := env.regs8[reg].get()
+	newVal := env.regs8[reg].set(oldVal + 1)
 
 	env.setZeroFlag(newVal == 0)
 	env.setSubtractFlag(false)
@@ -534,9 +545,9 @@ func inc8Bit(env *environment, reg registerType) int {
 
 // inc16Bit increments the given 16-bit register by 1.
 func inc16Bit(env *environment, reg registerType) int {
-	oldVal := env.regs[reg].get()
+	oldVal := env.regs16[reg].get()
 
-	env.regs[reg].set(oldVal + 1)
+	env.regs16[reg].set(oldVal + 1)
 
 	if printInstructions {
 		fmt.Printf("INC %v\n", reg)
@@ -547,10 +558,10 @@ func inc16Bit(env *environment, reg registerType) int {
 // incMemHL increments the value in memory at the address specified by register
 // HL.
 func incMemHL(env *environment) int {
-	addr := env.regs[regHL].get()
+	addr := env.regs16[regHL].get()
 
 	oldVal := env.mmu.at(addr)
-	env.mmu.set(addr, env.mmu.at(addr)+1)
+	env.mmu.set(addr, oldVal+1)
 	newVal := env.mmu.at(addr)
 
 	env.setZeroFlag(newVal == 0)
@@ -568,11 +579,11 @@ func incMemHL(env *environment) int {
 
 // dec8Bit decrements the given 8-bit register by 1.
 func dec8Bit(env *environment, reg registerType) int {
-	_, upperNibbleBefore := split(uint8(env.regs[reg].get()))
+	_, upperNibbleBefore := split(env.regs8[reg].get())
 
-	newVal := env.regs[reg].set(env.regs[reg].get() - 1)
+	newVal := env.regs8[reg].set(env.regs8[reg].get() - 1)
 
-	_, upperNibbleAfter := split(uint8(env.regs[reg].get()))
+	_, upperNibbleAfter := split(env.regs8[reg].get())
 
 	// A half carry occurs if the upper nibble has changed at all
 	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
@@ -587,7 +598,7 @@ func dec8Bit(env *environment, reg registerType) int {
 
 // dec16Bit decrements the given 16-bit register by 1.
 func dec16Bit(env *environment, reg registerType) int {
-	env.regs[reg].set(env.regs[reg].get() - 1)
+	env.regs16[reg].set(env.regs16[reg].get() - 1)
 
 	if printInstructions {
 		fmt.Printf("DEC %v\n", reg)
@@ -598,12 +609,12 @@ func dec16Bit(env *environment, reg registerType) int {
 // decMemHL decrements the value in memory at the address specified by register
 // HL.
 func decMemHL(env *environment) int {
-	addr := env.regs[regHL].get()
+	addr := env.regs16[regHL].get()
 
 	oldVal := env.mmu.at(addr)
 	_, upperNibbleBefore := split(oldVal)
 
-	env.mmu.set(addr, env.mmu.at(addr)-1)
+	env.mmu.set(addr, oldVal-1)
 	newVal := env.mmu.at(addr)
 	_, upperNibbleAfter := split(newVal)
 
@@ -623,18 +634,18 @@ func decMemHL(env *environment) int {
 // sets flags accordingly.  The semantics are the same as the SUB operator, but
 // the result value is not saved.
 func cp(env *environment, reg registerType) int {
-	aVal := env.regs[regA].get()
-	regVal := env.regs[reg].get()
+	aVal := env.regs8[regA].get()
+	regVal := env.regs8[reg].get()
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(regVal > aVal)
 
-	_, upperNibbleBefore := split(uint8(aVal))
+	_, upperNibbleBefore := split(aVal)
 
 	subVal := aVal - regVal
 
-	_, upperNibbleAfter := split(uint8(subVal))
+	_, upperNibbleAfter := split(subVal)
 
 	// A half carry occurs if the upper nibble has changed at all
 	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
@@ -644,8 +655,8 @@ func cp(env *environment, reg registerType) int {
 	if printInstructions {
 		fmt.Printf("CP %v (%#x,%#x)\n",
 			reg,
-			env.regs[regA].get(),
-			env.regs[reg].get())
+			env.regs8[regA].get(),
+			env.regs8[reg].get())
 	}
 	return 4
 }
@@ -655,18 +666,18 @@ func cp(env *environment, reg registerType) int {
 // semantics are the same as the SUB operator, but the result value is not
 // saved.
 func cpFromMemHL(env *environment) int {
-	aVal := env.regs[regA].get()
-	memVal := uint16(env.mmu.at(env.regs[regHL].get()))
+	aVal := env.regs8[regA].get()
+	memVal := env.mmu.at(env.regs16[regHL].get())
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(memVal > aVal)
 
-	_, upperNibbleBefore := split(uint8(aVal))
+	_, upperNibbleBefore := split(aVal)
 
 	subVal := aVal - memVal
 
-	_, upperNibbleAfter := split(uint8(subVal))
+	_, upperNibbleAfter := split(subVal)
 
 	// A half carry occurs if the upper nibble has changed at all
 	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
@@ -683,18 +694,18 @@ func cpFromMemHL(env *environment) int {
 // accordingly. The semantics are the same as the SUB operator, but the result
 // value is not saved.
 func cp8BitImm(env *environment) int {
-	aVal := env.regs[regA].get()
-	imm := uint16(env.incrementPC())
+	aVal := env.regs8[regA].get()
+	imm := env.incrementPC()
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(imm > aVal)
 
-	_, upperNibbleBefore := split(uint8(aVal))
+	_, upperNibbleBefore := split(aVal)
 
 	subVal := aVal - imm
 
-	_, upperNibbleAfter := split(uint8(subVal))
+	_, upperNibbleAfter := split(subVal)
 
 	// A half carry occurs if the upper nibble has changed at all
 	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
@@ -731,9 +742,9 @@ func cp8BitImm(env *environment) int {
 // again BCD encoded. If you're doing math with BCD numbers, this instruction
 // would be called after every add or subtract instruction.
 func daa(env *environment) int {
-	aVal := env.regs[regA].get()
+	aVal := env.regs8[regA].get()
 
-	var correction uint16
+	var correction uint8
 
 	// Check if there was a half borrow or if the least significant nibble
 	// (which represents the first decimal digit) is overfilled. If it is, a
@@ -754,9 +765,9 @@ func daa(env *environment) int {
 
 	// The direction of the correction depends on what the last operation was
 	if env.getSubtractFlag() {
-		aVal = env.regs[regA].set(aVal - correction)
+		aVal = env.regs8[regA].set(aVal - correction)
 	} else {
-		aVal = env.regs[regA].set(aVal + correction)
+		aVal = env.regs8[regA].set(aVal + correction)
 	}
 
 	env.setZeroFlag(aVal == 0)

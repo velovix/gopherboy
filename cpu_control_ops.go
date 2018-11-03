@@ -45,8 +45,8 @@ func halt(env *environment) int {
 
 // cpl inverts the value of register A.
 func cpl(env *environment) int {
-	invertedA := ^uint8(env.regs[regA].get())
-	env.regs[regA].set(uint16(invertedA))
+	invertedA := ^env.regs8[regA].get()
+	env.regs8[regA].set(invertedA)
 
 	env.setHalfCarryFlag(true)
 	env.setSubtractFlag(true)

@@ -9,14 +9,14 @@ import (
 // shift where the most significant bit is carried over to the least
 // significant bit. This bit is also stored in the carry flag.
 func rlca(env *environment) int {
-	rotated := bits.RotateLeft8(uint8(env.regs[regA].get()), 1)
-	env.regs[regA].set(uint16(rotated))
+	rotated := bits.RotateLeft8(env.regs8[regA].get(), 1)
+	env.regs8[regA].set(rotated)
 
 	env.setZeroFlag(false)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
-	carryBit := env.regs[regA].get() & 0x01
+	carryBit := env.regs8[regA].get() & 0x01
 	env.setCarryFlag(carryBit == 1)
 
 	if printInstructions {
@@ -29,7 +29,7 @@ func rlca(env *environment) int {
 // sorts during this operation. This means that we're essentially rotating
 // "(carry flag << 1) | register A".
 func rla(env *environment) int {
-	oldVal := uint8(env.regs[regA].get())
+	oldVal := env.regs8[regA].get()
 	// Get the current most significant bit, which will be put in the carry
 	// flag
 	var msb uint8
@@ -56,7 +56,7 @@ func rla(env *environment) int {
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
-	env.regs[regA].set(uint16(newVal))
+	env.regs8[regA].set(newVal)
 
 	if printInstructions {
 		fmt.Printf("RLA\n")
@@ -68,14 +68,14 @@ func rla(env *environment) int {
 // shift where the least significant bit is carried over to the most
 // significant bit. This bit is also stored in the carry flag.
 func rrca(env *environment) int {
-	rotated := bits.RotateLeft8(uint8(env.regs[regA].get()), -1)
-	env.regs[regA].set(uint16(rotated))
+	rotated := bits.RotateLeft8(env.regs8[regA].get(), -1)
+	env.regs8[regA].set(rotated)
 
 	env.setZeroFlag(false)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
-	carryBit := env.regs[regA].get() & 0x80
+	carryBit := env.regs8[regA].get() & 0x80
 	env.setCarryFlag(carryBit == 1)
 
 	if printInstructions {
@@ -88,7 +88,7 @@ func rrca(env *environment) int {
 // of sorts during this operation. This means that we're essentially rotating
 // "carry flag | (register A << 1)".
 func rra(env *environment) int {
-	oldVal := uint8(env.regs[regA].get())
+	oldVal := env.regs8[regA].get()
 	// Get the current least significant bit, which will be put in the carry
 	// flag
 	var lsb uint8
@@ -115,7 +115,7 @@ func rra(env *environment) int {
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
-	env.regs[regA].set(uint16(newVal))
+	env.regs8[regA].set(newVal)
 
 	if printInstructions {
 		fmt.Printf("RRA\n")
@@ -126,13 +126,13 @@ func rra(env *environment) int {
 // srl shifts the contents of the given register to the right. Bit 0 is shifted
 // to the carry register. Bit 7 is set to 0.
 func srl(env *environment, reg registerType) int {
-	regVal := env.regs[reg].get()
+	regVal := env.regs8[reg].get()
 
 	// Put the least significant bit in the carry register
 	lsb := regVal & 0x01
 	env.setCarryFlag(lsb == 1)
 
-	regVal = env.regs[reg].set(regVal >> 1)
+	regVal = env.regs8[reg].set(regVal >> 1)
 
 	env.setZeroFlag(regVal == 0)
 	env.setSubtractFlag(false)
@@ -144,7 +144,7 @@ func srl(env *environment, reg registerType) int {
 // srlMemHL shifts the value at the address in memory specified by register
 // HL to the right. Bit 0 is shifted to the carry register. Bit 7 is set to 0.
 func srlMemHL(env *environment) int {
-	hlVal := env.regs[regHL].get()
+	hlVal := env.regs16[regHL].get()
 	memVal := env.mmu.at(hlVal)
 
 	// Put the least significant bit in the carry register
@@ -163,7 +163,7 @@ func srlMemHL(env *environment) int {
 // carry flag as a "bit -1" of sorts during this operation. This means we're
 // essentially rotating "(register << 1) | carry flag".
 func rr(env *environment, reg registerType) int {
-	oldVal := uint8(env.regs[reg].get())
+	oldVal := env.regs8[reg].get()
 	// Get the current least significant bit, which will be put in the carry
 	// flag
 	var lsb uint8
@@ -190,7 +190,7 @@ func rr(env *environment, reg registerType) int {
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
-	env.regs[reg].set(uint16(newVal))
+	env.regs8[reg].set(newVal)
 
 	if printInstructions {
 		fmt.Printf("RR %v\n", reg)
@@ -203,7 +203,7 @@ func rr(env *environment, reg registerType) int {
 // operation. This means we're essentially rotating
 // "(mem[regHL] << 1) | carryFlag".
 func rrMemHL(env *environment) int {
-	hlVal := env.regs[regHL].get()
+	hlVal := env.regs16[regHL].get()
 	oldVal := env.mmu.at(hlVal)
 
 	// Get the current least significant bit, which will be put in the carry
@@ -244,14 +244,14 @@ func rrMemHL(env *environment) int {
 // left bit shift where the most significant bit is carried over to the least
 // significant bit. This bit is also stored in the carry flag.
 func rlc(env *environment, reg registerType) int {
-	rotated := bits.RotateLeft8(uint8(env.regs[reg].get()), 1)
-	env.regs[reg].set(uint16(rotated))
+	rotated := bits.RotateLeft8(env.regs8[reg].get(), 1)
+	env.regs8[reg].set(rotated)
 
 	env.setZeroFlag(rotated == 0)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
-	carryBit := env.regs[reg].get() & 0x01
+	carryBit := env.regs8[reg].get() & 0x01
 	env.setCarryFlag(carryBit == 1)
 
 	if printInstructions {
@@ -265,10 +265,10 @@ func rlc(env *environment, reg registerType) int {
 // significant bit is carried over to the least significant bit. This bit is
 // also stored in the carry flag.
 func rlcMemHL(env *environment) int {
-	memVal := env.mmu.at(env.regs[regHL].get())
+	memVal := env.mmu.at(env.regs16[regHL].get())
 
 	memVal = bits.RotateLeft8(memVal, 1)
-	env.mmu.set(env.regs[regHL].get(), memVal)
+	env.mmu.set(env.regs16[regHL].get(), memVal)
 
 	env.setZeroFlag(memVal == 0)
 	env.setSubtractFlag(false)
@@ -287,14 +287,14 @@ func rlcMemHL(env *environment) int {
 // right bit shift where the least significant bit is carried over to the most
 // significant bit. This bit is also stored in the carry flag.
 func rrc(env *environment, reg registerType) int {
-	rotated := bits.RotateLeft8(uint8(env.regs[reg].get()), -1)
-	env.regs[reg].set(uint16(rotated))
+	rotated := bits.RotateLeft8(env.regs8[reg].get(), -1)
+	env.regs8[reg].set(rotated)
 
 	env.setZeroFlag(rotated == 0)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
-	carryBit := env.regs[reg].get() & 0x80
+	carryBit := env.regs8[reg].get() & 0x80
 	env.setCarryFlag(carryBit == 1)
 
 	if printInstructions {
@@ -308,10 +308,10 @@ func rrc(env *environment, reg registerType) int {
 // significant bit is carried over to the most significant bit. This bit is
 // also stored in the carry flag.
 func rrcMemHL(env *environment) int {
-	memVal := env.mmu.at(env.regs[regHL].get())
+	memVal := env.mmu.at(env.regs16[regHL].get())
 
 	memVal = bits.RotateLeft8(memVal, -1)
-	env.mmu.set(env.regs[regHL].get(), memVal)
+	env.mmu.set(env.regs16[regHL].get(), memVal)
 
 	env.setZeroFlag(memVal == 0)
 	env.setSubtractFlag(false)
@@ -330,7 +330,7 @@ func rrcMemHL(env *environment) int {
 // a "bit 8" of sorts during this operation. This means that we're essentially
 // rotating "(carry flag << 1) | register A".
 func rl(env *environment, reg registerType) int {
-	oldVal := uint8(env.regs[reg].get())
+	oldVal := env.regs8[reg].get()
 	// Get the current most significant bit, which will be put in the carry
 	// flag
 	var msb uint8
@@ -356,7 +356,7 @@ func rl(env *environment, reg registerType) int {
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
-	env.regs[reg].set(uint16(newVal))
+	env.regs8[reg].set(newVal)
 
 	env.setZeroFlag(newVal == 0)
 
@@ -371,7 +371,7 @@ func rl(env *environment, reg registerType) int {
 // operation. This means that we're essentially rotating
 // "(carry flag << 1) | mem(regHL)".
 func rlMemHL(env *environment) int {
-	oldVal := env.mmu.at(env.regs[regHL].get())
+	oldVal := env.mmu.at(env.regs16[regHL].get())
 	// Get the current most significant bit, which will be put in the carry
 	// flag
 	var msb uint8
@@ -397,7 +397,7 @@ func rlMemHL(env *environment) int {
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
-	env.mmu.set(env.regs[regHL].get(), newVal)
+	env.mmu.set(env.regs16[regHL].get(), newVal)
 
 	env.setZeroFlag(newVal == 0)
 
@@ -410,13 +410,13 @@ func rlMemHL(env *environment) int {
 // sla shifts the contents of the given register to the left. Bit 7 is shifted
 // to the carry register. Bit 0 is set to 0.
 func sla(env *environment, reg registerType) int {
-	regVal := env.regs[reg].get()
+	regVal := env.regs8[reg].get()
 
 	// Put the most significant bit in the carry register
 	msb := regVal & 0x80
 	env.setCarryFlag(msb == 1)
 
-	regVal = env.regs[reg].set(regVal << 1)
+	regVal = env.regs8[reg].set(regVal << 1)
 
 	env.setZeroFlag(regVal == 0)
 	env.setSubtractFlag(false)
@@ -428,7 +428,7 @@ func sla(env *environment, reg registerType) int {
 // slaMemHL shifts the value at the address in memory specified by register
 // HL to the left. Bit 7 is shifted to the carry register. Bit 0 is set to 0.
 func slaMemHL(env *environment) int {
-	hlVal := env.regs[regHL].get()
+	hlVal := env.regs16[regHL].get()
 	memVal := env.mmu.at(hlVal)
 
 	// Put the most significant bit in the carry register
@@ -446,13 +446,13 @@ func slaMemHL(env *environment) int {
 // sra shifts the contents of the given register to the right. Bit 0 is shifted
 // to the carry register. Bit 7 is left unchanged.
 func sra(env *environment, reg registerType) int {
-	regVal := env.regs[reg].get()
+	regVal := env.regs8[reg].get()
 
 	// Put the least significant bit in the carry register
 	lsb := regVal & 0x01
 	env.setCarryFlag(lsb == 1)
 
-	regVal = env.regs[reg].set(regVal >> 1)
+	regVal = env.regs8[reg].set(regVal >> 1)
 
 	// Put the previous most significant bit back in bit 7
 	regVal |= (regVal & 0x40) << 1
@@ -467,7 +467,7 @@ func sra(env *environment, reg registerType) int {
 // sraMemHL shifts the value at the address in memory specified by register HL
 // to the right. Bit 0 is shifted to the carry register. Bit 7 is unchanged.
 func sraMemHL(env *environment) int {
-	hlVal := env.regs[regHL].get()
+	hlVal := env.regs16[regHL].get()
 	memVal := env.mmu.at(hlVal)
 
 	// Put the least significant bit in the carry register

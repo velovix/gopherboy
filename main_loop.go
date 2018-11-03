@@ -78,9 +78,9 @@ func startMainLoop(env *environment, vc *videoController, timers *timers) error 
 				env.interruptsEnabled = false
 				env.waitingForInterrupts = false
 				// Push the current program counter to the stack for later use
-				env.pushToStack16(env.regs[regPC].get())
+				env.pushToStack16(env.regs16[regPC].get())
 				// Jump to the target
-				env.regs[regPC].set(target)
+				env.regs16[regPC].set(target)
 			}
 		}
 	}
