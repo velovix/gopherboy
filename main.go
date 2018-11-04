@@ -48,18 +48,18 @@ func main() {
 	fmt.Println(header)
 
 	// Create a memory bank controller for this ROM
-	var mmu mmu
+	var mbc mbc
 	switch header.cartridgeType {
 	case romOnlyCartridgeType:
-		mmu = newROMOnly(cartridgeData)
+		mbc = newROMOnlyMBC(cartridgeData)
 	case mbc1CartridgeType:
-		mmu = newMBC1(cartridgeData, header)
+		mbc = newMBC1(header, cartridgeData)
 	default:
 		fmt.Println("Error: Unknown cartridge type", header.cartridgeType)
 		os.Exit(1)
 	}
 
-	env := newEnvironment(mmu)
+	env := newEnvironment(newMMU(cartridgeData, mbc))
 
 	// Start the timers
 	timers := newTimers(env)
