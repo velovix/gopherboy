@@ -79,17 +79,27 @@ func add8BitImm(env *environment) int {
 	return 8
 }
 
-// addToSP loads an immediate 8-bit value and adds it to the stack pointer
-// register.
+// addToSP loads an immediate signed 8-bit value and adds it to the stack
+// pointer register.
 func addToSP(env *environment) int {
-	imm := asSigned(env.incrementPC())
+	immUnsigned := env.incrementPC()
+	imm := asSigned(immUnsigned)
 	spVal := env.regs16[regSP].get()
+
+	// This instruction's behavior for the carry and half carry flags is very
+	// weird.
+	//
+	// When checking for a carry and half carry, the immediate value is treated
+	// as _unsigned_ for some reason and only the lowest 8 bits of the stack
+	// pointer are considered.
+	lowerSP, _ := split16(spVal)
+	env.setHalfCarryFlag(isHalfCarry(lowerSP, immUnsigned))
+	env.setCarryFlag(isCarry(lowerSP, immUnsigned))
 
 	env.regs16[regSP].set(uint16(int(spVal) + int(imm)))
 
 	env.setZeroFlag(false)
 	env.setSubtractFlag(false)
-	// TODO(velovix): Find out what this operation is supposed to do with flags
 
 	if printInstructions {
 		fmt.Printf("ADD SP,%#x\n", imm)

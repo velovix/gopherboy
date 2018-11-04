@@ -240,11 +240,19 @@ func ldhFromMem(env *environment) int {
 // ldhl loads an 8-bit immediate value and adds it to the stack pointer. The
 // result is stored in register HL.
 func ldhl(env *environment) int {
-	imm := uint16(env.incrementPC())
+	immUnsigned := env.incrementPC()
+	imm := uint16(immUnsigned)
 	spVal := env.regs16[regSP].get()
 
-	env.setHalfCarryFlag(isHalfCarry16(spVal, imm))
-	env.setCarryFlag(isCarry16(spVal, imm))
+	// This instruction's behavior for the carry and half carry flags is very
+	// weird.
+	//
+	// When checking for a carry and half carry, the immediate value is treated
+	// as _unsigned_ for some reason and only the lowest 8 bits of the stack
+	// pointer are considered. HL does not play into this calculation at all.
+	lowerSP, _ := split16(spVal)
+	env.setHalfCarryFlag(isHalfCarry(lowerSP, immUnsigned))
+	env.setCarryFlag(isCarry(lowerSP, immUnsigned))
 
 	env.regs16[regHL].set(imm + spVal)
 

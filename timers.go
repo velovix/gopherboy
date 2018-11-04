@@ -18,6 +18,7 @@ type timers struct {
 	mClock int
 	// A clock that increments every 64 clock cycles. Available as a register
 	// in memory.
+	// TODO(velovix): Make it so that setting this register resets the timer
 	divider uint8
 	// A configurable timer, also known as the "counter" but technically
 	// referred to as the TIMA. Available as a register in memory.
