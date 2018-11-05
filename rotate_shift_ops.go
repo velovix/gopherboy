@@ -138,6 +138,9 @@ func srl(env *environment, reg registerType) int {
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
+	if printInstructions {
+		fmt.Printf("SRL %v\n", reg)
+	}
 	return 8
 }
 
@@ -156,6 +159,11 @@ func srlMemHL(env *environment) int {
 	env.setZeroFlag(memVal>>1 == 0)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
+
+	if printInstructions {
+		fmt.Printf("SRL (%v)\n", regHL)
+	}
+
 	return 16
 }
 
@@ -235,7 +243,7 @@ func rrMemHL(env *environment) int {
 	env.mmu.set(hlVal, newVal)
 
 	if printInstructions {
-		fmt.Printf("RR (HL)\n")
+		fmt.Printf("RR (%v)\n", regHL)
 	}
 	return 16
 }
@@ -422,6 +430,9 @@ func sla(env *environment, reg registerType) int {
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
+	if printInstructions {
+		fmt.Printf("SLA %v\n", reg)
+	}
 	return 8
 }
 
@@ -440,6 +451,10 @@ func slaMemHL(env *environment) int {
 	env.setZeroFlag(memVal<<1 == 0)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
+
+	if printInstructions {
+		fmt.Printf("SLA (%v)\n", regHL)
+	}
 	return 16
 }
 
@@ -461,6 +476,9 @@ func sra(env *environment, reg registerType) int {
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
+	if printInstructions {
+		fmt.Printf("SRA %v\n", reg)
+	}
 	return 8
 }
 
@@ -484,5 +502,9 @@ func sraMemHL(env *environment) int {
 	env.setZeroFlag(memVal == 0)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
+
+	if printInstructions {
+		fmt.Printf("SRA (%v)\n", regHL)
+	}
 	return 16
 }

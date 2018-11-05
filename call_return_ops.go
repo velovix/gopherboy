@@ -44,7 +44,7 @@ func ret(env *environment) int {
 	env.regs16[regPC].set(addr)
 
 	if printInstructions {
-		fmt.Printf("RET\n", addr)
+		fmt.Printf("RET\n")
 	}
 	return 16
 }

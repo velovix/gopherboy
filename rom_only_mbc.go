@@ -26,9 +26,11 @@ func (m *romOnlyMBC) at(addr uint16) uint8 {
 	if addr >= bankedROMAddr && addr < videoRAMAddr {
 		return m.romBank1[addr-bankedROMAddr]
 	} else if addr >= bankedRAMAddr && addr < ramAddr {
-		fmt.Printf("Warning: Read from banked RAM section at address %#x, "+
-			"but the ROM-only MBC does not support banked RAM\n",
-			addr)
+		if printInstructions {
+			fmt.Printf("Warning: Read from banked RAM section at address %#x, "+
+				"but the ROM-only MBC does not support banked RAM\n",
+				addr)
+		}
 		// TODO(velovix): Is this the correct behavior?
 		return 0xFF
 	} else {

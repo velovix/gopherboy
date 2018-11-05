@@ -73,7 +73,9 @@ func (m mmu) at(addr uint16) uint8 {
 	} else if addr < ioAddr {
 		// Invalid area, which always returns 0xFF since it's the MMU's default
 		// value
-		fmt.Printf("Warning: Read from invalid memory address %#x\n", addr)
+		if printInstructions {
+			fmt.Printf("Warning: Read from invalid memory address %#x\n", addr)
+		}
 		return 0xFF
 	} else if addr < hramAddr {
 		// IO address

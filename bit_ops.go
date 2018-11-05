@@ -75,6 +75,10 @@ func swap(env *environment, reg registerType) int {
 	env.setHalfCarryFlag(false)
 	env.setCarryFlag(false)
 
+	if printInstructions {
+		fmt.Printf("SWAP %v\n", reg)
+	}
+
 	return 8
 }
 
@@ -92,6 +96,10 @@ func swapMemHL(env *environment) int {
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 	env.setCarryFlag(false)
+
+	if printInstructions {
+		fmt.Printf("SWAP (%v)\n", regHL)
+	}
 
 	return 16
 }

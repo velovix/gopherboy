@@ -783,5 +783,9 @@ func daa(env *environment) int {
 	env.setZeroFlag(aVal == 0)
 	env.setHalfCarryFlag(false)
 
+	if printInstructions {
+		fmt.Printf("DAA\n")
+	}
+
 	return 4
 }
