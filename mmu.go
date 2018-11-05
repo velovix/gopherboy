@@ -122,7 +122,19 @@ func (m mmu) set(addr uint16, val uint8) {
 }
 
 func (m mmu) dump() []uint8 {
-	return []uint8{}
+	var data []uint8
+
+	// Silence invalid read warnings
+	oldPrintInstructions := printInstructions
+	printInstructions = false
+
+	for i := 0; i <= lastAddr; i++ {
+		data = append(data, m.at(uint16(i)))
+	}
+
+	printInstructions = oldPrintInstructions
+
+	return data
 }
 
 // mbc describes a memory bank controller.
