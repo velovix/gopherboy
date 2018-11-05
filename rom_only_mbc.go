@@ -11,7 +11,14 @@ type romOnlyMBC struct {
 }
 
 func newROMOnlyMBC(cartridgeData []uint8) *romOnlyMBC {
-	return &romOnlyMBC{romBank1: make([]uint8, 0x4000)}
+	m := &romOnlyMBC{romBank1: make([]uint8, 0x4000)}
+
+	// Load bank 1 cartridge data
+	for i := bankedROMAddr; i < videoRAMAddr; i++ {
+		m.romBank1[i-bankedROMAddr] = cartridgeData[i]
+	}
+
+	return m
 }
 
 // at provides access to the bank 1 ROM.
