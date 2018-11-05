@@ -232,7 +232,7 @@ func (vc *videoController) loadTile(tile uint8) []uint8 {
 	switch vc.lcdc.windowBGTileDataTableAddr {
 	case tileDataTable0:
 		// Tile indexes at this data table are signed from -128 to 127
-		tileDataAddr = uint16(tileDataTable0 + int(asSigned(tile))*tileBytes)
+		tileDataAddr = uint16(tileDataTable0 + int(int8(tile))*tileBytes)
 	case tileDataTable1:
 		tileDataAddr = tileDataTable1 + (uint16(tile) * tileBytes)
 	default:

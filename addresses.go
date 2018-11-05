@@ -121,8 +121,11 @@ const (
 	// Note that this data table actually starts at 0x8800, but tile values
 	// that reference this table can be negative, allowing them to access the
 	// data before this address.
-	tileDataTable0 = 0x8800
+	tileDataTable0 = 0x9000
 	tileDataTable1 = 0x8000
+
+	// Memory address for sprite data.
+	spriteDataTable = 0x8000
 
 	// Memory addresses for the two available tile maps.
 	tileMap0 = 0x9800
