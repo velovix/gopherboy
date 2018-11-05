@@ -107,7 +107,15 @@ func (m *mbc1) at(addr uint16) uint8 {
 		return m.romBanks[m.currROMBank][addr-bankedROMAddr]
 	} else if addr >= bankedRAMAddr && addr < ramAddr {
 		// Banked RAM area
-		return m.ramBanks[m.currRAMBank][addr-bankedRAMAddr]
+		if _, ok := m.ramBanks[m.currRAMBank]; !ok {
+			if printInstructions {
+				fmt.Printf("Warning: Invalid read from nonexistent "+
+					"RAM bank %v at address %#x\n", m.currRAMBank, addr)
+			}
+			return 0xFF
+		} else {
+			return m.ramBanks[m.currRAMBank][addr-bankedRAMAddr]
+		}
 	} else {
 		panic(fmt.Sprintf("It isn't the MBC1's job to handle access to address %#x", addr))
 	}
