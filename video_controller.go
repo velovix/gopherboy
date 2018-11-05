@@ -465,13 +465,13 @@ func (vc *videoController) loadBGPalette() map[uint8]color {
 		var c color
 		switch colorType {
 		case 0x00:
-			c = color{0, 0, 0, 255}
+			c = color{52, 104, 86, 255}
 		case 0x01:
-			c = color{98, 78, 80, 255}
+			c = color{8, 24, 32, 255}
 		case 0x02:
-			c = color{219, 179, 180, 255}
+			c = color{224, 248, 208, 255}
 		case 0x03:
-			c = color{255, 255, 255, 255}
+			c = color{136, 192, 112, 255}
 		}
 
 		palette[dotData] = c
