@@ -129,14 +129,8 @@ func (env *environment) pushToStack16(val uint16) {
 	env.pushToStack(upper)
 }
 
-// relativeJump moves the program counter by the given signed value, including
-// some special rules relative jumps have.
+// relativeJump moves the program counter by the given signed value.
 func (env *environment) relativeJump(offset int) {
-	// Special case where backwards jumps always move back one more than the
-	// given value
-	if offset < 0 {
-		offset--
-	}
 	env.regs16[regPC].set(uint16(int(env.regs16[regPC].get()) + offset))
 }
 

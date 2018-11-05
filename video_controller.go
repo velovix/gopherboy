@@ -149,7 +149,7 @@ func (vc *videoController) tick(opTime int) {
 				vc.setMode(vcMode0)
 				// TODO(velovix): Unlock things
 				// We're ready to draw the scan line
-				vc.drawScanLine(currScanLine)
+				vc.drawScanLine(uint8(currScanLine))
 			}
 		} else {
 			// We're in mode 1, VBlank period
@@ -182,35 +182,54 @@ func (vc *videoController) tick(opTime int) {
 }
 
 // drawScanLine draws a scan line at the given height position.
-func (vc *videoController) drawScanLine(line int) {
-	for x := 0; x < screenWidth; x++ {
+func (vc *videoController) drawScanLine(line uint8) {
+	for x := uint8(0); x < screenWidth; x++ {
 		tileID, tileX, tileY := vc.bgTileAt(x, line)
 
 		if _, ok := vc.bgTiles[tileID]; !ok {
 			panic(fmt.Sprintf("invalid tile ID %v", tileID))
 		}
 
-		tileData := vc.bgTiles[tileID]
-		dotCode := tileData[(tileY*bgTileHeight)+tileX]
-		color := vc.bgPalette[dotCode]
+		bgTileData := vc.bgTiles[tileID]
+		bgDotCode := bgTileData[(tileY*bgTileHeight)+tileX]
 
-		vc.renderer.SetDrawColor(color.r, color.g, color.b, color.a)
+		var pixelColor color
+		oamEntry, hasSprite := vc.spriteAt(x, line)
+		if hasSprite {
+			// If the sprite has priority 1 and the background dot data is
+			// other than zero, the background will be shown "over" the sprite
+			if oamEntry.priority && bgDotCode != 0 {
+				pixelColor = vc.bgPalette[bgDotCode]
+			} else {
+				// TODO(velovix): Use the proper sprite palette
+				spriteTileData := vc.spriteTiles[oamEntry.spriteNumber]
+				// Get the color at this specific place on the sprite
+				xOffset := uint8(x) - oamEntry.xPos
+				yOffset := uint8(line) - oamEntry.yPos
+				spriteDotCode := spriteTileData[(yOffset*8)+xOffset]
+
+				pixelColor = vc.bgPalette[spriteDotCode]
+			}
+		} else {
+			pixelColor = vc.bgPalette[bgDotCode]
+		}
+		vc.renderer.SetDrawColor(pixelColor.r, pixelColor.g, pixelColor.b, pixelColor.a)
 		vc.renderer.DrawPoint(int32(x), int32(line))
 	}
 }
 
 // bgTileAt finds the ID of background tile at the given screen coordinates and
 // the coordinates' offset from the top left of the tile.
-func (vc *videoController) bgTileAt(x, y int) (tileID uint8, tileX, tileY int) {
+func (vc *videoController) bgTileAt(x, y uint8) (tileID uint8, tileX, tileY int) {
 	// Get the coordinates relative to the background and wrap them if
 	// necessary
-	bgX := x + int(vc.scrollX)
+	bgX := int(x) + int(vc.scrollX)
 	if bgX < 0 {
 		bgX += bgWidth
 	} else if bgX > bgWidth {
 		bgX -= bgWidth
 	}
-	bgY := y + int(vc.scrollY)
+	bgY := int(y) + int(vc.scrollY)
 	if bgY < 0 {
 		bgY += bgHeight
 	} else if bgY > bgHeight {
@@ -221,6 +240,24 @@ func (vc *videoController) bgTileAt(x, y int) (tileID uint8, tileX, tileY int) {
 	tileAddr := vc.lcdc.bgTileMapAddr + uint16(tileOffset)
 
 	return vc.env.mmu.at(tileAddr), bgX % bgTileWidth, bgY % bgTileHeight
+}
+
+// spriteAt returns the sprite that is at the given X and Y value. If none
+// exists, an empty OAM and an ok value of false will be returned.
+func (vc *videoController) spriteAt(x, y uint8) (entry oam, ok bool) {
+	if vc.lcdc.spriteSize == spriteSize8x16 {
+		panic("8x16 sprites are not yet supported")
+	}
+
+	for _, entry := range vc.oams {
+		// TODO(velovix): Is it valid to have a sprite number of 0
+		if entry.spriteNumber != 0 && x >= entry.xPos && x < entry.xPos+8 &&
+			y >= entry.yPos && y < entry.yPos+8 {
+			return entry, true
+		}
+	}
+
+	return oam{}, false
 }
 
 // loadBGTiles loads all background tiles from VRAM.

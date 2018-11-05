@@ -5,7 +5,7 @@ import "fmt"
 // jr loads a signed offset value, then jumps to the operation at address PC +
 // offset. In other words, it's a jump relative to the current position.
 func jr(env *environment) int {
-	offset := asSigned(env.incrementPC())
+	offset := int8(env.incrementPC())
 	env.relativeJump(int(offset))
 
 	if printInstructions {
@@ -19,7 +19,7 @@ func jr(env *environment) int {
 // offset if the given flag is at the expected setting.
 func jrIfFlag(env *environment, flagMask uint8, isSet bool) int {
 	flagState := env.regs8[regF].get()&flagMask == flagMask
-	offset := asSigned(env.incrementPC())
+	offset := int8(env.incrementPC())
 
 	if printInstructions {
 		conditional := getConditionalStr(flagMask, isSet)
