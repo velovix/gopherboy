@@ -7,7 +7,7 @@ type environment struct {
 	// A map of 16-bit register names to their corresponding register.
 	regs16 map[registerType]register16
 	// The active memory management unit.
-	mmu mmu
+	mmu *mmu
 	// If this value is >0, it is decremented after every operation. When this
 	// timer decrements to 0, interrupts are enabled. This is used to emulate
 	// the EI instruction's delayed effects.
@@ -26,7 +26,7 @@ type environment struct {
 
 // newEnvironment creates a new Game Boy environment with special memory
 // addresses initialized in accordance with the Game Boy's start up sequence.
-func newEnvironment(mmu mmu) *environment {
+func newEnvironment(mmu *mmu) *environment {
 	env := &environment{
 		regs8:  make(map[registerType]register8),
 		regs16: make(map[registerType]register16),

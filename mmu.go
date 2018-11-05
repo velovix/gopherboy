@@ -28,7 +28,7 @@ type mmu struct {
 	mbc mbc
 }
 
-func newMMU(cartridgeData []uint8, mbc mbc) mmu {
+func newMMU(cartridgeData []uint8, mbc mbc) *mmu {
 	var m mmu
 
 	m.mbc = mbc
@@ -45,7 +45,7 @@ func newMMU(cartridgeData []uint8, mbc mbc) mmu {
 	m.ioRAM = make([]uint8, hramAddr-ioAddr)
 	m.hram = make([]uint8, lastAddr-hramAddr+1)
 
-	return m
+	return &m
 }
 
 func (m mmu) at(addr uint16) uint8 {

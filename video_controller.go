@@ -44,9 +44,13 @@ type videoController struct {
 	frameTick      int
 	drawnScanLines int
 	lcdc           lcdcConfig
-	// Contains tile data, where the key is the tile ID and the value is a
-	// slice of dot codes corresponding to colors.
-	tiles map[uint8][]uint8
+	// All OAM entries. Used to control sprites on-screen.
+	oams []oam
+	// Contains tile data for the background, where the key is the tile ID and
+	// the value is a slice of dot codes corresponding to colors.
+	bgTiles map[uint8][]uint8
+	// Contains tile data for sprites in the same format as bgTiles.
+	spriteTiles map[uint8][]uint8
 	// scrollX controls the X position of the background.
 	scrollX int8
 	// scrollY controls the Y position of the background.
@@ -125,14 +129,19 @@ func (vc *videoController) tick(opTime int) {
 				vc.setMode(vcMode2)
 				// TODO(velovix): Load OAM
 				// TODO(velovix): Lock OAM?
+
+				vc.oams = vc.loadOAM()
+
 				// This is the start of this scan line, read some scan line
 				// global values
 				vc.scrollX = asSigned(vc.env.mmu.at(scrollXAddr))
-				vc.bgPalette = vc.loadBGPalette()
 			case scanLineOAMClocks:
 				// We're in mode 3, OAM and VRAM transfer mode.
 				vc.setMode(vcMode3)
-				vc.tiles = vc.loadBGTiles()
+
+				vc.bgPalette = vc.loadBGPalette()
+				vc.bgTiles = vc.loadBGTiles()
+				vc.spriteTiles = vc.loadSpriteTiles()
 				// TODO(velovix): Lock VRAM
 				// TODO(velovix): Load VRAM data
 			case scanLineVRAMClocks:
@@ -177,11 +186,11 @@ func (vc *videoController) drawScanLine(line int) {
 	for x := 0; x < screenWidth; x++ {
 		tileID, tileX, tileY := vc.bgTileAt(x, line)
 
-		if _, ok := vc.tiles[tileID]; !ok {
+		if _, ok := vc.bgTiles[tileID]; !ok {
 			panic(fmt.Sprintf("invalid tile ID %v", tileID))
 		}
 
-		tileData := vc.tiles[tileID]
+		tileData := vc.bgTiles[tileID]
 		dotCode := tileData[(tileY*bgTileHeight)+tileX]
 		color := vc.bgPalette[dotCode]
 
@@ -214,36 +223,53 @@ func (vc *videoController) bgTileAt(x, y int) (tileID uint8, tileX, tileY int) {
 	return vc.env.mmu.at(tileAddr), bgX % bgTileWidth, bgY % bgTileHeight
 }
 
+// loadBGTiles loads all background tiles from VRAM.
 func (vc *videoController) loadBGTiles() map[uint8][]uint8 {
 	tileMap := make(map[uint8][]uint8)
 
-	for i := 0; i < 256; i++ {
-		tileMap[uint8(i)] = vc.loadTile(uint8(i))
+	for tile := 0; tile < 256; tile++ {
+		// Find the address of the tile data
+		var tileDataAddr uint16
+		switch vc.lcdc.windowBGTileDataTableAddr {
+		case tileDataTable0:
+			// Tile indexes at this data table are signed from -128 to 127
+			tileDataAddr = uint16(tileDataTable0 + int(int8(tile))*tileBytes)
+		case tileDataTable1:
+			tileDataAddr = tileDataTable1 + (uint16(tile) * tileBytes)
+		default:
+			panic(fmt.Sprintf("unknown tile data table %#x", tileDataAddr))
+		}
+
+		tileMap[uint8(tile)] = vc.loadTile(tileDataAddr)
 	}
 
 	return tileMap
 }
 
-// loadTile loads a single window or background tile and returns the data as a
-// slice of dot codes.
-func (vc *videoController) loadTile(tile uint8) []uint8 {
-	// Find the address of the tile data
-	var tileDataAddr uint16
-	switch vc.lcdc.windowBGTileDataTableAddr {
-	case tileDataTable0:
-		// Tile indexes at this data table are signed from -128 to 127
-		tileDataAddr = uint16(tileDataTable0 + int(int8(tile))*tileBytes)
-	case tileDataTable1:
-		tileDataAddr = tileDataTable1 + (uint16(tile) * tileBytes)
-	default:
-		panic(fmt.Sprintf("unknown tile data table %#x", tileDataAddr))
+func (vc *videoController) loadSpriteTiles() map[uint8][]uint8 {
+	if vc.lcdc.spriteSize == spriteSize8x16 {
+		panic("8x16 sprites are not yet supported")
 	}
 
+	tileMap := make(map[uint8][]uint8)
+
+	for tile := 0; tile < 256; tile++ {
+		// Find the address of the tile data
+		tileDataAddr := uint16(spriteDataTable + (tile * tileBytes))
+		tileMap[uint8(tile)] = vc.loadTile(tileDataAddr)
+	}
+
+	return tileMap
+}
+
+// loadTile loads a single tile at the given address and returns the data as a
+// slice of dot codes.
+func (vc *videoController) loadTile(startAddr uint16) []uint8 {
 	tileData := make([]uint8, bgTileWidth*bgTileHeight)
 
 	for y := uint16(0); y < bgTileHeight; y++ {
-		lower := vc.env.mmu.at(tileDataAddr + (y * 2))
-		upper := vc.env.mmu.at(tileDataAddr + ((y * 2) + 1))
+		lower := vc.env.mmu.at(startAddr + (y * 2))
+		upper := vc.env.mmu.at(startAddr + ((y * 2) + 1))
 
 		for x := uint16(0); x < bgTileWidth; x++ {
 			// Tiles use a weird format. For each row in a tile, there are two
@@ -380,6 +406,66 @@ func (vc *videoController) loadLCDC() lcdcConfig {
 
 	return config
 }
+
+// oam represents a single OAM entry. OAM stands for Object Attribute Memory
+// and are used to control sprites on screen.
+//
+// A single OAM entry is 4 bytes in size.
+//
+// Byte 0: Y position on-screen
+// Byte 1: X position on-screen
+// Byte 2: The sprite/tile number from 0-255. This controls what the sprite
+//         looks like.
+// Byte 3: Flags controlling other attributes of the sprite.
+//     Bit 7: Priority. If 1, the sprite will be displayed under all background
+//            pixels except ones with dot data equal to zero. If 0, the sprite
+//            will be drawn over all background pixels.
+//     Bit 6: Y Flip. If 1, the sprite will be flipped vertically.
+//     Bit 5: X Flip. If 1, the sprite will be flipped horizontally.
+//     Bit 4: Palette number. If 1, the sprite will use object palette 1, if 0,
+//            the sprite will use object palette 0.
+//     Bits 3-0: Unused
+type oam struct {
+	yPos          uint8
+	xPos          uint8
+	spriteNumber  uint8
+	priority      bool
+	yFlip         bool
+	xFlip         bool
+	paletteNumber uint8
+}
+
+// loadOAM loads all OAM entries from memory.
+func (vc *videoController) loadOAM() []oam {
+	oams := make([]oam, 40)
+
+	for i := 0; i < 40; i++ {
+		entryStart := uint16(oamRAMAddr + (i * oamBytes))
+		oams[i] = oam{
+			yPos:         vc.env.mmu.at(entryStart),
+			xPos:         vc.env.mmu.at(entryStart + 1),
+			spriteNumber: vc.env.mmu.at(entryStart + 2),
+		}
+
+		flags := vc.env.mmu.at(entryStart + 3)
+		oams[i].priority = flags&0x80 == 0x80
+		oams[i].yFlip = flags&0x40 == 0x40
+		oams[i].xFlip = flags&0x20 == 0x20
+
+		if flags&0x10 == 0x10 {
+			oams[i].paletteNumber = 1
+		} else {
+			oams[i].paletteNumber = 0
+		}
+	}
+
+	return oams
+}
+
+const (
+	// The size in bytes of an OAM entry.
+	oamBytes = 4
+)
 
 // statConfig configures LCD configuration information as configured by the
 // STAT memory register.
