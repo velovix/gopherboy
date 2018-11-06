@@ -83,6 +83,7 @@ func startMainLoop(env *environment, vc *videoController, timers *timers) error 
 		}
 
 		timers.tick(opTime)
+		env.mmu.tick(opTime)
 		vc.tick(opTime)
 
 		// TODO(velovix): Should interrupt flags be unset here if the interrupt

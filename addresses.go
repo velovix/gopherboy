@@ -131,6 +131,16 @@ const (
 	tileMap0 = 0x9800
 	tileMap1 = 0x9C00
 
+	// dmaAddr points to the DMA Transfer and Start Address register. When this
+	// register is written to, a transfer will happen between a specified
+	// memory address and OAM RAM. Games use this to update sprite information
+	// automatically.
+	//
+	// The transfer uses the written value as the upper byte of the source
+	// address for OAM data. For example, if a game writes a 0x28 to the DMA,
+	// a transfer will begin from 0x2800-0x289F to 0xFE00-0xFE9F (OAM RAM).
+	dmaAddr = 0xFF46
+
 	// vblankInterruptTarget points to the location that will be jumped to on a
 	// vblank interrupt.
 	vblankInterruptTarget = 0x0040

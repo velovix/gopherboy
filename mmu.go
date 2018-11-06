@@ -2,6 +2,9 @@ package main
 
 import "fmt"
 
+// dmaCycleLength is the number of cycles a DMA transfer takes.
+const dmaCycleLength = 671
+
 // mmu is the memory management unit. It handles all operations that are common
 // to all Game Boy games and defers to the cartridge's memory bank controller
 // in cartridge-specific cases.
@@ -23,6 +26,13 @@ type mmu struct {
 	ioRAM []uint8
 	// hram is a special general-purpose RAM area
 	hram []uint8
+
+	// dmaActive is true if a DMA transfer is happening.
+	dmaActive bool
+	// dmaCursor is the next memory address to be transferred.
+	dmaCursor uint16
+	// dmaCycleCount is the number of a cycles a DMA transfer takes.
+	dmaCycleCount int
 
 	// mbc is the memory bank controller that this MMU will use.
 	mbc mbc
@@ -48,7 +58,7 @@ func newMMU(cartridgeData []uint8, mbc mbc) *mmu {
 	return &m
 }
 
-func (m mmu) at(addr uint16) uint8 {
+func (m *mmu) at(addr uint16) uint8 {
 	if addr < bankedROMAddr {
 		// Bank 0 ROM
 		return m.bank0ROM[addr-bank0ROMAddr]
@@ -88,7 +98,29 @@ func (m mmu) at(addr uint16) uint8 {
 	}
 }
 
-func (m mmu) set(addr uint16, val uint8) {
+// tick progresses the MMU by the given number of cycles.
+func (m *mmu) tick(opTime int) {
+	for i := 0; i < opTime; i++ {
+		if m.dmaActive {
+			// Work on a DMA transfer
+			lower, _ := split16(m.dmaCursor)
+			if lower < 0x9F {
+				// Transfer a byte
+				m.set(oamRAMAddr+uint16(lower), m.at(m.dmaCursor))
+
+				m.dmaCursor++
+			}
+			// Wait for the DMA transfer to finish
+			if m.dmaCycleCount >= dmaCycleLength {
+				m.dmaActive = false
+			} else {
+				m.dmaCycleCount++
+			}
+		}
+	}
+}
+
+func (m *mmu) set(addr uint16, val uint8) {
 	if addr < videoRAMAddr {
 		// Somewhere in ROM, let the MBC handle it
 		m.mbc.set(addr, val)
@@ -113,6 +145,21 @@ func (m mmu) set(addr uint16, val uint8) {
 	} else if addr < hramAddr {
 		// I/O RAM
 		m.ioRAM[addr-ioAddr] = val
+
+		if addr == dmaAddr {
+			if m.dmaActive {
+				// A DMA transfer is already active!
+				// TODO(velovix): What is the hardware's behavior here?
+				panic(fmt.Sprintf("DMA transfer request to %#x when "+
+					"a transfer is already active", val))
+			}
+			// TODO(velovix): Lock all memory except HRAM?
+			// Start a DMA transfer
+			m.dmaActive = true
+			// Use the value as the higher byte in the source address
+			m.dmaCursor = uint16(val) << 8
+			m.dmaCycleCount = 0
+		}
 	} else if addr <= 0xFFFF {
 		// HRAM
 		m.hram[addr-hramAddr] = val
@@ -121,7 +168,7 @@ func (m mmu) set(addr uint16, val uint8) {
 	}
 }
 
-func (m mmu) dump() []uint8 {
+func (m *mmu) dump() []uint8 {
 	var data []uint8
 
 	// Silence invalid read warnings

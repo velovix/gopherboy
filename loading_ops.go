@@ -218,7 +218,7 @@ func ldhToMem(env *environment) int {
 	env.mmu.set(0xFF00+uint16(offset), env.regs8[regA].get())
 
 	if printInstructions {
-		fmt.Printf("LDH (%#x),%v\n", offset, regA)
+		fmt.Printf("LDH (%#x),%v (%#x)\n", offset, regA, 0xFF00+uint16(offset))
 	}
 	return 12
 }
