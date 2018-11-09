@@ -131,6 +131,20 @@ const (
 	tileMap0 = 0x9800
 	tileMap1 = 0x9C00
 
+	// These variables points to the OBP0 and OPB1 memory registers, which
+	// control the two available sprite palettes. These registers maps dot data
+	// to actual colors.
+	//
+	// Colors go from 0b11 to 0b00, where 0b11 is the darkest and 0b00 is the
+	// lightest.
+	//
+	// Bits 7-6: The color for dot data 0b11
+	// Bits 5-4: The color for dot data 0b10
+	// Bits 3-2: The color for dot data 0b01
+	// Bits 1-0: Unused. This dot data is always interpreted as transparent.
+	opb0Addr = 0xFF48
+	opb1Addr = 0xFF48
+
 	// dmaAddr points to the DMA Transfer and Start Address register. When this
 	// register is written to, a transfer will happen between a specified
 	// memory address and OAM RAM. Games use this to update sprite information

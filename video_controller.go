@@ -25,6 +25,15 @@ const (
 	verticalBlankClocks = 4560
 	// The total number of clocks taken for a frame.
 	fullFrameClocks = (scanLineFullClocks * screenHeight) + verticalBlankClocks
+
+	// spriteWidth is the pixel width of a sprite
+	spriteWidth = 8
+	// spriteTallHeight is the pixel height of a sprite if 8x16 mode is
+	// enabled.
+	spriteTallHeight = 16
+	// spriteShortHeight is the pixel height of a sprite if 8x8 mode is
+	// enabled.
+	spriteShortHeight = 8
 )
 
 type drawStep int
@@ -57,6 +66,10 @@ type videoController struct {
 	scrollY int8
 	// bgPalette is the palette for the background.
 	bgPalette map[uint8]color
+	// spritePalette0 is the first of the two available sprite palettes.
+	spritePalette0 map[uint8]color
+	// spritePalette1 is the second of the two available sprite palettes.
+	spritePalette1 map[uint8]color
 
 	timers *timers
 	env    *environment
@@ -140,6 +153,8 @@ func (vc *videoController) tick(opTime int) {
 				vc.setMode(vcMode3)
 
 				vc.bgPalette = vc.loadBGPalette()
+				vc.spritePalette0 = vc.loadSpritePalette(0)
+				vc.spritePalette1 = vc.loadSpritePalette(1)
 				vc.bgTiles = vc.loadBGTiles()
 				vc.spriteTiles = vc.loadSpriteTiles()
 				// TODO(velovix): Lock VRAM
@@ -201,14 +216,28 @@ func (vc *videoController) drawScanLine(line uint8) {
 			if oamEntry.priority && bgDotCode != 0 {
 				pixelColor = vc.bgPalette[bgDotCode]
 			} else {
-				// TODO(velovix): Use the proper sprite palette
 				spriteTileData := vc.spriteTiles[oamEntry.spriteNumber]
 				// Get the color at this specific place on the sprite
-				xOffset := uint8(x) - oamEntry.xPos
-				yOffset := uint8(line) - oamEntry.yPos
-				spriteDotCode := spriteTileData[(yOffset*8)+xOffset]
+				xOffset := uint8(x+spriteWidth) - oamEntry.xPos
+				yOffset := uint8(line+spriteTallHeight) - oamEntry.yPos
 
-				pixelColor = vc.bgPalette[spriteDotCode]
+				spriteDotCode := spriteTileData[(yOffset*spriteShortHeight)+xOffset]
+
+				if spriteDotCode == 0 {
+					// As a special case, if the dot code is zero the sprite is
+					// always transparent, regardless of the palette
+					pixelColor = vc.bgPalette[bgDotCode]
+				} else {
+					// Use the selected sprite palette
+					if oamEntry.paletteNumber == 0 {
+						pixelColor = vc.spritePalette0[spriteDotCode]
+					} else if oamEntry.paletteNumber == 1 {
+						pixelColor = vc.spritePalette1[spriteDotCode]
+					} else {
+						panic(fmt.Sprintf("unknown sprite palette value %v",
+							oamEntry.paletteNumber))
+					}
+				}
 			}
 		} else {
 			pixelColor = vc.bgPalette[bgDotCode]
@@ -250,9 +279,12 @@ func (vc *videoController) spriteAt(x, y uint8) (entry oam, ok bool) {
 	}
 
 	for _, entry := range vc.oams {
-		// TODO(velovix): Is it valid to have a sprite number of 0
-		if entry.spriteNumber != 0 && x >= entry.xPos && x < entry.xPos+8 &&
-			y >= entry.yPos && y < entry.yPos+8 {
+		// TODO(velovix): Is it valid to have a sprite number of 0?
+		// Check if the sprite this OAM entry corresponds to is in the given
+		// point. Remember that a sprite's X and Y position is relative to the
+		// bottom right of the sprite.
+		if entry.spriteNumber != 0 && x < entry.xPos && x >= entry.xPos-spriteWidth &&
+			y < entry.yPos-spriteShortHeight && y >= entry.yPos-spriteTallHeight {
 			return entry, true
 		}
 	}
@@ -450,7 +482,7 @@ func (vc *videoController) loadLCDC() lcdcConfig {
 // A single OAM entry is 4 bytes in size.
 //
 // Byte 0: Y position on-screen
-// Byte 1: X position on-screen
+// Byte 1: X position on-screen, on the right of the sprite
 // Byte 2: The sprite/tile number from 0-255. This controls what the sprite
 //         looks like.
 // Byte 3: Flags controlling other attributes of the sprite.
@@ -599,6 +631,34 @@ func (vc *videoController) loadBGPalette() map[uint8]color {
 
 		palette[dotData] = c
 		bgp <<= 2
+	}
+
+	return palette
+}
+
+// loadSpritePalette inspects the OBP0 or OPB1 register values and returns a
+// map that maps dot data to actual colors.
+func (vc *videoController) loadSpritePalette(paletteNum int) map[uint8]color {
+	obp := vc.env.mmu.at(opb0Addr + uint16(paletteNum))
+	palette := make(map[uint8]color)
+
+	for dotData := uint8(0); dotData <= 0x3; dotData++ {
+		colorType := (obp & 0xC0) >> 6
+
+		var c color
+		switch colorType {
+		case 0x00:
+			c = color{52, 104, 86, 255}
+		case 0x01:
+			c = color{8, 24, 32, 255}
+		case 0x02:
+			c = color{224, 248, 208, 255}
+		case 0x03:
+			c = color{136, 192, 112, 255}
+		}
+
+		palette[dotData] = c
+		obp <<= 2
 	}
 
 	return palette
