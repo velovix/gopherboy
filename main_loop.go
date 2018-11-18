@@ -1,14 +1,12 @@
 package main
 
-import (
-	"bufio"
-	"fmt"
-	"os"
-)
-
 // startMainLoop starts the main processing loop of the Gameboy.
-func startMainLoop(env *environment, vc *videoController, timers *timers) error {
-	stepping := false
+func startMainLoop(
+	env *environment,
+	vc *videoController,
+	timers *timers,
+	joypad *joypad,
+	db *debugger) error {
 
 	for {
 		var err error
@@ -21,44 +19,8 @@ func startMainLoop(env *environment, vc *videoController, timers *timers) error 
 			// Fetch and run an operation
 			opcode := env.incrementPC()
 
-			if (breakOpcode != nil && opcode == *breakOpcode) || stepping {
-				fmt.Printf("BREAK: %#02x\n", opcode)
-				fmt.Printf("   A:   %#02x |  B:   %#02x\n",
-					env.regs8[regA].get(),
-					env.regs8[regB].get())
-				fmt.Printf("   C:   %#02x |  D:   %#02x\n",
-					env.regs8[regC].get(),
-					env.regs8[regD].get())
-				fmt.Printf("   E:   %#02x |  H:   %#02x\n",
-					env.regs8[regE].get(),
-					env.regs8[regH].get())
-				fmt.Printf("   L:   %#02x |  F:   %#02x\n",
-					env.regs8[regL].get(),
-					env.regs8[regF].get())
-				fmt.Printf("  AF: %#04x\n", env.regs16[regAF].get())
-				fmt.Printf("  BC: %#04x\n", env.regs16[regBC].get())
-				fmt.Printf("  DE: %#04x\n", env.regs16[regDE].get())
-				fmt.Printf("  HL: %#04x\n", env.regs16[regHL].get())
-				fmt.Printf("  SP: %#04x\n", env.regs16[regSP].get())
-				fmt.Printf("  PC: %#04x\n", env.regs16[regPC].get()-1) // We've already incremented once to find the instruction
-
-				reader := bufio.NewReader(os.Stdin)
-				for {
-					fmt.Print("Now what? ")
-					command, _ := reader.ReadString('\n')
-					if command == "c\n" {
-						fmt.Println("Continuing")
-						stepping = false
-						break
-					} else if command == "n\n" {
-						fmt.Println("Stepping")
-						stepping = true
-						break
-					} else {
-						fmt.Printf("Unknown command '%v'\n", command)
-						continue
-					}
-				}
+			if db != nil {
+				db.opcodeHook(opcode)
 			}
 
 			opTime, err = runOpcode(env, opcode)
@@ -85,6 +47,7 @@ func startMainLoop(env *environment, vc *videoController, timers *timers) error 
 		timers.tick(opTime)
 		env.mmu.tick(opTime)
 		vc.tick(opTime)
+		joypad.tick()
 
 		// TODO(velovix): Should interrupt flags be unset here if the interrupt
 		// is disabled?
@@ -116,7 +79,7 @@ func startMainLoop(env *environment, vc *videoController, timers *timers) error 
 				target = serialInterruptTarget
 				interruptFlag &= ^uint8(0x08)
 			} else if interruptEnable&interruptFlag&0x10 == 0x10 {
-				// P1 thru P4 interrupt
+				// P10-P13 interrupt
 				target = p1Thru4InterruptTarget
 				interruptFlag &= ^uint8(0x10)
 			}

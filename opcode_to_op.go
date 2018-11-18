@@ -501,7 +501,7 @@ func runCBOpcode(env *environment, opcode uint8) (cycles int, err error) {
 		return srl(env, indexToRegister[regIndex]), nil
 	// BIT b,A
 	case upperNibble >= 0x04 && upperNibble <= 0x07 &&
-		lowerNibble == 0x07 || lowerNibble == 0x0F:
+		(lowerNibble == 0x07 || lowerNibble == 0x0F):
 		bitNum := (upperNibble - 0x04) * 2
 		if lowerNibble == 0x0F {
 			bitNum++
@@ -526,7 +526,7 @@ func runCBOpcode(env *environment, opcode uint8) (cycles int, err error) {
 			regIndex -= 0x08
 		}
 
-		bitNum := (upperNibble - 0x08) * 2
+		bitNum := (upperNibble - 0x04) * 2
 		if lowerNibble >= 0x08 {
 			bitNum++
 		}
@@ -590,7 +590,7 @@ func runCBOpcode(env *environment, opcode uint8) (cycles int, err error) {
 			regIndex -= 0x08
 		}
 
-		bit := (upperNibble - 0x08) * 2
+		bit := (upperNibble - 0x0C) * 2
 		if lowerNibble >= 0x08 {
 			bit++
 		}

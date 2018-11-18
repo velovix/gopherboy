@@ -78,7 +78,7 @@ type videoController struct {
 	frameCnt   int
 }
 
-func newVideoController(env *environment, timers *timers) (videoController, error) {
+func newVideoController(env *environment, timers *timers) (*videoController, error) {
 	var vc videoController
 
 	vc.env = env
@@ -86,7 +86,7 @@ func newVideoController(env *environment, timers *timers) (videoController, erro
 
 	err := sdl.Init(sdl.INIT_EVERYTHING)
 	if err != nil {
-		return videoController{}, fmt.Errorf("initializing SDL: %v", err)
+		return &videoController{}, fmt.Errorf("initializing SDL: %v", err)
 	}
 
 	vc.window, err = sdl.CreateWindow(
@@ -95,19 +95,19 @@ func newVideoController(env *environment, timers *timers) (videoController, erro
 		screenWidth, screenHeight,
 		sdl.WINDOW_OPENGL)
 	if err != nil {
-		return videoController{}, fmt.Errorf("initializing window: %v", err)
+		return &videoController{}, fmt.Errorf("initializing window: %v", err)
 	}
 
 	vc.renderer, err = sdl.CreateRenderer(vc.window, -1, sdl.RENDERER_ACCELERATED)
 	if err != nil {
-		return videoController{}, fmt.Errorf("initializing renderer:", err)
+		return &videoController{}, fmt.Errorf("initializing renderer:", err)
 	}
 
 	vc.lastSecond = time.Now()
 
 	vc.renderer.SetDrawColor(255, 255, 255, 255)
 
-	return vc, nil
+	return &vc, nil
 }
 
 // tick progresses the video controller by the given number of cycles.
@@ -140,7 +140,6 @@ func (vc *videoController) tick(opTime int) {
 			case 0:
 				// We're in mode 2, OAM read mode.
 				vc.setMode(vcMode2)
-				// TODO(velovix): Load OAM
 				// TODO(velovix): Lock OAM?
 
 				vc.oams = vc.loadOAM()

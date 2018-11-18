@@ -241,7 +241,7 @@ func ldhFromMem(env *environment) int {
 // result is stored in register HL.
 func ldhl(env *environment) int {
 	immUnsigned := env.incrementPC()
-	imm := uint16(immUnsigned)
+	imm := int8(immUnsigned)
 	spVal := env.regs16[regSP].get()
 
 	// This instruction's behavior for the carry and half carry flags is very
@@ -254,7 +254,7 @@ func ldhl(env *environment) int {
 	env.setHalfCarryFlag(isHalfCarry(lowerSP, immUnsigned))
 	env.setCarryFlag(isCarry(lowerSP, immUnsigned))
 
-	env.regs16[regHL].set(imm + spVal)
+	env.regs16[regHL].set(uint16(int(imm) + int(spVal)))
 
 	env.setZeroFlag(false)
 	env.setSubtractFlag(false)
@@ -271,7 +271,7 @@ func push(env *environment, reg registerType) int {
 	env.pushToStack16(env.regs16[reg].get())
 
 	if printInstructions {
-		fmt.Printf("PUSH %v (%#x)\n", reg, env.regs16[reg].get())
+		fmt.Printf("PUSH %v\n", reg)
 	}
 	return 16
 }
@@ -282,7 +282,7 @@ func pop(env *environment, reg registerType) int {
 	env.regs16[reg].set(env.popFromStack16())
 
 	if printInstructions {
-		fmt.Printf("POP %v (%#x)\n", reg, env.regs16[reg].get())
+		fmt.Printf("POP %v\n", reg)
 	}
 	return 12
 }

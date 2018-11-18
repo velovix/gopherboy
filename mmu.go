@@ -1,6 +1,8 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // dmaCycleLength is the number of cycles a DMA transfer takes.
 const dmaCycleLength = 671
@@ -34,14 +36,29 @@ type mmu struct {
 	// dmaCycleCount is the number of a cycles a DMA transfer takes.
 	dmaCycleCount int
 
+	// subscribers maps a memory address to a function that should be called
+	// when that memory address is written to. The value written to memory may
+	// be modified by this function.
+	subscribers map[uint16]onWriteFunc
+
 	// mbc is the memory bank controller that this MMU will use.
 	mbc mbc
+
+	db *debugger
 }
 
-func newMMU(cartridgeData []uint8, mbc mbc) *mmu {
-	var m mmu
+type onWriteFunc func(addr uint16, val uint8) uint8
 
-	m.mbc = mbc
+func newMMU(cartridgeData []uint8, mbc mbc) *mmu {
+	m := &mmu{
+		videoRAM:    make([]uint8, bankedRAMAddr-videoRAMAddr),
+		ram:         make([]uint8, ramMirrorAddr-ramAddr),
+		oamRAM:      make([]uint8, invalidArea2Addr-oamRAMAddr),
+		ioRAM:       make([]uint8, hramAddr-ioAddr),
+		hram:        make([]uint8, lastAddr-hramAddr+1),
+		subscribers: make(map[uint16]onWriteFunc),
+		mbc:         mbc,
+	}
 
 	// Put cartridge data into bank 0
 	m.bank0ROM = make([]uint8, bankedROMAddr-bank0ROMAddr)
@@ -49,16 +66,14 @@ func newMMU(cartridgeData []uint8, mbc mbc) *mmu {
 		m.bank0ROM[i] = cartridgeData[i]
 	}
 
-	m.videoRAM = make([]uint8, bankedRAMAddr-videoRAMAddr)
-	m.ram = make([]uint8, ramMirrorAddr-ramAddr)
-	m.oamRAM = make([]uint8, invalidArea2Addr-oamRAMAddr)
-	m.ioRAM = make([]uint8, hramAddr-ioAddr)
-	m.hram = make([]uint8, lastAddr-hramAddr+1)
-
-	return &m
+	return m
 }
 
 func (m *mmu) at(addr uint16) uint8 {
+	if m.db != nil {
+		m.db.memReadHook(addr)
+	}
+
 	if addr < bankedROMAddr {
 		// Bank 0 ROM
 		return m.bank0ROM[addr-bank0ROMAddr]
@@ -88,7 +103,7 @@ func (m *mmu) at(addr uint16) uint8 {
 		}
 		return 0xFF
 	} else if addr < hramAddr {
-		// IO address
+		// IO address space
 		return m.ioRAM[addr-ioAddr]
 	} else if addr <= lastAddr {
 		// HRAM address
@@ -121,6 +136,11 @@ func (m *mmu) tick(opTime int) {
 }
 
 func (m *mmu) set(addr uint16, val uint8) {
+	// Notify any subscribers of this event
+	if onWrite, ok := m.subscribers[addr]; ok {
+		val = onWrite(addr, val)
+	}
+
 	if addr < videoRAMAddr {
 		// Somewhere in ROM, let the MBC handle it
 		m.mbc.set(addr, val)
@@ -168,12 +188,21 @@ func (m *mmu) set(addr uint16, val uint8) {
 	}
 }
 
+func (m *mmu) subscribeTo(addr uint16, onWrite onWriteFunc) {
+	if _, ok := m.subscribers[addr]; ok {
+		panic(fmt.Sprintf("attempt to have multiple subscribers to one address %#x", addr))
+	} else {
+		m.subscribers[addr] = onWrite
+	}
+}
+
 func (m *mmu) dump() []uint8 {
 	var data []uint8
 
-	// Silence invalid read warnings
+	// Silence invalid read warnings and debugger
 	oldPrintInstructions := printInstructions
 	printInstructions = false
+	m.db = nil
 
 	for i := 0; i <= lastAddr; i++ {
 		data = append(data, m.at(uint16(i)))

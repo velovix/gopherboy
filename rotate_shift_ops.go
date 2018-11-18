@@ -318,6 +318,8 @@ func rrc(env *environment, reg registerType) int {
 func rrcMemHL(env *environment) int {
 	memVal := env.mmu.at(env.regs16[regHL].get())
 
+	carryBit := memVal & 0x01
+
 	memVal = bits.RotateLeft8(memVal, -1)
 	env.mmu.set(env.regs16[regHL].get(), memVal)
 
@@ -325,7 +327,6 @@ func rrcMemHL(env *environment) int {
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 
-	carryBit := memVal & 0x80
 	env.setCarryFlag(carryBit == 1)
 
 	if printInstructions {
@@ -443,12 +444,12 @@ func slaMemHL(env *environment) int {
 	memVal := env.mmu.at(hlVal)
 
 	// Put the most significant bit in the carry register
-	msb := memVal & 0x08
-	env.setCarryFlag(msb == 1)
+	env.setCarryFlag(memVal&0x80 == 0x80)
 
-	env.mmu.set(hlVal, memVal<<1)
+	memVal <<= 1
+	env.mmu.set(hlVal, memVal)
 
-	env.setZeroFlag(memVal<<1 == 0)
+	env.setZeroFlag(memVal == 0)
 	env.setSubtractFlag(false)
 	env.setHalfCarryFlag(false)
 

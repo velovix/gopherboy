@@ -13,23 +13,14 @@ var (
 	// printInstructions controls whether or not instructions are printed. This is
 	// useful for debugging but slows emulation to a crawl.
 	printInstructions = false
-	// breakOpcode selects an opcode to break at, if any.
-	breakOpcode *uint8 = nil
 )
 
 func main() {
 	debug := flag.Bool("debug", false, "Start in debug mode")
-	breakAt := flag.Int("break-at", -1, "An opcode to break at")
+	breakOnOpcode := flag.Int("break-on-opcode", -1, "An opcode to break at")
+	breakOnAddrRead := flag.Int("break-on-addr-read", -1, "A memory address to break at on read")
 
 	flag.Parse()
-
-	if *debug {
-		printInstructions = true
-	}
-	if *breakAt != -1 {
-		op := uint8(*breakAt)
-		breakOpcode = &op
-	}
 
 	if len(flag.Args()) < 1 {
 		fmt.Println("Usage: gopherboy [OPTIONS] rom_file")
@@ -61,6 +52,25 @@ func main() {
 
 	env := newEnvironment(newMMU(cartridgeData, mbc))
 
+	// Start the debugger
+	var db *debugger
+	if *debug {
+		printInstructions = true
+		fmt.Println("Setting up debugger")
+		db = &debugger{env: env}
+
+		if *breakOnOpcode != -1 {
+			val := uint8(*breakOnOpcode)
+			db.breakOnOpcode = &val
+		}
+		if *breakOnAddrRead != -1 {
+			val := uint16(*breakOnAddrRead)
+			db.breakOnAddrRead = &val
+		}
+
+		env.mmu.db = db
+	}
+
 	// Start the timers
 	timers := newTimers(env)
 
@@ -72,13 +82,16 @@ func main() {
 	}
 	defer vc.destroy()
 
+	// Start reading joypad input
+	joypad := newJoypad(env)
+
 	// Memory dump on SIGINT
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
 	go dumpOnSigint(env, sigint)
 
 	// Start running
-	err = startMainLoop(env, &vc, timers)
+	err = startMainLoop(env, vc, timers, joypad, db)
 	if err != nil {
 		fmt.Println("Error while running ROM:", err)
 		os.Exit(1)

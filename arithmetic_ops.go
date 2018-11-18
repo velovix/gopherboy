@@ -83,7 +83,7 @@ func add8BitImm(env *environment) int {
 // pointer register.
 func addToSP(env *environment) int {
 	immUnsigned := env.incrementPC()
-	imm := asSigned(immUnsigned)
+	imm := int8(immUnsigned)
 	spVal := env.regs16[regSP].get()
 
 	// This instruction's behavior for the carry and half carry flags is very
@@ -166,15 +166,16 @@ func adcFromMemHL(env *environment) int {
 func adc8BitImm(env *environment) int {
 	aVal := env.regs8[regA].get()
 	imm := env.incrementPC()
+	var carry uint8
 
 	if env.getCarryFlag() {
-		imm++
+		carry = 1
 	}
 
-	env.setHalfCarryFlag(isHalfCarry(aVal, imm))
-	env.setCarryFlag(isCarry(aVal, imm))
+	env.setHalfCarryFlag(isHalfCarry(aVal, imm+carry))
+	env.setCarryFlag(isCarry(aVal, imm+carry))
 
-	aVal = env.regs8[regA].set(aVal + imm)
+	aVal = env.regs8[regA].set(aVal + imm + carry)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -193,15 +194,10 @@ func sub(env *environment, reg registerType) int {
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(regVal > aVal)
-
-	_, upperNibbleBefore := split(aVal)
+	env.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
 
 	aVal = env.regs8[regA].set(aVal - regVal)
 
-	_, upperNibbleAfter := split(aVal)
-
-	// A half carry occurs if the upper nibble has changed at all
-	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(true)
 
@@ -220,15 +216,10 @@ func subFromMemHL(env *environment) int {
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(memVal > aVal)
-
-	_, upperNibbleBefore := split(aVal)
+	env.setHalfCarryFlag(isHalfBorrow(aVal, memVal))
 
 	aVal = env.regs8[regA].set(aVal - memVal)
 
-	_, upperNibbleAfter := split(aVal)
-
-	// A half carry occurs if the upper nibble has changed at all
-	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(true)
 
@@ -247,15 +238,10 @@ func sub8BitImm(env *environment) int {
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(imm > aVal)
-
-	_, upperNibbleBefore := split(aVal)
+	env.setHalfCarryFlag(isHalfBorrow(aVal, imm))
 
 	aVal = env.regs8[regA].set(aVal - imm)
 
-	_, upperNibbleAfter := split(aVal)
-
-	// A half carry occurs if the upper nibble has changed at all
-	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(true)
 
@@ -280,15 +266,10 @@ func sbc(env *environment, reg registerType) int {
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(regVal > aVal)
-
-	_, upperNibbleBefore := split(aVal)
+	env.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
 
 	aVal = env.regs8[regA].set(aVal - regVal)
 
-	_, upperNibbleAfter := split(aVal)
-
-	// A half carry occurs if the upper nibble has changed at all
-	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(true)
 
@@ -314,15 +295,10 @@ func sbcFromMemHL(env *environment) int {
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(memVal > aVal)
-
-	_, upperNibbleBefore := split(aVal)
+	env.setHalfCarryFlag(isHalfBorrow(aVal, memVal))
 
 	aVal = env.regs8[regA].set(aVal - memVal)
 
-	_, upperNibbleAfter := split(aVal)
-
-	// A half carry occurs if the upper nibble has changed at all
-	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(true)
 
@@ -339,23 +315,19 @@ func sbcFromMemHL(env *environment) int {
 func sbc8BitImm(env *environment) int {
 	aVal := env.regs8[regA].get()
 	imm := env.incrementPC()
+	var carry uint8
 
 	if env.getCarryFlag() {
-		imm++
+		carry = 1
 	}
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
-	env.setCarryFlag(imm > aVal)
+	env.setCarryFlag(imm+carry > aVal)
+	env.setHalfCarryFlag(isHalfBorrow(aVal, imm+carry))
 
-	_, upperNibbleBefore := split(aVal)
+	aVal = env.regs8[regA].set(aVal - imm - carry)
 
-	aVal = env.regs8[regA].set(aVal - imm)
-
-	_, upperNibbleAfter := split(aVal)
-
-	// A half carry occurs if the upper nibble has changed at all
-	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(true)
 
@@ -589,14 +561,11 @@ func incMemHL(env *environment) int {
 
 // dec8Bit decrements the given 8-bit register by 1.
 func dec8Bit(env *environment, reg registerType) int {
-	_, upperNibbleBefore := split(env.regs8[reg].get())
+	oldVal := env.regs8[reg].get()
 
-	newVal := env.regs8[reg].set(env.regs8[reg].get() - 1)
+	newVal := env.regs8[reg].set(oldVal - 1)
 
-	_, upperNibbleAfter := split(env.regs8[reg].get())
-
-	// A half carry occurs if the upper nibble has changed at all
-	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
+	env.setHalfCarryFlag(isHalfBorrow(oldVal, 1))
 	env.setZeroFlag(newVal == 0)
 	env.setSubtractFlag(true)
 
@@ -622,16 +591,13 @@ func decMemHL(env *environment) int {
 	addr := env.regs16[regHL].get()
 
 	oldVal := env.mmu.at(addr)
-	_, upperNibbleBefore := split(oldVal)
 
 	env.mmu.set(addr, oldVal-1)
 	newVal := env.mmu.at(addr)
-	_, upperNibbleAfter := split(newVal)
 
 	env.setZeroFlag(newVal == 0)
 	env.setSubtractFlag(true)
-	// A half borrow occurs if the upper nibble has changed at all
-	env.setHalfCarryFlag(upperNibbleBefore == upperNibbleAfter)
+	env.setHalfCarryFlag(isHalfBorrow(oldVal, 1))
 
 	if printInstructions {
 		fmt.Printf("DEC (HL)\n")
@@ -650,15 +616,10 @@ func cp(env *environment, reg registerType) int {
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(regVal > aVal)
-
-	_, upperNibbleBefore := split(aVal)
+	env.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
 
 	subVal := aVal - regVal
 
-	_, upperNibbleAfter := split(subVal)
-
-	// A half carry occurs if the upper nibble has changed at all
-	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
 	env.setZeroFlag(subVal == 0)
 	env.setSubtractFlag(true)
 
@@ -682,15 +643,10 @@ func cpFromMemHL(env *environment) int {
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
 	env.setCarryFlag(memVal > aVal)
-
-	_, upperNibbleBefore := split(aVal)
+	env.setHalfCarryFlag(isHalfBorrow(aVal, memVal))
 
 	subVal := aVal - memVal
 
-	_, upperNibbleAfter := split(subVal)
-
-	// A half carry occurs if the upper nibble has changed at all
-	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
 	env.setZeroFlag(subVal == 0)
 	env.setSubtractFlag(true)
 
@@ -709,16 +665,11 @@ func cp8BitImm(env *environment) int {
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
-	env.setCarryFlag(imm > aVal)
-
-	_, upperNibbleBefore := split(aVal)
+	env.setCarryFlag(aVal < imm)
+	env.setHalfCarryFlag(isHalfBorrow(aVal, imm))
 
 	subVal := aVal - imm
 
-	_, upperNibbleAfter := split(subVal)
-
-	// A half carry occurs if the upper nibble has changed at all
-	env.setHalfCarryFlag(upperNibbleBefore != upperNibbleAfter)
 	env.setZeroFlag(subVal == 0)
 	env.setSubtractFlag(true)
 

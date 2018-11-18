@@ -23,11 +23,15 @@ const (
 	// ifAddr points to the interrupt flags, whose value indicates whether or
 	// not an interrupt is happening.
 	//
-	// Bit 4: TODO(velovix): What is this?
+	// Bit 4: P10-P13 high-to-low interrupts. Happens when a button is pressed.
 	// Bit 3: Serial I/O transfer interrupts
-	// Bit 2: TIMA overflow interrupts
-	// Bit 1: LCDC interrupts
-	// Bit 0: V-blank interrupts
+	// Bit 2: TIMA overflow interrupts. Happens when the 8-bit configurable
+	//        timer overflows.
+	// Bit 1: LCDC interrupts. Happens when certain events happen on the
+	//        display. What exactly triggers this interrupt can be configured
+	//        using the LCDC memory register.
+	// Bit 0: V-blank interrupts. Happens when the V-blank period starts on the
+	//        display.
 	ifAddr = 0xFF0F
 	// ieAddr points to the interrupt enable flags, which can be flipped to
 	// configure which interrupts are enabled. A value in 1 in a bit means
@@ -130,6 +134,25 @@ const (
 	// Memory addresses for the two available tile maps.
 	tileMap0 = 0x9800
 	tileMap1 = 0x9C00
+
+	// p1Addr points to the Joypad Memory Register, which is used to query
+	// button/joypad input.
+	//
+	// Bit 7: Unused
+	// Bit 6: Unused
+	// Bit 5: If set to 0, bits 3-0 will provide the status of the buttons (A,
+	//        B, Select, Start)
+	// Bit 4: If set to 0, bits 3-0 will provide the status of the d-pad (Up,
+	//        Down, Left, Right)
+	// Bit 3: Represents the state of the down button on the d-pad or the start
+	//        button, depending on the values of bits 4 and 3. 0=pressed.
+	// Bit 2: Represents the state of the up button on the d-pad or the select
+	//        button, depending on the values of bits 4 and 3. 0=pressed.
+	// Bit 1: Represents the state of the left button on the d-pad or the B
+	//        button, depending on the values of bits 4 and 3. 0=pressed.
+	// Bit 0: Represents the state of the right button on the d-pad or the A
+	//        button, depending on the values of bits 4 and 3. 0=pressed.
+	p1Addr = 0xFF00
 
 	// These variables points to the OBP0 and OPB1 memory registers, which
 	// control the two available sprite palettes. These registers maps dot data

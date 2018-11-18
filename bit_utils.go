@@ -43,11 +43,21 @@ func asSigned(val uint8) int8 {
 // isHalfCarry checks if a half carry would occur between two 8-bit integers if
 // they were added.
 //
-// This algorithm extracts the first four bits of each register, adds them
+// This algorithm extracts the first four bits of each integer, adds them
 // together, and checks the 5th bit to see if it's 1. If it is, that means the
 // addition half-carried.
 func isHalfCarry(a, b uint8) bool {
 	return ((a&0xF)+(b&0xF))&0x10 == 0x10
+}
+
+// isHalfBorrow checks if a half borrow would occur between two 8-bit integers
+// if they were subtracted.
+//
+// This algorithm extracts the first four bits of each integer and checks if
+// the a value bits are less than the b value bits. This tells us if a borrow
+// will be necessary.
+func isHalfBorrow(a, b uint8) bool {
+	return a&0xF < b&0xF
 }
 
 // isCarry checks if there would be a carry past the 8th bit if two 8-bit
@@ -63,7 +73,7 @@ func isCarry(a, b uint8) bool {
 // together, and checks the 12th bit to see if it's 1. If it is, that means the
 // addition half-carried.
 func isHalfCarry16(a, b uint16) bool {
-	return ((a&0x800)+(b&0x800))&0x1000 == 0x1000
+	return ((a&0xFFF)+(b&0xFFF))&0x1000 == 0x1000
 }
 
 // isCarry16 checks if there would be a carry past the 16th bit if two 16-bit

@@ -126,7 +126,7 @@ func setMemHL(env *environment, bitNum uint8) int {
 	env.mmu.set(hlVal, memVal)
 
 	if printInstructions {
-		fmt.Printf("RES %v,(%v)\n", bitNum, regHL)
+		fmt.Printf("SET %v,(%v)\n", bitNum, regHL)
 	}
 	return 16
 }
