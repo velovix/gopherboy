@@ -613,23 +613,27 @@ func (vc *videoController) loadBGPalette() map[uint8]color {
 	bgp := vc.env.mmu.at(bgpAddr)
 	palette := make(map[uint8]color)
 
-	for dotData := uint8(0); dotData <= 0x3; dotData++ {
-		colorType := (bgp & 0xC0) >> 6
+	for dotData := uint8(0); dotData <= 0x03; dotData++ {
+		paletteOption := bgp & 0x03
 
 		var c color
-		switch colorType {
+		switch paletteOption {
 		case 0x00:
-			c = color{52, 104, 86, 255}
-		case 0x01:
-			c = color{8, 24, 32, 255}
-		case 0x02:
+			//c = color{52, 104, 86, 255}
 			c = color{224, 248, 208, 255}
-		case 0x03:
+		case 0x01:
+			//c = color{8, 24, 32, 255}
 			c = color{136, 192, 112, 255}
+		case 0x02:
+			//c = color{52, 104, 86, 255}
+			c = color{52, 104, 86, 255}
+		case 0x03:
+			//c = color{8, 24, 32, 255}
+			c = color{8, 24, 32, 255}
 		}
 
 		palette[dotData] = c
-		bgp <<= 2
+		bgp >>= 2
 	}
 
 	return palette
@@ -641,23 +645,27 @@ func (vc *videoController) loadSpritePalette(paletteNum int) map[uint8]color {
 	obp := vc.env.mmu.at(opb0Addr + uint16(paletteNum))
 	palette := make(map[uint8]color)
 
-	for dotData := uint8(0); dotData <= 0x3; dotData++ {
-		colorType := (obp & 0xC0) >> 6
+	for dotData := uint8(0); dotData <= 0x03; dotData++ {
+		paletteOption := obp & 0x03
 
 		var c color
-		switch colorType {
+		switch paletteOption {
 		case 0x00:
-			c = color{52, 104, 86, 255}
-		case 0x01:
-			c = color{8, 24, 32, 255}
-		case 0x02:
+			//c = color{52, 104, 86, 255}
 			c = color{224, 248, 208, 255}
-		case 0x03:
+		case 0x01:
+			//c = color{8, 24, 32, 255}
 			c = color{136, 192, 112, 255}
+		case 0x02:
+			//c = color{52, 104, 86, 255}
+			c = color{52, 104, 86, 255}
+		case 0x03:
+			//c = color{8, 24, 32, 255}
+			c = color{8, 24, 32, 255}
 		}
 
 		palette[dotData] = c
-		obp <<= 2
+		obp >>= 2
 	}
 
 	return palette
