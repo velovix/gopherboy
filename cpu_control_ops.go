@@ -81,3 +81,16 @@ func scf(env *environment) int {
 	}
 	return 4
 }
+
+// stop puts the Game Boy in stop mode. In this mode, the screen is blank and
+// the CPU stops. Stop mode is exited when a button is pressed.
+func stop(env *environment) int {
+	// For whatever reason, this instruction is two bytes in length
+	env.incrementPC()
+
+	fmt.Println("Switch to STOP mode")
+
+	env.stopped = true
+
+	return 4
+}

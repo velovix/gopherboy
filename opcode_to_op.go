@@ -25,7 +25,7 @@ func runOpcode(env *environment, opcode uint8) (cycles int, err error) {
 		return runCBOpcode(env, cbOpcode)
 	// STOP 0
 	case opcode == 0x10:
-		panic("STOP 0 is not supported")
+		return stop(env), nil
 	// DI
 	case opcode == 0xF3:
 		return di(env), nil

@@ -101,16 +101,16 @@ func main() {
 	// Stop main loop on sigint
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
-	onStop := make(chan bool)
+	onExit := make(chan bool)
 	go func() {
 		for range sigint {
-			onStop <- true
+			onExit <- true
 			break
 		}
 	}()
 
 	// Start running
-	err = startMainLoop(env, vc, timers, joypad, db, onStop)
+	err = startMainLoop(env, vc, timers, joypad, db, onExit)
 	if err != nil {
 		fmt.Println("Error while running ROM:", err)
 		os.Exit(1)

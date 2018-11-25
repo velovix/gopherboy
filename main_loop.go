@@ -7,16 +7,22 @@ func startMainLoop(
 	timers *timers,
 	joypad *joypad,
 	db *debugger,
-	onStop chan bool) error {
+	onExit chan bool) error {
 
 	for {
 		var err error
 
-		// Check if the loop should stop
+		// Check if the main loop should be exited
 		select {
-		case <-onStop:
+		case <-onExit:
 			return nil
 		default:
+		}
+
+		joypad.tick()
+		if env.stopped {
+			// We're in stop mode, don't do anything
+			continue
 		}
 
 		var opTime int
@@ -55,7 +61,6 @@ func startMainLoop(
 		timers.tick(opTime)
 		env.mmu.tick(opTime)
 		vc.tick(opTime)
-		joypad.tick()
 
 		// TODO(velovix): Should interrupt flags be unset here if the interrupt
 		// is disabled?

@@ -70,6 +70,11 @@ func (j *joypad) tick() {
 		}
 	}
 
+	if j.env.stopped && buttonPressed {
+		// Exit stop mode on button press
+		j.env.stopped = false
+	}
+
 	// Generate an interrupt if any new buttons have been pressed
 	p10ThruP13InterruptEnabled := j.env.mmu.at(ieAddr)&0x10 == 0x10
 	if buttonPressed && j.env.interruptsEnabled && p10ThruP13InterruptEnabled {

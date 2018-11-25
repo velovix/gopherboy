@@ -22,6 +22,10 @@ type environment struct {
 	// If true, the processor will not run instructions until an interrupt
 	// occurs.
 	waitingForInterrupts bool
+	// If true, the Game Boy is in "stop mode". This means that the CPU is
+	// halted and the screen is turned white. This mode is exited when a button
+	// is pressed.
+	stopped bool
 }
 
 // newEnvironment creates a new Game Boy environment with special memory
