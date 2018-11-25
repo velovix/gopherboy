@@ -364,7 +364,7 @@ func runOpcode(env *environment, opcode uint8) (cycles int, err error) {
 	case upperNibble <= 0x02 && (lowerNibble == 0x05 || lowerNibble == 0x0D):
 		regIndex := upperNibble * 2
 		if lowerNibble == 0x0D {
-			regIndex += 1
+			regIndex++
 		}
 
 		return dec8Bit(env, indexToRegister[regIndex]), nil

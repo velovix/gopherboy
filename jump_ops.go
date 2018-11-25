@@ -29,9 +29,9 @@ func jrIfFlag(env *environment, flagMask uint8, isSet bool) int {
 	if flagState == isSet {
 		env.relativeJump(int(offset))
 		return 12
-	} else {
-		return 8
 	}
+	// A relative jump didn't happen, so the instruction took fewer cycles
+	return 8
 }
 
 // jp loads a 16-bit address and jumps to it.
@@ -59,9 +59,9 @@ func jpIfFlag(env *environment, flagMask uint8, isSet bool) int {
 	if flagState == isSet {
 		env.regs16[regPC].set(address)
 		return 16
-	} else {
-		return 12
 	}
+	// A jump didn't happen, so the instruction took fewer cycles
+	return 12
 }
 
 // jpToHL jumps to the address specified by register HL.

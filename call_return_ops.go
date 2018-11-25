@@ -33,9 +33,9 @@ func callIfFlag(env *environment, flagMask uint8, isSet bool) int {
 		env.regs16[regPC].set(address)
 
 		return 24
-	} else {
-		return 12
 	}
+	// A call didn't happen, so the instruction took fewer cycles
+	return 12
 }
 
 // ret pops a 16-bit address from the stack and jumps to it.

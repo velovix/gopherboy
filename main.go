@@ -98,7 +98,7 @@ func main() {
 	// Start reading joypad input
 	joypad := newJoypad(env)
 
-	// Memory dump on SIGINT
+	// Stop main loop on sigint
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
 	onStop := make(chan bool)
@@ -127,16 +127,4 @@ func main() {
 
 	dump.Write(env.mmu.dump())
 	fmt.Println("Done dumping (tee hee!)")
-}
-
-// dumpOnSigint dumps the current memory to "memory.dump" when something is
-// received on the notifier channel.
-func dumpOnSigint(env *environment, notifier chan os.Signal) {
-	for range notifier {
-
-		break
-	}
-
-	os.Exit(1)
-
 }
