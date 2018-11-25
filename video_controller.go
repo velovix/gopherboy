@@ -289,11 +289,10 @@ func (vc *videoController) spriteAt(x, y uint8) (entry oam, ok bool) {
 	}
 
 	for _, entry := range vc.oams {
-		// TODO(velovix): Is it valid to have a sprite number of 0?
 		// Check if the sprite this OAM entry corresponds to is in the given
 		// point. Remember that a sprite's X and Y position is relative to the
 		// bottom right of the sprite.
-		if entry.spriteNumber != 0 && x < entry.xPos && x >= entry.xPos-spriteWidth &&
+		if x < entry.xPos && x >= entry.xPos-spriteWidth &&
 			y < entry.yPos-spriteShortHeight && y >= entry.yPos-spriteTallHeight {
 			return entry, true
 		}

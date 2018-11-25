@@ -192,7 +192,5 @@ const (
 	serialInterruptTarget = 0x0058
 	// p1Thru4InterruptTarget points to the location that will be jumped to
 	// when a keypad is pressed.
-	// TODO(velovix): Improve my understanding of this and come up with a
-	// better name
 	p1Thru4InterruptTarget = 0x0060
 )

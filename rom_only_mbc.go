@@ -31,7 +31,6 @@ func (m *romOnlyMBC) at(addr uint16) uint8 {
 				"but the ROM-only MBC does not support banked RAM\n",
 				addr)
 		}
-		// TODO(velovix): Is this the correct behavior?
 		return 0xFF
 	} else {
 		panic(fmt.Sprintf("The ROM-only MBC should not have been "+
