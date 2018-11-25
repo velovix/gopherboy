@@ -41,12 +41,17 @@ func main() {
 	// Create a memory bank controller for this ROM
 	var mbc mbc
 	switch header.cartridgeType {
-	case romOnlyCartridgeType:
+	case 0x00:
+		// ROM ONLY
 		mbc = newROMOnlyMBC(cartridgeData)
-	case mbc1CartridgeType:
+	case 0x01:
+		// MBC1
 		mbc = newMBC1(header, cartridgeData)
+	case 0x13:
+		// MBC3+RAM+BATTERY
+		mbc = newMBC3(header, cartridgeData, false)
 	default:
-		fmt.Println("Error: Unknown cartridge type", header.cartridgeType)
+		fmt.Printf("Error: Unknown cartridge type %#x\n", header.cartridgeType)
 		os.Exit(1)
 	}
 

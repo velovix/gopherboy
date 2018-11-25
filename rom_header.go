@@ -40,11 +40,6 @@ type romHeader struct {
 	headerChecksum uint8
 }
 
-const (
-	romOnlyCartridgeType uint8 = 0x00
-	mbc1CartridgeType          = 0x01
-)
-
 func loadROMHeader(cartridgeData []byte) romHeader {
 	return romHeader{
 		title:                noNullTerms(string(cartridgeData[0x0134:0x0140])),
