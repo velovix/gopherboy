@@ -90,7 +90,6 @@ func (m *mbc3) set(addr uint16, val uint8) {
 		}
 
 		m.currROMBank = bank
-		fmt.Println("Switching to ROM bank", m.currROMBank)
 	} else if addr < 0x6000 {
 		// RAM Bank Number or RTC Register Select
 		// Writing a value of 0x00 to 0x07 in this register will switch to the

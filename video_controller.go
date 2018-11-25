@@ -220,6 +220,17 @@ func (vc *videoController) drawScanLine(line uint8) {
 				xOffset := uint8(x+spriteWidth) - oamEntry.xPos
 				yOffset := uint8(line+spriteTallHeight) - oamEntry.yPos
 
+				if oamEntry.xFlip {
+					// Flip the sprite horizontally
+					xOffset = (spriteWidth - 1) - xOffset
+				}
+				if oamEntry.yFlip {
+					// Flip the sprite vertically
+					// TODO(velovix): This will have to be readdressed when
+					// tall sprite support is added
+					yOffset = (spriteShortHeight - 1) - yOffset
+				}
+
 				spriteDotCode := spriteTileData[(yOffset*spriteShortHeight)+xOffset]
 
 				if spriteDotCode == 0 {
