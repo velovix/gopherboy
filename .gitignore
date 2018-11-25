@@ -10,3 +10,6 @@ docs/
 
 # Ignore memory dumps
 *.dump
+
+# Profiling and other docs
+*.pdf

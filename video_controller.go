@@ -100,7 +100,7 @@ func newVideoController(env *environment, timers *timers) (*videoController, err
 
 	vc.renderer, err = sdl.CreateRenderer(vc.window, -1, sdl.RENDERER_ACCELERATED)
 	if err != nil {
-		return &videoController{}, fmt.Errorf("initializing renderer:", err)
+		return &videoController{}, fmt.Errorf("initializing renderer: %v", err)
 	}
 
 	vc.lastSecond = time.Now()

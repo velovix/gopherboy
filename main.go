@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+
+	"github.com/pkg/profile"
 )
 
 var (
@@ -19,12 +21,18 @@ func main() {
 	debug := flag.Bool("debug", false, "Start in debug mode")
 	breakOnOpcode := flag.Int("break-on-opcode", -1, "An opcode to break at")
 	breakOnAddrRead := flag.Int("break-on-addr-read", -1, "A memory address to break at on read")
+	enableProfiling := flag.Bool("profile", false, "Generates a pprof file if set")
 
 	flag.Parse()
 
 	if len(flag.Args()) < 1 {
 		fmt.Println("Usage: gopherboy [OPTIONS] rom_file")
 		os.Exit(1)
+	}
+
+	if *enableProfiling {
+		fmt.Println("Profiling has been enabled")
+		defer profile.Start(profile.NoShutdownHook).Stop()
 	}
 
 	// Load the ROM file
@@ -93,31 +101,38 @@ func main() {
 	// Memory dump on SIGINT
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
-	go dumpOnSigint(env, sigint)
+	onStop := make(chan bool)
+	go func() {
+		for range sigint {
+			onStop <- true
+			break
+		}
+	}()
 
 	// Start running
-	err = startMainLoop(env, vc, timers, joypad, db)
+	err = startMainLoop(env, vc, timers, joypad, db, onStop)
 	if err != nil {
 		fmt.Println("Error while running ROM:", err)
 		os.Exit(1)
 	}
+
+	fmt.Println("Dumping memory")
+
+	dump, err := os.Create("memory.dump")
+	if err != nil {
+		fmt.Println("Error while creating dump file:", err)
+		os.Exit(1)
+	}
+	defer dump.Close()
+
+	dump.Write(env.mmu.dump())
+	fmt.Println("Done dumping (tee hee!)")
 }
 
 // dumpOnSigint dumps the current memory to "memory.dump" when something is
 // received on the notifier channel.
 func dumpOnSigint(env *environment, notifier chan os.Signal) {
 	for range notifier {
-		fmt.Println("\n\nSIGINT captured, dumping memory")
-
-		dump, err := os.Create("memory.dump")
-		if err != nil {
-			fmt.Println("Error while creating dump file: %v", err)
-			os.Exit(1)
-		}
-		defer dump.Close()
-
-		dump.Write(env.mmu.dump())
-		fmt.Println("Done dumping (tee hee!)")
 
 		break
 	}

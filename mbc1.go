@@ -57,7 +57,7 @@ func (m *mbc1) at(addr uint16) uint8 {
 			return m.ramBanks[int(m.currRAMBank)][addr-bankedRAMAddr]
 		}
 	} else {
-		panic(fmt.Sprintf("MBC1 is unable to handle reads to address #x", addr))
+		panic(fmt.Sprintf("MBC1 is unable to handle reads to address %#x", addr))
 	}
 }
 

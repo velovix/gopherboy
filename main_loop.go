@@ -6,10 +6,18 @@ func startMainLoop(
 	vc *videoController,
 	timers *timers,
 	joypad *joypad,
-	db *debugger) error {
+	db *debugger,
+	onStop chan bool) error {
 
 	for {
 		var err error
+
+		// Check if the loop should stop
+		select {
+		case <-onStop:
+			return nil
+		default:
+		}
 
 		var opTime int
 		if env.waitingForInterrupts {
