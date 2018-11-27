@@ -112,8 +112,8 @@ func (env *environment) popFromStack() uint8 {
 // popFromStack16 reads a 16-bit value from the current stack position and
 // decrements the stack pointer twice.
 func (env *environment) popFromStack16() uint16 {
-	upper := env.popFromStack()
 	lower := env.popFromStack()
+	upper := env.popFromStack()
 
 	return combine16(lower, upper)
 }
@@ -129,8 +129,8 @@ func (env *environment) pushToStack(val uint8) {
 // pointer twice.
 func (env *environment) pushToStack16(val uint16) {
 	lower, upper := split16(val)
-	env.pushToStack(lower)
 	env.pushToStack(upper)
+	env.pushToStack(lower)
 }
 
 // relativeJump moves the program counter by the given signed value.

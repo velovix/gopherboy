@@ -114,15 +114,16 @@ func addToSP(env *environment) int {
 func adc(env *environment, reg registerType) int {
 	aVal := env.regs8[regA].get()
 	regVal := env.regs8[reg].get()
+	carryVal := uint8(0)
 
 	if env.getCarryFlag() {
-		regVal++
+		carryVal = 1
 	}
 
-	env.setHalfCarryFlag(isHalfCarry(aVal, regVal))
-	env.setCarryFlag(isCarry(aVal, regVal))
+	env.setHalfCarryFlag(isHalfCarry(aVal, regVal, carryVal))
+	env.setCarryFlag(isCarry(aVal, regVal, carryVal))
 
-	aVal = env.regs8[regA].set(aVal + regVal)
+	aVal = env.regs8[regA].set(aVal + regVal + carryVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -140,15 +141,16 @@ func adc(env *environment, reg registerType) int {
 func adcFromMemHL(env *environment) int {
 	aVal := env.regs8[regA].get()
 	memVal := env.mmu.at(env.regs16[regHL].get())
+	carryVal := uint8(0)
 
 	if env.getCarryFlag() {
-		memVal++
+		carryVal = 1
 	}
 
-	env.setHalfCarryFlag(isHalfCarry(aVal, memVal))
-	env.setCarryFlag(isCarry(aVal, memVal))
+	env.setHalfCarryFlag(isHalfCarry(aVal, memVal, carryVal))
+	env.setCarryFlag(isCarry(aVal, memVal, carryVal))
 
-	aVal = env.regs8[regA].set(aVal + memVal)
+	aVal = env.regs8[regA].set(aVal + memVal + carryVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(false)
@@ -172,8 +174,8 @@ func adc8BitImm(env *environment) int {
 		carry = 1
 	}
 
-	env.setHalfCarryFlag(isHalfCarry(aVal, imm+carry))
-	env.setCarryFlag(isCarry(aVal, imm+carry))
+	env.setHalfCarryFlag(isHalfCarry(aVal, imm, carry))
+	env.setCarryFlag(isCarry(aVal, imm, carry))
 
 	aVal = env.regs8[regA].set(aVal + imm + carry)
 
@@ -258,17 +260,16 @@ func sub8BitImm(env *environment) int {
 func sbc(env *environment, reg registerType) int {
 	aVal := env.regs8[regA].get()
 	regVal := env.regs8[reg].get()
+	carryVal := uint8(0)
 
 	if env.getCarryFlag() {
-		regVal++
+		carryVal = 1
 	}
 
-	// A carry occurs if the value we're subtracting is greater than register
-	// A, meaning that the register A value rolled over
-	env.setCarryFlag(regVal > aVal)
-	env.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
+	env.setCarryFlag(isBorrow(aVal, regVal, carryVal))
+	env.setHalfCarryFlag(isHalfBorrow(aVal, regVal, carryVal))
 
-	aVal = env.regs8[regA].set(aVal - regVal)
+	aVal = env.regs8[regA].set(aVal - regVal - carryVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(true)
@@ -287,17 +288,16 @@ func sbc(env *environment, reg registerType) int {
 func sbcFromMemHL(env *environment) int {
 	aVal := env.regs8[regA].get()
 	memVal := env.mmu.at(env.regs16[regHL].get())
+	carryVal := uint8(0)
 
 	if env.getCarryFlag() {
-		memVal++
+		carryVal = 1
 	}
 
-	// A carry occurs if the value we're subtracting is greater than register
-	// A, meaning that the register A value rolled over
-	env.setCarryFlag(memVal > aVal)
-	env.setHalfCarryFlag(isHalfBorrow(aVal, memVal))
+	env.setCarryFlag(isBorrow(aVal, memVal, carryVal))
+	env.setHalfCarryFlag(isHalfBorrow(aVal, memVal, carryVal))
 
-	aVal = env.regs8[regA].set(aVal - memVal)
+	aVal = env.regs8[regA].set(aVal - memVal - carryVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(true)
@@ -315,18 +315,16 @@ func sbcFromMemHL(env *environment) int {
 func sbc8BitImm(env *environment) int {
 	aVal := env.regs8[regA].get()
 	imm := env.incrementPC()
-	var carry uint8
+	carryVal := uint8(0)
 
 	if env.getCarryFlag() {
-		carry = 1
+		carryVal = 1
 	}
 
-	// A carry occurs if the value we're subtracting is greater than register
-	// A, meaning that the register A value rolled over
-	env.setCarryFlag(imm+carry > aVal)
-	env.setHalfCarryFlag(isHalfBorrow(aVal, imm+carry))
+	env.setCarryFlag(isBorrow(aVal, imm, carryVal))
+	env.setHalfCarryFlag(isHalfBorrow(aVal, imm, carryVal))
 
-	aVal = env.regs8[regA].set(aVal - imm - carry)
+	aVal = env.regs8[regA].set(aVal - imm - carryVal)
 
 	env.setZeroFlag(aVal == 0)
 	env.setSubtractFlag(true)

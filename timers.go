@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 const (
 	// tClockRate is the rate at which the tClock increments. Completely not
 	// coincidentally, this is also the Game Boy's clock speed.
@@ -52,12 +54,16 @@ func (t *timers) tick(amount int) {
 		if timaRunning && t.mClock%clocksPerTimer == 0 {
 			t.tima++
 
-			timaInterruptEnabled := t.env.mmu.at(ieAddr)&0x04 == 0x04
-			if t.env.interruptsEnabled && timaInterruptEnabled && t.tima == 0 {
-				// Flag a TIMA overflow interrupt
-				t.env.mmu.set(ifAddr, t.env.mmu.at(ifAddr)|0x04)
+			if t.tima == 0 {
 				// Start back up at the specified modulo value
 				t.tima = t.env.mmu.at(tmaAddr)
+
+				timaInterruptEnabled := t.env.mmu.at(ieAddr)&0x04 == 0x04
+				if t.env.interruptsEnabled && timaInterruptEnabled {
+					// Flag a TIMA overflow interrupt
+					t.env.mmu.set(ifAddr, t.env.mmu.at(ifAddr)|0x04)
+					fmt.Println("Interrupt happened")
+				}
 			}
 		}
 

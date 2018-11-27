@@ -40,14 +40,40 @@ func asSigned(val uint8) int8 {
 	return int8(val)
 }
 
-// isHalfCarry checks if a half carry would occur between two 8-bit integers if
-// they were added.
+// isHalfCarry checks if a half carry would occur between two or more 8-bit
+// integers if they were added.
 //
 // This algorithm extracts the first four bits of each integer, adds them
 // together, and checks the 5th bit to see if it's 1. If it is, that means the
 // addition half-carried.
-func isHalfCarry(a, b uint8) bool {
-	return ((a&0xF)+(b&0xF))&0x10 == 0x10
+func isHalfCarry(vals ...uint8) bool {
+	sumSoFar := vals[0]
+	for i := 1; i < len(vals); i++ {
+		if ((sumSoFar&0xF)+(vals[i]&0xF))&0x10 == 0x10 {
+			return true
+		}
+		sumSoFar += vals[i]
+	}
+
+	return false
+}
+
+// isBorrow checks if a borrow would occur between two or more 8-bit integers
+// if they are subtracted. In this case, a borrow is equivalent to an
+// underflow.
+//
+// This algorithm is simple. If the number we're subtracting by is larger than
+// the original number, a borrow must be necessary
+func isBorrow(vals ...uint8) bool {
+	diffSoFar := vals[0]
+	for i := 1; i < len(vals); i++ {
+		if diffSoFar < vals[i] {
+			return true
+		}
+		diffSoFar -= vals[i]
+	}
+
+	return false
 }
 
 // isHalfBorrow checks if a half borrow would occur between two 8-bit integers
@@ -56,14 +82,30 @@ func isHalfCarry(a, b uint8) bool {
 // This algorithm extracts the first four bits of each integer and checks if
 // the a value bits are less than the b value bits. This tells us if a borrow
 // will be necessary.
-func isHalfBorrow(a, b uint8) bool {
-	return a&0xF < b&0xF
+func isHalfBorrow(vals ...uint8) bool {
+	diffSoFar := vals[0]
+	for i := 1; i < len(vals); i++ {
+		if diffSoFar&0xF < vals[i]&0xF {
+			return true
+		}
+		diffSoFar -= vals[i]
+	}
+
+	return false
 }
 
-// isCarry checks if there would be a carry past the 8th bit if two 8-bit
-// integers were added.
-func isCarry(a, b uint8) bool {
-	return (uint16(a)+uint16(b))&0x100 == 0x100
+// isCarry checks if there would be a carry past the 8th bit if two or more
+// 8-bit integers were added.
+func isCarry(vals ...uint8) bool {
+	sumSoFar := vals[0]
+	for i := 1; i < len(vals); i++ {
+		if (uint16(sumSoFar)+uint16(vals[i]))&0x100 == 0x100 {
+			return true
+		}
+		sumSoFar += vals[i]
+	}
+
+	return false
 }
 
 // isHalfCarry16 checks if a half carry would occur between two 16-bit integers
