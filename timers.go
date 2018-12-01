@@ -3,24 +3,20 @@ package main
 import "fmt"
 
 const (
-	// tClockRate is the rate at which the tClock increments. Completely not
-	// coincidentally, this is also the Game Boy's clock speed.
-	tClockRate = 4194304
-	// mClockRate is the rate at which the mClock increments.
-	mClockRate = tClockRate / 4
-	// dividerClockRate is the rate at which the divider increments.
-	dividerClockRate = mClockRate / 64
+	// The Game Boy processor clock speed
+	cpuClockRate = 4194304
+	// dividerClockRate is the rate at which the divider timer increments.
+	dividerClockRate = 16384
 )
 
 // timers keeps track of all timers in the Gameboy, including the TIMA.
 type timers struct {
 	// A clock that increments every clock cycle
-	tClock int
+	cpuClock int
 	// A clock that increments every 4 clock cycles
 	mClock int
 	// A clock that increments every 64 clock cycles. Available as a register
 	// in memory.
-	// TODO(velovix): Make it so that setting this register resets the timer
 	divider uint8
 	// A configurable timer, also known as the "counter" but technically
 	// referred to as the TIMA. Available as a register in memory.
@@ -30,7 +26,12 @@ type timers struct {
 }
 
 func newTimers(env *environment) *timers {
-	return &timers{env: env}
+	t := &timers{env: env}
+
+	t.env.mmu.subscribeTo(dividerAddr, t.onDividerWrite)
+	t.env.mmu.subscribeTo(tacAddr, t.onTACWrite)
+
+	return t
 }
 
 // tick increments the timers given the amount of cycles that have passed since
@@ -40,18 +41,18 @@ func (t *timers) tick(amount int) {
 	timaRate, timaRunning := parseTAC(tac)
 
 	// Increment the clock
-	for i := 0; i < amount; i += 4 {
-		t.mClock++
-		if t.mClock >= mClockRate {
-			t.mClock = 0
+	for i := 0; i < amount/4; i++ {
+		t.cpuClock += 4
+		// Wrap the CPU clock every cycle
+		if t.cpuClock == cpuClockRate {
+			t.cpuClock = 0
 		}
-		if t.mClock%64 == 0 {
+
+		if t.cpuClock%(cpuClockRate/dividerClockRate) == 0 {
 			t.divider++
 		}
-		// Finds how many m-clock increments should happen before a
-		// TIMA increment should happen.
-		clocksPerTimer := mClockRate / timaRate
-		if timaRunning && t.mClock%clocksPerTimer == 0 {
+
+		if timaRunning && t.cpuClock%(cpuClockRate/timaRate) == 0 {
 			t.tima++
 
 			if t.tima == 0 {
@@ -61,17 +62,36 @@ func (t *timers) tick(amount int) {
 				timaInterruptEnabled := t.env.mmu.at(ieAddr)&0x04 == 0x04
 				if t.env.interruptsEnabled && timaInterruptEnabled {
 					// Flag a TIMA overflow interrupt
-					t.env.mmu.set(ifAddr, t.env.mmu.at(ifAddr)|0x04)
-					fmt.Println("Interrupt happened")
+					t.env.mmu.setNoNotify(ifAddr, t.env.mmu.at(ifAddr)|0x04)
 				}
 			}
 		}
 
 		// Update the timers in memory
-		t.env.mmu.set(dividerAddr, t.divider)
-		t.env.mmu.set(timaAddr, t.tima)
+		t.env.mmu.setNoNotify(dividerAddr, t.divider)
+		t.env.mmu.setNoNotify(timaAddr, t.tima)
 	}
 
+}
+
+// onDividerWrite is called when the divider register is written to. This
+// triggers the divider timer to reset to zero. This also resets the TIMA.
+func (t *timers) onDividerWrite(addr uint16, writeVal uint8) uint8 {
+	t.divider = 0
+	// TODO(velovix): Is this actually proper behavior?
+	//t.tima = 0
+	fmt.Println("is this?")
+	return 0
+}
+
+// onTACWrite is called when the TAC register is written to. This controls
+// various aspects of the TIMA timer.
+func (t *timers) onTACWrite(addr uint16, writeVal uint8) uint8 {
+	// This register is only 3 bits in size, get those bits
+	writeVal = writeVal & 0x07
+
+	// All unused bits are high
+	return 0xF8 | writeVal
 }
 
 // parseTAC takes in a control byte and returns the configuration it supplies.

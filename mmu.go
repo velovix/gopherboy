@@ -66,6 +66,8 @@ func newMMU(cartridgeData []uint8, mbc mbc) *mmu {
 		m.bank0ROM[i] = cartridgeData[i]
 	}
 
+	m.subscribeTo(dmaAddr, m.onDMAWrite)
+
 	return m
 }
 
@@ -121,7 +123,7 @@ func (m *mmu) tick(opTime int) {
 			lower, _ := split16(m.dmaCursor)
 			if lower < 0x9F {
 				// Transfer a byte
-				m.set(oamRAMAddr+uint16(lower), m.at(m.dmaCursor))
+				m.setNoNotify(oamRAMAddr+uint16(lower), m.at(m.dmaCursor))
 
 				m.dmaCursor++
 			}
@@ -135,10 +137,9 @@ func (m *mmu) tick(opTime int) {
 	}
 }
 
-func (m *mmu) set(addr uint16, val uint8) {
-	// Notify any subscribers of this event
-	if onWrite, ok := m.subscribers[addr]; ok {
-		val = onWrite(addr, val)
+func (m *mmu) setNoNotify(addr uint16, val uint8) {
+	if m.db != nil {
+		m.db.memWriteHook(addr)
 	}
 
 	if addr < videoRAMAddr {
@@ -165,27 +166,21 @@ func (m *mmu) set(addr uint16, val uint8) {
 	} else if addr < hramAddr {
 		// I/O RAM
 		m.ioRAM[addr-ioAddr] = val
-
-		if addr == dmaAddr {
-			if m.dmaActive {
-				// A DMA transfer is already active!
-				// TODO(velovix): What is the hardware's behavior here?
-				panic(fmt.Sprintf("DMA transfer request to %#x when "+
-					"a transfer is already active", val))
-			}
-			// TODO(velovix): Lock all memory except HRAM?
-			// Start a DMA transfer
-			m.dmaActive = true
-			// Use the value as the higher byte in the source address
-			m.dmaCursor = uint16(val) << 8
-			m.dmaCycleCount = 0
-		}
 	} else if addr <= 0xFFFF {
 		// HRAM
 		m.hram[addr-hramAddr] = val
 	} else {
 		panic(fmt.Sprintf("Unexpected memory address %#x", addr))
 	}
+}
+
+func (m *mmu) set(addr uint16, val uint8) {
+	// Notify any subscribers of this event
+	if onWrite, ok := m.subscribers[addr]; ok {
+		val = onWrite(addr, val)
+	}
+
+	m.setNoNotify(addr, val)
 }
 
 func (m *mmu) subscribeTo(addr uint16, onWrite onWriteFunc) {
@@ -211,6 +206,25 @@ func (m *mmu) dump() []uint8 {
 	printInstructions = oldPrintInstructions
 
 	return data
+}
+
+// onDMAWrite triggers when the special DMA address is written to. This
+// triggers a DMA transfer, where data is copied into OAM RAM.
+func (m *mmu) onDMAWrite(addr uint16, val uint8) uint8 {
+	if m.dmaActive {
+		// A DMA transfer is already active!
+		// TODO(velovix): What is the hardware's behavior here?
+		panic(fmt.Sprintf("DMA transfer request to %#x when "+
+			"a transfer is already active", val))
+	}
+	// TODO(velovix): Lock all memory except HRAM?
+	// Start a DMA transfer
+	m.dmaActive = true
+	// Use the value as the higher byte in the source address
+	m.dmaCursor = uint16(val) << 8
+	m.dmaCycleCount = 0
+
+	return val
 }
 
 // mbc describes a memory bank controller.

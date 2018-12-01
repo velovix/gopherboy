@@ -67,6 +67,14 @@ func (m *mbc3) at(addr uint16) uint8 {
 	}
 }
 
+// set can do many things with the MBC3.
+//
+// If the target address is within ROM, it will control some aspect of the MBC3
+// (like switching banks or controlling the RTC), depending on the address
+// itself and the given value.
+//
+// If the target address is within the RAM bank area, the selected RAM bank
+// will be written to.
 func (m *mbc3) set(addr uint16, val uint8) {
 	if addr < 0x2000 {
 		// The RAM and RTC enable/disable area. Used to turn on and off access
@@ -108,6 +116,6 @@ func (m *mbc3) set(addr uint16, val uint8) {
 		// even while this latch is set. Only the in-memory value remains
 		// unchanged.
 		m.rtcLatched = val == 0x01
-		panic("Attempt to latch the RTC register, but RTC is not supported")
+		fmt.Println("Warning: Attempt to latch the RTC register, but RTC is not supported")
 	}
 }

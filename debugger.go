@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 )
@@ -11,9 +12,10 @@ import (
 type debugger struct {
 	env *environment
 
-	breakOnOpcode   *uint8
-	breakOnAddrRead *uint16
-	stepping        bool
+	breakOnOpcode    *uint8
+	breakOnAddrRead  *uint16
+	breakOnAddrWrite *uint16
+	stepping         bool
 }
 
 func (db *debugger) opcodeHook(opcode uint8) {
@@ -27,6 +29,14 @@ func (db *debugger) opcodeHook(opcode uint8) {
 func (db *debugger) memReadHook(addr uint16) {
 	if db.breakOnAddrRead != nil && addr == *db.breakOnAddrRead {
 		fmt.Printf("Address read BREAK: %#04x\n", addr)
+		db.printState()
+		db.readCommand()
+	}
+}
+
+func (db *debugger) memWriteHook(addr uint16) {
+	if db.breakOnAddrWrite != nil && addr == *db.breakOnAddrWrite {
+		fmt.Printf("Address write BREAK: %#04x\n", addr)
 		db.printState()
 		db.readCommand()
 	}
@@ -78,6 +88,9 @@ func (db *debugger) readCommand() {
 				uint16(addr),
 				db.env.mmu.at(uint16(addr)))
 			db.breakOnAddrRead = oldBreakOnAddrRead
+		} else if command == "trace" {
+			stacktrace := debug.Stack()
+			fmt.Println(string(stacktrace))
 		} else {
 			fmt.Printf("Unknown command '%v'\n", command)
 			continue

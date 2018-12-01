@@ -78,7 +78,7 @@ func (j *joypad) tick() {
 	// Generate an interrupt if any new buttons have been pressed
 	p10ThruP13InterruptEnabled := j.env.mmu.at(ieAddr)&0x10 == 0x10
 	if buttonPressed && j.env.interruptsEnabled && p10ThruP13InterruptEnabled {
-		j.env.mmu.set(ifAddr, j.env.mmu.at(ifAddr)|0x10)
+		j.env.mmu.setNoNotify(ifAddr, j.env.mmu.at(ifAddr)|0x10)
 	}
 }
 

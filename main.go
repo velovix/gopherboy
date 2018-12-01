@@ -21,6 +21,7 @@ func main() {
 	debug := flag.Bool("debug", false, "Start in debug mode")
 	breakOnOpcode := flag.Int("break-on-opcode", -1, "An opcode to break at")
 	breakOnAddrRead := flag.Int("break-on-addr-read", -1, "A memory address to break at on read")
+	breakOnAddrWrite := flag.Int("break-on-addr-write", -1, "A memory address to break at on write")
 	enableProfiling := flag.Bool("profile", false, "Generates a pprof file if set")
 
 	flag.Parse()
@@ -79,6 +80,10 @@ func main() {
 		if *breakOnAddrRead != -1 {
 			val := uint16(*breakOnAddrRead)
 			db.breakOnAddrRead = &val
+		}
+		if *breakOnAddrWrite != -1 {
+			val := uint16(*breakOnAddrWrite)
+			db.breakOnAddrWrite = &val
 		}
 
 		env.mmu.db = db

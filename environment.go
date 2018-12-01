@@ -66,25 +66,29 @@ func newEnvironment(mmu *mmu) *environment {
 	// Set registers to their initial value
 	// 0x100 is the designated entry point of a Gameboy ROM
 	env.regs16[regPC].set(0x100)
-	// This value depends on the system being emulated.
-	// GB/SGB: 0x01 | GBP: 0xFF | CGB: 0x11
-	env.regs16[regAF].set(0x01)
 	// Set the stack pointer to a high initial value
 	env.regs16[regSP].set(0xFFFE)
 	// I don't know why these values are set this way
-	env.regs8[regF].set(0xB0)
+	env.regs16[regAF].set(0x01B0)
 	env.regs16[regBC].set(0x0013)
 	env.regs16[regDE].set(0x00D8)
 	env.regs16[regHL].set(0x014D)
 
 	// Set memory addresses
-	// Set the timer values
-	env.mmu.set(timaAddr, 0x00)
-	env.mmu.set(tmaAddr, 0x00)
-	env.mmu.set(tacAddr, 0x00)
-	env.mmu.set(ieAddr, 0x00)
-	// Set the display register defaults
-	env.mmu.set(lcdcAddr, 0x91)
+	env.mmu.setNoNotify(timaAddr, 0x00)
+	env.mmu.setNoNotify(tmaAddr, 0x00)
+	env.mmu.setNoNotify(tacAddr, 0x00)
+	env.mmu.setNoNotify(ieAddr, 0x00)
+	env.mmu.setNoNotify(lcdcAddr, 0x91)
+	env.mmu.setNoNotify(scrollYAddr, 0x00)
+	env.mmu.setNoNotify(scrollXAddr, 0x00)
+	env.mmu.setNoNotify(lycAddr, 0x00)
+	env.mmu.setNoNotify(bgpAddr, 0xFC)
+	env.mmu.setNoNotify(opb0Addr, 0xFF)
+	env.mmu.setNoNotify(opb1Addr, 0xFF)
+	env.mmu.setNoNotify(wndPosYAddr, 0x00)
+	env.mmu.setNoNotify(wndPosXAddr, 0x00)
+	env.mmu.setNoNotify(ieAddr, 0x00)
 	// TODO(velovix): Set even more memory addresses
 
 	return env

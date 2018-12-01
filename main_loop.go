@@ -43,21 +43,6 @@ func startMainLoop(
 			}
 		}
 
-		// Process any delayed requests to toggle the master interrupt switch.
-		// These are created by the EI and DI instructions.
-		if env.enableInterruptsTimer > 0 {
-			env.enableInterruptsTimer--
-			if env.enableInterruptsTimer == 0 {
-				env.interruptsEnabled = true
-			}
-		}
-		if env.disableInterruptsTimer > 0 {
-			env.disableInterruptsTimer--
-			if env.disableInterruptsTimer == 0 {
-				env.interruptsEnabled = false
-			}
-		}
-
 		timers.tick(opTime)
 		env.mmu.tick(opTime)
 		vc.tick(opTime)
@@ -97,7 +82,7 @@ func startMainLoop(
 				interruptFlag &= ^uint8(0x10)
 			}
 
-			env.mmu.set(ifAddr, interruptFlag)
+			env.mmu.setNoNotify(ifAddr, interruptFlag)
 
 			if target != 0 {
 				// Disable all other interrupts
@@ -109,5 +94,21 @@ func startMainLoop(
 				env.regs16[regPC].set(target)
 			}
 		}
+
+		// Process any delayed requests to toggle the master interrupt switch.
+		// These are created by the EI and DI instructions.
+		if env.enableInterruptsTimer > 0 {
+			env.enableInterruptsTimer--
+			if env.enableInterruptsTimer == 0 {
+				env.interruptsEnabled = true
+			}
+		}
+		if env.disableInterruptsTimer > 0 {
+			env.disableInterruptsTimer--
+			if env.disableInterruptsTimer == 0 {
+				env.interruptsEnabled = false
+			}
+		}
+
 	}
 }

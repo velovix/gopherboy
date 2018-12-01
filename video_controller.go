@@ -130,7 +130,7 @@ func (vc *videoController) tick(opTime int) {
 		// value increments even during VBlank even though new scan lines
 		// aren't actually being drawn.
 		currScanLine := vc.frameTick / scanLineFullClocks
-		vc.env.mmu.set(lyAddr, uint8(currScanLine))
+		vc.env.mmu.setNoNotify(lyAddr, uint8(currScanLine))
 
 		if vc.frameTick < scanLineFullClocks*screenHeight {
 			// We're still drawing scan lines
@@ -173,7 +173,7 @@ func (vc *videoController) tick(opTime int) {
 				// We just finished drawing the frame
 				vblankInterruptEnabled := vc.env.mmu.at(ieAddr)&0x01 == 0x01
 				if vc.env.interruptsEnabled && vblankInterruptEnabled {
-					vc.env.mmu.set(ifAddr, vc.env.mmu.at(ifAddr)|0x01)
+					vc.env.mmu.setNoNotify(ifAddr, vc.env.mmu.at(ifAddr)|0x01)
 				}
 				vc.renderer.Present()
 
@@ -382,7 +382,7 @@ func (vc *videoController) setMode(mode vcMode) {
 	// Set the mode
 	statVal |= uint8(mode)
 
-	vc.env.mmu.set(statAddr, statVal)
+	vc.env.mmu.setNoNotify(statAddr, statVal)
 }
 
 const (
