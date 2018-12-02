@@ -86,8 +86,8 @@ func newEnvironment(mmu *mmu) *environment {
 	env.mmu.setNoNotify(bgpAddr, 0xFC)
 	env.mmu.setNoNotify(opb0Addr, 0xFF)
 	env.mmu.setNoNotify(opb1Addr, 0xFF)
-	env.mmu.setNoNotify(wndPosYAddr, 0x00)
-	env.mmu.setNoNotify(wndPosXAddr, 0x00)
+	env.mmu.setNoNotify(windowPosYAddr, 0x00)
+	env.mmu.setNoNotify(windowPosXAddr, 0x00)
 	env.mmu.setNoNotify(ieAddr, 0x00)
 	// TODO(velovix): Set even more memory addresses
 

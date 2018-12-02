@@ -39,12 +39,12 @@ const (
 	//
 	// Bit order is the same as the interrupt flag.
 	ieAddr = 0xFFFF
-	// wndPosYAddr points to the "Window Position Y" memory register. This
+	// windowPosYAddr points to the "Window Position Y" memory register. This
 	// controls the position of the window in the Y direction.
-	wndPosYAddr = 0xFF4A
-	// wndPosXAddr points to the "Window Position X" memory register. This
+	windowPosYAddr = 0xFF4A
+	// windowPosXAddr points to the "Window Position X" memory register. This
 	// controls the position of the window in the X direction.
-	wndPosXAddr = 0xFF4B
+	windowPosXAddr = 0xFF4B
 	// lcdcAddr points to the LCDC memory register, which controls various
 	// aspects of how a frame is drawn.
 	//

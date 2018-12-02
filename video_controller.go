@@ -55,15 +55,14 @@ type videoController struct {
 	lcdc           lcdcConfig
 	// All OAM entries. Used to control sprites on-screen.
 	oams []oam
-	// Contains tile data for the background, where the key is the tile ID and
-	// the value is a slice of dot codes corresponding to colors.
-	bgTiles map[uint8][]uint8
-	// Contains tile data for sprites in the same format as bgTiles.
-	spriteTiles map[uint8][]uint8
 	// scrollX controls the X position of the background.
 	scrollX int8
 	// scrollY controls the Y position of the background.
 	scrollY int8
+	// windowX controls the X position of the window in screen coordinates.
+	windowX uint8
+	// windowY controls the Y position of the window is screen coordinates.
+	windowY uint8
 	// bgPalette is the palette for the background.
 	bgPalette map[uint8]color
 	// spritePalette0 is the first of the two available sprite palettes.
@@ -121,9 +120,9 @@ func (vc *videoController) tick(opTime int) {
 		if vc.frameTick == 0 {
 			// Get ready for a new frame draw
 			vc.renderer.Clear()
-			// Read some initial values
-			vc.lcdc = vc.loadLCDC()
+			// Read some frame-wide values
 			vc.scrollY = asSigned(vc.env.mmu.at(scrollYAddr))
+			vc.windowY = vc.env.mmu.at(windowPosYAddr)
 		}
 
 		// Update the LY register with the current scan line. Note that this
@@ -145,8 +144,10 @@ func (vc *videoController) tick(opTime int) {
 				vc.oams = vc.loadOAM()
 
 				// This is the start of this scan line, read some scan line
-				// global values
+				// wide values
+				vc.lcdc = vc.loadLCDC()
 				vc.scrollX = asSigned(vc.env.mmu.at(scrollXAddr))
+				vc.windowX = vc.env.mmu.at(windowPosXAddr)
 			case scanLineOAMClocks:
 				// We're in mode 3, OAM and VRAM transfer mode.
 				vc.setMode(vcMode3)
@@ -154,10 +155,7 @@ func (vc *videoController) tick(opTime int) {
 				vc.bgPalette = vc.loadBGPalette()
 				vc.spritePalette0 = vc.loadSpritePalette(0)
 				vc.spritePalette1 = vc.loadSpritePalette(1)
-				vc.bgTiles = vc.loadBGTiles()
-				vc.spriteTiles = vc.loadSpriteTiles()
 				// TODO(velovix): Lock VRAM
-				// TODO(velovix): Load VRAM data
 			case scanLineVRAMClocks:
 				// We're in mode 0, HBlank period
 				vc.setMode(vcMode0)
@@ -198,27 +196,19 @@ func (vc *videoController) tick(opTime int) {
 // drawScanLine draws a scan line at the given height position.
 func (vc *videoController) drawScanLine(line uint8) {
 	for x := uint8(0); x < screenWidth; x++ {
-		tileID, tileX, tileY := vc.bgTileAt(x, line)
-
-		if _, ok := vc.bgTiles[tileID]; !ok {
-			panic(fmt.Sprintf("invalid tile ID %v", tileID))
-		}
-
-		bgTileData := vc.bgTiles[tileID]
-		bgDotCode := bgTileData[(tileY*bgTileHeight)+tileX]
+		bgDotCode := vc.bgDotCode(x, line)
 
 		var pixelColor color
 		oamEntry, hasSprite := vc.spriteAt(x, line)
-		if hasSprite {
+		if hasSprite && vc.lcdc.spritesOn {
 			// If the sprite has priority 1 and the background dot data is
 			// other than zero, the background will be shown "over" the sprite
 			if oamEntry.priority && bgDotCode != 0 {
 				pixelColor = vc.bgPalette[bgDotCode]
 			} else {
-				spriteTileData := vc.spriteTiles[oamEntry.spriteNumber]
 				// Get the color at this specific place on the sprite
-				xOffset := uint8(x+spriteWidth) - oamEntry.xPos
-				yOffset := uint8(line+spriteTallHeight) - oamEntry.yPos
+				xOffset := x + spriteWidth - oamEntry.xPos
+				yOffset := line + spriteTallHeight - oamEntry.yPos
 
 				if oamEntry.xFlip {
 					// Flip the sprite horizontally
@@ -231,7 +221,8 @@ func (vc *videoController) drawScanLine(line uint8) {
 					yOffset = (spriteShortHeight - 1) - yOffset
 				}
 
-				spriteDotCode := spriteTileData[(yOffset*spriteShortHeight)+xOffset]
+				spriteDotCode := vc.dotCodeInSprite(
+					oamEntry.spriteNumber, int(xOffset), int(yOffset))
 
 				if spriteDotCode == 0 {
 					// As a special case, if the dot code is zero the sprite is
@@ -249,36 +240,25 @@ func (vc *videoController) drawScanLine(line uint8) {
 					}
 				}
 			}
-		} else {
+		} else if vc.lcdc.windowBGOn && vc.lcdc.windowOn && vc.coordInWindow(x, line) {
+			dotCode := vc.windowDotCode(x, line)
+			pixelColor = vc.bgPalette[dotCode]
+		} else if vc.lcdc.windowBGOn {
 			pixelColor = vc.bgPalette[bgDotCode]
 		}
+
 		vc.renderer.SetDrawColor(pixelColor.r, pixelColor.g, pixelColor.b, pixelColor.a)
 		vc.renderer.DrawPoint(int32(x), int32(line))
 	}
 }
 
-// bgTileAt finds the ID of background tile at the given screen coordinates and
-// the coordinates' offset from the top left of the tile.
-func (vc *videoController) bgTileAt(x, y uint8) (tileID uint8, tileX, tileY int) {
-	// Get the coordinates relative to the background and wrap them if
-	// necessary
-	bgX := int(x) + int(vc.scrollX)
-	if bgX < 0 {
-		bgX += bgWidth
-	} else if bgX > bgWidth {
-		bgX -= bgWidth
-	}
-	bgY := int(y) + int(vc.scrollY)
-	if bgY < 0 {
-		bgY += bgHeight
-	} else if bgY > bgHeight {
-		bgY -= bgHeight
-	}
-
-	tileOffset := ((bgY/bgTileHeight)*bgWidthInTiles + (bgX / bgTileWidth))
-	tileAddr := vc.lcdc.bgTileMapAddr + uint16(tileOffset)
-
-	return vc.env.mmu.at(tileAddr), bgX % bgTileWidth, bgY % bgTileHeight
+// coordInWindow returns true if the given coordinates are in the window's
+// current area.
+//
+// The coordinate system for the window is a little bit funky. For whatever
+// reason, the top left of the screen is actually at windowX=7, not windowX=0.
+func (vc *videoController) coordInWindow(x, y uint8) bool {
+	return x >= vc.windowX-7 && y >= vc.windowY
 }
 
 // spriteAt returns the sprite that is at the given X and Y value. If none
@@ -301,70 +281,103 @@ func (vc *videoController) spriteAt(x, y uint8) (entry oam, ok bool) {
 	return oam{}, false
 }
 
-// loadBGTiles loads all background tiles from VRAM.
-func (vc *videoController) loadBGTiles() map[uint8][]uint8 {
-	tileMap := make(map[uint8][]uint8)
-
-	for tile := 0; tile < 256; tile++ {
-		// Find the address of the tile data
-		var tileDataAddr uint16
-		switch vc.lcdc.windowBGTileDataTableAddr {
-		case tileDataTable0:
-			// Tile indexes at this data table are signed from -128 to 127
-			tileDataAddr = uint16(tileDataTable0 + int(int8(tile))*tileBytes)
-		case tileDataTable1:
-			tileDataAddr = tileDataTable1 + (uint16(tile) * tileBytes)
-		default:
-			panic(fmt.Sprintf("unknown tile data table %#x", tileDataAddr))
-		}
-
-		tileMap[uint8(tile)] = vc.loadTile(tileDataAddr)
+// bgDotCode returns the dot code in the background layer at the given screen
+// coordinates.
+func (vc *videoController) bgDotCode(x, y uint8) uint8 {
+	// Get the coordinates relative to the background and wrap them if
+	// necessary
+	bgX := int(x) + int(vc.scrollX)
+	if bgX < 0 {
+		bgX += bgWidth
+	} else if bgX > bgWidth {
+		bgX -= bgWidth
+	}
+	bgY := int(y) + int(vc.scrollY)
+	if bgY < 0 {
+		bgY += bgHeight
+	} else if bgY > bgHeight {
+		bgY -= bgHeight
 	}
 
-	return tileMap
+	// Get the tile this point is inside of
+	tileOffset := (bgY/bgTileHeight)*bgWidthInTiles + (bgX / bgTileWidth)
+	tileAddr := vc.lcdc.bgTileMapAddr + uint16(tileOffset)
+	tile := vc.env.mmu.at(tileAddr)
+
+	// Find the dot code at this specific place in the tile
+	inTileX := bgX % bgTileWidth
+	inTileY := bgY % bgTileHeight
+
+	return vc.dotCodeInTile(tile, inTileX, inTileY)
 }
 
-func (vc *videoController) loadSpriteTiles() map[uint8][]uint8 {
+// windowDotCode returns the dot code in the window layer at the given screen
+// coordinates. The coordinates should be checked to see if they are in the
+// window before calling this method.
+func (vc *videoController) windowDotCode(x, y uint8) uint8 {
+	if !vc.coordInWindow(x, y) {
+		panic("Attempt to load a window dot code in a non-window location")
+	}
+
+	// Get the x and y coordinates in window space
+	winX := int(x - vc.windowX + 7)
+	winY := int(y - vc.windowY)
+
+	tileOffset := (winY/windowTileHeight)*windowWidthInTiles + (winX / windowTileWidth)
+	tileAddr := vc.lcdc.windowTileMapAddr + uint16(tileOffset)
+	tile := vc.env.mmu.at(tileAddr)
+
+	inTileX := winX % windowTileWidth
+	inTileY := winY % windowTileHeight
+
+	return vc.dotCodeInTile(tile, inTileX, inTileY)
+}
+
+// dotCodeInTile finds the dot code for a place in a tile given the tile's ID
+// and the coordinates within the tile to look at.
+func (vc *videoController) dotCodeInTile(tileID uint8, inTileX, inTileY int) uint8 {
+	// Find the address of the tile data
+	var tileDataAddr uint16
+	switch vc.lcdc.windowBGTileDataTableAddr {
+	case tileDataTable0:
+		// Tile indexes at this data table are signed from -128 to 127
+		tileDataAddr = uint16(tileDataTable0 + int(int8(tileID))*tileBytes)
+	case tileDataTable1:
+		tileDataAddr = tileDataTable1 + (uint16(tileID) * tileBytes)
+	default:
+		panic(fmt.Sprintf("unknown tile data table %#x", tileDataAddr))
+	}
+
+	lower := vc.env.mmu.at(tileDataAddr + uint16(inTileY*2))
+	upper := vc.env.mmu.at(tileDataAddr + uint16((inTileY*2)+1))
+
+	lower <<= uint(inTileX)
+	upper <<= uint(inTileX)
+
+	lowerBit := (lower & 0x80) >> 7
+	upperBit := (upper & 0x80) >> 7
+	return (upperBit << 1) | lowerBit
+}
+
+// dotCodeInSprite finds the dot code for a place in a sprite given the
+// sprite's ID and the coordinates within the sprite to look at.
+func (vc *videoController) dotCodeInSprite(spriteID uint8, inSpriteX, inSpriteY int) uint8 {
 	if vc.lcdc.spriteSize == spriteSize8x16 {
 		panic("8x16 sprites are not yet supported")
 	}
 
-	tileMap := make(map[uint8][]uint8)
+	// Find the address of the tile data
+	spriteDataAddr := spriteDataTable + uint16(spriteID)*tileBytes
 
-	for tile := 0; tile < 256; tile++ {
-		// Find the address of the tile data
-		tileDataAddr := uint16(spriteDataTable + (tile * tileBytes))
-		tileMap[uint8(tile)] = vc.loadTile(tileDataAddr)
-	}
+	lower := vc.env.mmu.at(spriteDataAddr + uint16(inSpriteY*2))
+	upper := vc.env.mmu.at(spriteDataAddr + uint16((inSpriteY*2)+1))
 
-	return tileMap
-}
+	lower <<= uint(inSpriteX)
+	upper <<= uint(inSpriteX)
 
-// loadTile loads a single tile at the given address and returns the data as a
-// slice of dot codes.
-func (vc *videoController) loadTile(startAddr uint16) []uint8 {
-	tileData := make([]uint8, bgTileWidth*bgTileHeight)
-
-	for y := uint16(0); y < bgTileHeight; y++ {
-		lower := vc.env.mmu.at(startAddr + (y * 2))
-		upper := vc.env.mmu.at(startAddr + ((y * 2) + 1))
-
-		for x := uint16(0); x < bgTileWidth; x++ {
-			// Tiles use a weird format. For each row in a tile, there are two
-			// bytes. To come up with a single pixel, one bit from each byte is
-			// combined into a new two-bit number which selects the color.
-			lowerBit := (lower & 0x80) >> 7
-			upperBit := (upper & 0x80) >> 7
-			paletteID := (upperBit << 1) | lowerBit
-
-			tileData[(y*bgTileHeight)+x] = paletteID
-
-			lower <<= 1
-			upper <<= 1
-		}
-	}
-
-	return tileData
+	lowerBit := (lower & 0x80) >> 7
+	upperBit := (upper & 0x80) >> 7
+	return (upperBit << 1) | lowerBit
 }
 
 func (vc *videoController) destroy() {
@@ -394,11 +407,20 @@ const (
 	bgTileWidth = 8
 	// bgTileHeight is the height in pixels of a background tile.
 	bgTileHeight = 8
+	// windowTileWidth is the width in pixels of a window tile.
+	windowTileWidth = bgTileWidth
+	// windowTileHeight is the height in pixels of a window tile.
+	windowTileHeight = bgTileHeight
 
 	// bgWidthInTiles is the number of tiles per row in the background.
 	bgWidthInTiles = 32
 	// bgHeightInTiles is the number of tiles per column in the background.
 	bgHeightInTiles = 32
+
+	// windowWidthInTiles is the number of tiles per row in the window.
+	windowWidthInTiles = bgWidthInTiles
+	// windowHeightInTiles is the number of tiles per column in the window.
+	windowHeightInTiles = bgHeightInTiles
 
 	// bgWidth is the width of the background plane.
 	bgWidth = bgWidthInTiles * bgTileWidth
@@ -464,6 +486,7 @@ func (vc *videoController) loadLCDC() lcdcConfig {
 		config.windowTileMapAddr = tileMap0
 	}
 	config.windowOn = lcdc&0x20 == 0x20
+	config.windowOn = false
 	if lcdc&0x10 == 0x10 {
 		config.windowBGTileDataTableAddr = tileDataTable1
 	} else {
@@ -480,6 +503,7 @@ func (vc *videoController) loadLCDC() lcdcConfig {
 		config.spriteSize = spriteSize8x8
 	}
 	config.spritesOn = lcdc&0x02 == 0x02
+	config.spritesOn = false
 	config.windowBGOn = lcdc&0x01 == 0x01
 
 	return config
