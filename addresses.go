@@ -14,12 +14,7 @@ const (
 	// tacAddr points to the TAC, a one byte area where bits can be flipped to
 	// configure the TIMA.
 	tacAddr = 0xFF07
-	// scrollYAddr points to the "Scroll Y" memory register. This controls the
-	// position of the top left of the background.
-	scrollYAddr = 0xFF42
-	// scrollXAddr points to the "Scroll X" memory register. This controls the
-	// position of the top left of the background.
-	scrollXAddr = 0xFF43
+
 	// ifAddr points to the interrupt flags, whose value indicates whether or
 	// not an interrupt is happening.
 	//
@@ -33,6 +28,41 @@ const (
 	// Bit 0: V-blank interrupts. Happens when the V-blank period starts on the
 	//        display.
 	ifAddr = 0xFF0F
+
+	// nr10Addr points to the "Sound Mode 1 Sweep" register. This controls the
+	// frequency sweep effect of the pulse A sound channel.
+	//
+	// Bits 6-4: Controls the length of the frequency sweep. The length is
+	//           n/128Hz, where N is the value written here.
+	// Bit 3: If 0, the frequency increases. If 1, the frequency decreases.
+	// Bits 2-0: The number of sweep shifts to do.
+	nr10Addr = 0xFF10
+	// nr11Addr points to the "Sound Mode 1 Length and Wave Pattern Duty"
+	// register. This controls the duty cycle of the pulse A square wave and
+	// the length that the wave should play for.
+	//
+	// Bits 7-6: Wave pattern duty cycle.
+	//   00: 12.5% duty cycle
+	//   01: 25% duty cycle
+	//   10: 50% duty cycle
+	//   11: 75% duty cycle, sounds the same as 25%
+	// Bits 5-0: The duration to play the sound for. The length is
+	//           (64-t)*(1/256) seconds, wehre t is the value at these bits.
+	nr11Addr = 0xFF11
+	// nr12Addr points to the "Sound Mode 1 Envelope" register. This allows for
+	// a volume sweep effect.
+	// Bits 7-4: The initial volume of the note, with 0 being no sound.
+	// Bits 3: Controls whether the volume sweeps up or down. 0 is down, 1 is
+	//         up.
+	// Bits 2-0: TODO(velovix): What is this?
+	nr12Addr = 0xFF12
+
+	// scrollYAddr points to the "Scroll Y" memory register. This controls the
+	// position of the top left of the background.
+	scrollYAddr = 0xFF42
+	// scrollXAddr points to the "Scroll X" memory register. This controls the
+	// position of the top left of the background.
+	scrollXAddr = 0xFF43
 	// ieAddr points to the interrupt enable flags, which can be flipped to
 	// configure which interrupts are enabled. A value in 1 in a bit means
 	// "enabled".
