@@ -42,11 +42,12 @@ func newMBC1(header romHeader, cartridgeData []uint8) *mbc1 {
 
 // at provides access to the MBC1 banked ROM and RAM.
 func (m *mbc1) at(addr uint16) uint8 {
-	if addr >= bankedROMAddr && addr < videoRAMAddr {
-		// Banked ROM area
+	switch {
+	case inBankedROMArea(addr):
 		return m.romBanks[int(m.currROMBank)][addr-bankedROMAddr]
-	} else if addr >= bankedRAMAddr && addr < ramAddr {
-		// Banked RAM area
+	case inRAMArea(addr):
+		return m.ramBanks[0][addr-ramAddr]
+	case inBankedRAMArea(addr):
 		if _, ok := m.ramBanks[int(m.currRAMBank)]; !ok {
 			if printInstructions {
 				fmt.Printf("Warning: Invalid read from nonexistent "+
@@ -55,7 +56,7 @@ func (m *mbc1) at(addr uint16) uint8 {
 			return 0xFF
 		}
 		return m.ramBanks[int(m.currRAMBank)][addr-bankedRAMAddr]
-	} else {
+	default:
 		panic(fmt.Sprintf("MBC1 is unable to handle reads to address %#x", addr))
 	}
 }
@@ -115,6 +116,9 @@ func (m *mbc1) set(addr uint16, val uint8) {
 		// This changes which mode the RAM Bank Number or Upper Bits of ROM
 		// Bank Number "register" uses.
 		m.bankSelectionMode = val & 0x01
+	} else if addr >= ramAddr && addr < ramMirrorAddr {
+		// Bank 0 RAM area
+		m.ramBanks[0][addr-ramAddr] = val
 	} else if addr >= bankedRAMAddr && addr < ramAddr {
 		// Banked RAM
 		if m.ramEnabled {

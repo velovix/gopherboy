@@ -70,37 +70,34 @@ func makeROMBanks(romSizeType uint8, cartridgeData []uint8) map[int][]uint8 {
 // given RAM size type, then returns it as a map whose key is a RAM bank number
 // and whose value is the corresponding RAM bank.
 func makeRAMBanks(ramSizeType uint8) (ramBanks map[int][]uint8) {
+	// Every MBC has a RAM bank 0
+	ramBanks = map[int][]uint8{
+		0: make([]uint8, 0x2000),
+	}
+
 	switch ramSizeType {
 	case 0x00:
 		// No bank
-		ramBanks = map[int][]uint8{}
 	case 0x01:
 		// One 2 KB bank
-		ramBanks = map[int][]uint8{
-			1: make([]uint8, 2000),
-		}
+		ramBanks[1] = make([]uint8, 2000)
 	case 0x02:
 		// One 8 KB bank
-		ramBanks = map[int][]uint8{
-			1: make([]uint8, 8000),
-		}
+		ramBanks[1] = make([]uint8, 0x2000)
 	case 0x03:
 		// Four 8 KB banks
-		ramBanks = make(map[int][]uint8)
 		for i := 1; i <= 4; i++ {
-			ramBanks[i] = make([]uint8, 8000)
+			ramBanks[i] = make([]uint8, 0x2000)
 		}
 	case 0x04:
 		// Sixteen 8 KB banks
-		ramBanks = make(map[int][]uint8)
 		for i := 1; i <= 16; i++ {
-			ramBanks[i] = make([]uint8, 8000)
+			ramBanks[i] = make([]uint8, 0x2000)
 		}
 	case 0x05:
 		// Eight 8 KB banks
-		ramBanks = make(map[int][]uint8)
 		for i := 1; i <= 8; i++ {
-			ramBanks[i] = make([]uint8, 8000)
+			ramBanks[i] = make([]uint8, 0x2000)
 		}
 	default:
 		panic(fmt.Sprintf("Unknown RAM size type %v", ramSizeType))
@@ -108,3 +105,59 @@ func makeRAMBanks(ramSizeType uint8) (ramBanks map[int][]uint8) {
 
 	return ramBanks
 }
+
+func inBank0ROMArea(addr uint16) bool {
+	return addr < bankedROMAddr
+}
+
+func inBankedROMArea(addr uint16) bool {
+	return addr >= bankedROMAddr && addr < videoRAMAddr
+}
+
+func inVideoRAMArea(addr uint16) bool {
+	return addr >= videoRAMAddr && addr < bankedRAMAddr
+}
+
+func inBankedRAMArea(addr uint16) bool {
+	return addr >= bankedRAMAddr && addr < ramAddr
+}
+
+func inRAMArea(addr uint16) bool {
+	return addr >= ramAddr && addr < ramMirrorAddr
+}
+
+func inRAMMirrorArea(addr uint16) bool {
+	return addr >= ramMirrorAddr && addr < oamRAMAddr
+}
+
+func inOAMArea(addr uint16) bool {
+	return addr >= oamRAMAddr && addr < invalidArea2Addr
+}
+
+func inInvalidArea(addr uint16) bool {
+	return addr >= invalidArea2Addr && addr < ioAddr
+}
+
+func inIOArea(addr uint16) bool {
+	return addr >= ioAddr && addr < hramAddr
+}
+
+func inHRAMArea(addr uint16) bool {
+	return addr >= hramAddr
+}
+
+// The start of each section of the memory map.
+const (
+	bank0ROMAddr  = 0x0000
+	bankedROMAddr = 0x4000
+	videoRAMAddr  = 0x8000
+	bankedRAMAddr = 0xA000
+	ramAddr       = 0xC000
+	ramMirrorAddr = 0xE000
+	oamRAMAddr    = 0xFE00
+	// TODO(velovix): Rename this since there's only one invalid area
+	invalidArea2Addr = 0xFEA0
+	ioAddr           = 0xFF00
+	hramAddr         = 0xFF80
+	lastAddr         = 0xFFFF
+)

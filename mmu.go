@@ -17,9 +17,6 @@ type mmu struct {
 	// videoRAM is where sprite and tile data is stored for the video
 	// controller to access.
 	videoRAM []uint8
-	// ram refers to the place in memory where the Game Boy's internal RAM is
-	// stored.
-	ram []uint8
 	// oamRAM is where sprite attribute data is stored for the video controller
 	// to access.
 	oamRAM []uint8
@@ -52,7 +49,6 @@ type onWriteFunc func(addr uint16, val uint8) uint8
 func newMMU(cartridgeData []uint8, mbc mbc) *mmu {
 	m := &mmu{
 		videoRAM:    make([]uint8, bankedRAMAddr-videoRAMAddr),
-		ram:         make([]uint8, ramMirrorAddr-ramAddr),
 		oamRAM:      make([]uint8, invalidArea2Addr-oamRAMAddr),
 		ioRAM:       make([]uint8, hramAddr-ioAddr),
 		hram:        make([]uint8, lastAddr-hramAddr+1),
@@ -76,41 +72,35 @@ func (m *mmu) at(addr uint16) uint8 {
 		m.db.memReadHook(addr)
 	}
 
-	if addr < bankedROMAddr {
-		// Bank 0 ROM
+	switch {
+	case inBank0ROMArea(addr):
 		return m.bank0ROM[addr-bank0ROMAddr]
-	} else if addr < videoRAMAddr {
+	case inBankedROMArea(addr):
 		// Some additional ROM bank, controlled by the MBC
 		return m.mbc.at(addr)
-	} else if addr < bankedRAMAddr {
-		// Video RAM
+	case inVideoRAMArea(addr):
 		return m.videoRAM[addr-videoRAMAddr]
-	} else if addr < ramAddr {
-		// Some additional RAM bank, controlled by the MBC
+	case inRAMArea(addr) || inBankedRAMArea(addr):
+		// The MBC handles RAM banking and availability
 		return m.mbc.at(addr)
-	} else if addr < ramMirrorAddr {
-		// General-purpose bank 0 RAM
-		return m.ram[addr-ramAddr]
-	} else if addr < oamRAMAddr {
-		// A bank 0 RAM mirror
-		return m.ram[addr-ramMirrorAddr]
-	} else if addr < invalidArea2Addr {
-		// OAM RAM address
+	case inRAMMirrorArea(addr):
+		// A bank 0 RAM mirror, forwarded to the MBC by masking it as a regular
+		// bank 0 RAM access
+		return m.mbc.at(addr - (ramMirrorAddr - ramAddr))
+	case inOAMArea(addr):
 		return m.oamRAM[addr-oamRAMAddr]
-	} else if addr < ioAddr {
+	case inInvalidArea(addr):
 		// Invalid area, which always returns 0xFF since it's the MMU's default
 		// value
 		if printInstructions {
 			fmt.Printf("Warning: Read from invalid memory address %#x\n", addr)
 		}
 		return 0xFF
-	} else if addr < hramAddr {
-		// IO address space
+	case inIOArea(addr):
 		return m.ioRAM[addr-ioAddr]
-	} else if addr <= lastAddr {
-		// HRAM address
+	case inHRAMArea(addr):
 		return m.hram[addr-hramAddr]
-	} else {
+	default:
 		panic(fmt.Sprintf("Unexpected memory address %#x", addr))
 	}
 }
@@ -142,34 +132,34 @@ func (m *mmu) setNoNotify(addr uint16, val uint8) {
 		m.db.memWriteHook(addr)
 	}
 
-	if addr < videoRAMAddr {
-		// Somewhere in ROM, let the MBC handle it
+	if addr == 0x91F0 {
+		fmt.Printf("Charbois tail %#x\n", val)
+	}
+
+	switch {
+	case inBank0ROMArea(addr) || inBankedROMArea(addr):
+		// "Writes" to ROM areas are used to control MBCs
 		m.mbc.set(addr, val)
-	} else if addr < bankedRAMAddr {
-		// Video RAM
+	case inVideoRAMArea(addr):
 		m.videoRAM[addr-videoRAMAddr] = val
-	} else if addr < ramAddr {
-		// Banked RAM, let the MBC handle it
+	case inRAMArea(addr) || inBankedRAMArea(addr):
+		// The MBC handles RAM banking and availability
 		m.mbc.set(addr, val)
-	} else if addr < ramMirrorAddr {
-		// General-purpose RAM
-		m.ram[addr-ramAddr] = val
-	} else if addr < oamRAMAddr {
-		// A mirror to general-purpose RAM
-		m.ram[addr-ramMirrorAddr] = val
-	} else if addr < invalidArea2Addr {
-		// OAM RAM
+	case inRAMMirrorArea(addr):
+		// An area that mirrors built-in RAM. Forward it to the MBC disguised
+		// as a regular write
+		m.mbc.set(addr-(ramMirrorAddr-ramAddr), val)
+	case inOAMArea(addr):
 		m.oamRAM[addr-oamRAMAddr] = val
-	} else if addr < ioAddr {
-		// Invalid address
-		// TODO(velovix): Should any special behavior be exhibited here?
-	} else if addr < hramAddr {
-		// I/O RAM
+	case inInvalidArea(addr):
+		if printInstructions {
+			fmt.Printf("Warning: Write to invalid area %#x", addr)
+		}
+	case inIOArea(addr):
 		m.ioRAM[addr-ioAddr] = val
-	} else if addr <= 0xFFFF {
-		// HRAM
+	case inHRAMArea(addr):
 		m.hram[addr-hramAddr] = val
-	} else {
+	default:
 		panic(fmt.Sprintf("Unexpected memory address %#x", addr))
 	}
 }
@@ -232,18 +222,3 @@ type mbc interface {
 	set(addr uint16, val uint8)
 	at(addr uint16) uint8
 }
-
-// The start of each section of the memory map.
-const (
-	bank0ROMAddr     = 0x0000
-	bankedROMAddr    = 0x4000
-	videoRAMAddr     = 0x8000
-	bankedRAMAddr    = 0xA000
-	ramAddr          = 0xC000
-	ramMirrorAddr    = 0xE000
-	oamRAMAddr       = 0xFE00
-	invalidArea2Addr = 0xFEA0
-	ioAddr           = 0xFF00
-	hramAddr         = 0xFF80
-	lastAddr         = 0xFFFF
-)

@@ -486,7 +486,6 @@ func (vc *videoController) loadLCDC() lcdcConfig {
 		config.windowTileMapAddr = tileMap0
 	}
 	config.windowOn = lcdc&0x20 == 0x20
-	config.windowOn = false
 	if lcdc&0x10 == 0x10 {
 		config.windowBGTileDataTableAddr = tileDataTable1
 	} else {
@@ -503,7 +502,6 @@ func (vc *videoController) loadLCDC() lcdcConfig {
 		config.spriteSize = spriteSize8x8
 	}
 	config.spritesOn = lcdc&0x02 == 0x02
-	config.spritesOn = false
 	config.windowBGOn = lcdc&0x01 == 0x01
 
 	return config

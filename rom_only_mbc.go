@@ -8,10 +8,15 @@ import "fmt"
 type romOnlyMBC struct {
 	// romBank1 is the one and only ROM bank provided by this basic controller.
 	romBank1 []uint8
+	// ramBank0 is the built-in Game Boy RAM.
+	ramBank0 []uint8
 }
 
 func newROMOnlyMBC(cartridgeData []uint8) *romOnlyMBC {
-	m := &romOnlyMBC{romBank1: make([]uint8, 0x4000)}
+	m := &romOnlyMBC{
+		romBank1: make([]uint8, 0x4000),
+		ramBank0: make([]uint8, 0x2000),
+	}
 
 	// Load bank 1 cartridge data
 	for i := bankedROMAddr; i < videoRAMAddr; i++ {
@@ -23,35 +28,41 @@ func newROMOnlyMBC(cartridgeData []uint8) *romOnlyMBC {
 
 // at provides access to the bank 1 ROM.
 func (m *romOnlyMBC) at(addr uint16) uint8 {
-	if addr >= bankedROMAddr && addr < videoRAMAddr {
+	switch {
+	case inRAMArea(addr):
+		return m.ramBank0[addr-ramAddr]
+	case inBankedROMArea(addr):
 		return m.romBank1[addr-bankedROMAddr]
-	} else if addr >= bankedRAMAddr && addr < ramAddr {
+	case inBankedRAMArea(addr):
 		if printInstructions {
 			fmt.Printf("Warning: Read from banked RAM section at address %#x, "+
 				"but the ROM-only MBC does not support banked RAM\n",
 				addr)
 		}
 		return 0xFF
-	} else {
+	default:
 		panic(fmt.Sprintf("The ROM-only MBC should not have been "+
 			"notified of a write to address %#x\n", addr))
 	}
 }
 
-// set does nothing, since there are no write operations that this MBC
-// supports.
+// set can update bank 0 RAM, but otherwise does not support any special
+// operations like real MBCs do.
 func (m *romOnlyMBC) set(addr uint16, val uint8) {
-	if addr < videoRAMAddr {
+	switch {
+	case inBank0ROMArea(addr) || inBankedROMArea(addr):
 		if printInstructions {
 			fmt.Printf("Warning: Ignoring write to ROM space "+
 				"at %#x with ROM-only MBC\n", addr)
 		}
-	} else if addr >= bankedRAMAddr && addr < ramAddr {
+	case inRAMArea(addr):
+		m.ramBank0[addr-ramAddr] = val
+	case inBankedRAMArea(addr):
 		if printInstructions {
 			fmt.Printf("Warning: Ignoring write to banked RAM space "+
 				"at %#x with ROM-only MBC\n", addr)
 		}
-	} else {
+	default:
 		panic(fmt.Sprintf("The ROM-only MBC should not have been "+
 			"notified of a write to address %#x\n", addr))
 	}

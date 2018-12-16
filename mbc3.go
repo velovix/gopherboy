@@ -49,10 +49,12 @@ func newMBC3(header romHeader, cartridgeData []uint8, hasRTC bool) *mbc3 {
 
 // at provides access to the MBC3 banked ROM, banked RAM, and real time clock.
 func (m *mbc3) at(addr uint16) uint8 {
-	if addr >= bankedROMAddr && addr < videoRAMAddr {
-		// Banked ROM area
+	switch {
+	case inBankedROMArea(addr):
 		return m.romBanks[int(m.currROMBank)][addr-bankedROMAddr]
-	} else if addr >= bankedRAMAddr && addr < ramAddr {
+	case inRAMArea(addr):
+		return m.ramBanks[0][addr-ramAddr]
+	case inBankedRAMArea(addr):
 		// Banked RAM or Real Time Clock register area
 		if _, ok := m.ramBanks[int(m.currRAMBank)]; !ok {
 			if printInstructions {
@@ -62,7 +64,7 @@ func (m *mbc3) at(addr uint16) uint8 {
 			return 0xFF
 		}
 		return m.ramBanks[int(m.currRAMBank)][addr-bankedRAMAddr]
-	} else {
+	default:
 		panic(fmt.Sprintf("MBC3 is unable to handle reads to address %#x", addr))
 	}
 }
@@ -84,6 +86,7 @@ func (m *mbc3) set(addr uint16, val uint8) {
 		lower, _ := split(val)
 		// 0x0A is the magic number to turn these devices on
 		m.ramAndRTCEnabled = lower == 0x0A
+		fmt.Printf("Write to RAM enable/disable %#x: %#x, %v\n", addr, val, m.ramAndRTCEnabled)
 	} else if addr < 0x4000 {
 		// ROM Bank Number "register"
 		// This area is used to specify all 7 bits of the desired ROM bank
@@ -104,6 +107,7 @@ func (m *mbc3) set(addr uint16, val uint8) {
 		// that corresponding RTC register to the RAM bank address space.
 		if val <= 0x07 {
 			m.currRAMBank = val
+			fmt.Println("Switched to RAM bank", m.currRAMBank)
 		} else if val <= 0x0C {
 			panic("Attempt to control the RTC register, but RTC is not supported")
 		} else {
@@ -117,5 +121,16 @@ func (m *mbc3) set(addr uint16, val uint8) {
 		// unchanged.
 		m.rtcLatched = val == 0x01
 		fmt.Println("Warning: Attempt to latch the RTC register, but RTC is not supported")
+	} else if inRAMArea(addr) {
+		m.ramBanks[0][addr-ramAddr] = val
+	} else if inBankedRAMArea(addr) {
+		if m.ramAndRTCEnabled {
+			m.ramBanks[int(m.currRAMBank)][addr-bankedRAMAddr] = val
+		} else {
+			fmt.Printf("Attempt to write to banked RAM when RAM is disabled: At address %#x\n", addr)
+		}
+	} else {
+		panic(fmt.Sprintf("The MBC3 should not have been notified of a write "+
+			"to address %#x", addr))
 	}
 }
