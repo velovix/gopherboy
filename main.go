@@ -18,7 +18,6 @@ var (
 )
 
 func main() {
-	debug := flag.Bool("debug", false, "Start in debug mode")
 	breakOnOpcode := flag.Int("break-on-opcode", -1, "An opcode to break at")
 	breakOnAddrRead := flag.Int("break-on-addr-read", -1, "A memory address to break at on read")
 	breakOnAddrWrite := flag.Int("break-on-addr-write", -1, "A memory address to break at on write")
@@ -68,7 +67,7 @@ func main() {
 
 	// Start the debugger
 	var db *debugger
-	if *debug {
+	if *breakOnOpcode != -1 || *breakOnAddrRead != -1 || *breakOnAddrWrite != -1 {
 		printInstructions = true
 		fmt.Println("Setting up debugger")
 		db = &debugger{env: env}
