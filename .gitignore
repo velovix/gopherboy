@@ -13,3 +13,5 @@ docs/
 
 # Profiling and other docs
 *.pdf
+
+emulator/emulator

@@ -3,9 +3,6 @@ package main
 import (
 	"fmt"
 	"time"
-	"unsafe"
-
-	"github.com/veandco/go-sdl2/sdl"
 )
 
 const (
@@ -51,8 +48,7 @@ const (
 )
 
 type videoController struct {
-	window   *sdl.Window
-	renderer *sdl.Renderer
+	driver *videoDriver
 
 	frameTick      int
 	drawnScanLines int
@@ -92,33 +88,17 @@ type videoController struct {
 
 func newVideoController(env *environment, timers *timers, scaleFactor float64) (*videoController, error) {
 	var vc videoController
+	var err error
+
+	vc.driver, err = newVideoDriver(scaleFactor)
+	if err != nil {
+		return nil, fmt.Errorf("initializing video driver: %v", err)
+	}
 
 	vc.env = env
 	vc.timers = timers
 
-	err := sdl.Init(sdl.INIT_EVERYTHING)
-	if err != nil {
-		return &videoController{}, fmt.Errorf("initializing SDL: %v", err)
-	}
-
-	vc.window, err = sdl.CreateWindow(
-		"Gopherboy",
-		sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
-		int32(screenWidth*scaleFactor),
-		int32(screenHeight*scaleFactor),
-		sdl.WINDOW_OPENGL)
-	if err != nil {
-		return &videoController{}, fmt.Errorf("initializing window: %v", err)
-	}
-
-	vc.renderer, err = sdl.CreateRenderer(vc.window, -1, sdl.RENDERER_ACCELERATED)
-	if err != nil {
-		return &videoController{}, fmt.Errorf("initializing renderer: %v", err)
-	}
-
 	vc.lastSecond = time.Now()
-
-	vc.renderer.SetDrawColor(255, 255, 255, 255)
 
 	return &vc, nil
 }
@@ -133,7 +113,7 @@ func (vc *videoController) tick(opTime int) {
 	for i := 0; i < opTime; i++ {
 		if vc.frameTick == 0 {
 			// Get ready for a new frame draw
-			vc.renderer.Clear()
+			vc.driver.clear()
 			// Read some frame-wide values
 			vc.scrollY = asSigned(vc.env.mmu.at(scrollYAddr))
 			vc.windowY = vc.env.mmu.at(windowPosYAddr)
@@ -191,18 +171,7 @@ func (vc *videoController) tick(opTime int) {
 					vc.env.mmu.setNoNotify(ifAddr, vc.env.mmu.at(ifAddr)|0x01)
 				}
 
-				frameTexture, err := vc.pixelDataToTexture()
-				if err != nil {
-					panic(fmt.Sprintf("creating frame texture: %v", err))
-				}
-				err = vc.renderer.Copy(frameTexture, nil, nil)
-				if err != nil {
-					panic(fmt.Sprintf("copying frame to screen: %v", err))
-				}
-
-				vc.renderer.Present()
-
-				frameTexture.Destroy()
+				vc.driver.render(vc.currFrame)
 
 				if !vc.unlimitedFPS {
 					if time.Since(vc.lastFrameTime) < time.Second/targetFPS {
@@ -429,8 +398,7 @@ func (vc *videoController) dotCodeInSprite(spriteID uint8, inSpriteX, inSpriteY 
 }
 
 func (vc *videoController) destroy() {
-	vc.renderer.Destroy()
-	vc.window.Destroy()
+	vc.driver.close()
 }
 
 // setMode updates the necessary registers to show what mode the video
@@ -752,35 +720,6 @@ func (vc *videoController) loadSpritePalette(paletteNum int) map[uint8]color {
 	}
 
 	return palette
-}
-
-// pixelDataToTexture puts the current frame into an SDL texture to be put
-// on-screen.
-//
-// It is the job of the caller to release the given texture object.
-func (vc *videoController) pixelDataToTexture() (*sdl.Texture, error) {
-	surface, err := sdl.CreateRGBSurfaceFrom(
-		unsafe.Pointer(&vc.currFrame[0]),
-		screenWidth,
-		screenHeight,
-		32,            // Bits per pixel
-		4*screenWidth, // Bytes per row
-		0xFF000000,    // Bitmask for R value
-		0x00FF0000,    // Bitmask for G value
-		0x0000FF00,    // Bitmask for B value
-		0x000000FF,    // Bitmask for alpha value
-	)
-	if err != nil {
-		return nil, fmt.Errorf("creating surface: %v", err)
-	}
-	defer surface.Free()
-
-	texture, err := vc.renderer.CreateTextureFromSurface(surface)
-	if err != nil {
-		return nil, fmt.Errorf("converting surface to a texture: %v", err)
-	}
-
-	return texture, nil
 }
 
 type color struct {
