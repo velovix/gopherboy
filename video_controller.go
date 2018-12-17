@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"time"
+	"unsafe"
 
 	"github.com/veandco/go-sdl2/sdl"
 )
@@ -70,6 +71,9 @@ type videoController struct {
 	// spritePalette1 is the second of the two available sprite palettes.
 	spritePalette1 map[uint8]color
 
+	// Raw frame data in RGBA format.
+	currFrame []uint32
+
 	timers *timers
 	env    *environment
 
@@ -77,7 +81,7 @@ type videoController struct {
 	frameCnt   int
 }
 
-func newVideoController(env *environment, timers *timers) (*videoController, error) {
+func newVideoController(env *environment, timers *timers, scaleFactor float64) (*videoController, error) {
 	var vc videoController
 
 	vc.env = env
@@ -91,7 +95,8 @@ func newVideoController(env *environment, timers *timers) (*videoController, err
 	vc.window, err = sdl.CreateWindow(
 		"Gopherboy",
 		sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
-		screenWidth, screenHeight,
+		int32(screenWidth*scaleFactor),
+		int32(screenHeight*scaleFactor),
 		sdl.WINDOW_OPENGL)
 	if err != nil {
 		return &videoController{}, fmt.Errorf("initializing window: %v", err)
@@ -123,6 +128,9 @@ func (vc *videoController) tick(opTime int) {
 			// Read some frame-wide values
 			vc.scrollY = asSigned(vc.env.mmu.at(scrollYAddr))
 			vc.windowY = vc.env.mmu.at(windowPosYAddr)
+
+			// Make a new frame
+			vc.currFrame = make([]uint32, screenWidth*screenHeight)
 		}
 
 		// Update the LY register with the current scan line. Note that this
@@ -172,6 +180,15 @@ func (vc *videoController) tick(opTime int) {
 				vblankInterruptEnabled := vc.env.mmu.at(ieAddr)&0x01 == 0x01
 				if vc.env.interruptsEnabled && vblankInterruptEnabled {
 					vc.env.mmu.setNoNotify(ifAddr, vc.env.mmu.at(ifAddr)|0x01)
+				}
+
+				frameTexture, err := vc.pixelDataToTexture()
+				if err != nil {
+					panic(fmt.Sprintf("creating frame texture: %v", err))
+				}
+				err = vc.renderer.Copy(frameTexture, nil, nil)
+				if err != nil {
+					panic(fmt.Sprintf("copying frame to screen: %v", err))
 				}
 				vc.renderer.Present()
 
@@ -247,8 +264,8 @@ func (vc *videoController) drawScanLine(line uint8) {
 			pixelColor = vc.bgPalette[bgDotCode]
 		}
 
-		vc.renderer.SetDrawColor(pixelColor.r, pixelColor.g, pixelColor.b, pixelColor.a)
-		vc.renderer.DrawPoint(int32(x), int32(line))
+		// Add this pixel to the in-progress frame
+		vc.currFrame[(int(line)*screenWidth)+int(x)] = pixelColor.toInt32()
 	}
 }
 
@@ -703,6 +720,35 @@ func (vc *videoController) loadSpritePalette(paletteNum int) map[uint8]color {
 	return palette
 }
 
+// pixelDataToTexture puts the current frame into an SDL texture to be put
+// on-screen.
+func (vc *videoController) pixelDataToTexture() (*sdl.Texture, error) {
+	surface, err := sdl.CreateRGBSurfaceFrom(
+		unsafe.Pointer(&vc.currFrame[0]),
+		screenWidth,
+		screenHeight,
+		32,            // Bits per pixel
+		4*screenWidth, // Bytes per row
+		0xFF000000,    // Bitmask for R value
+		0x00FF0000,    // Bitmask for G value
+		0x0000FF00,    // Bitmask for B value
+		0x000000FF,    // Bitmask for alpha value
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating surface: %v", err)
+	}
+	texture, err := vc.renderer.CreateTextureFromSurface(surface)
+	if err != nil {
+		return nil, fmt.Errorf("converting surface to a texture: %v", err)
+	}
+
+	return texture, nil
+}
+
 type color struct {
 	r, g, b, a uint8
+}
+
+func (c *color) toInt32() uint32 {
+	return (uint32(c.r) << 24) | (uint32(c.g) << 16) | (uint32(c.b) << 8) | uint32(c.a)
 }

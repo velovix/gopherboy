@@ -18,15 +18,26 @@ var (
 )
 
 func main() {
-	breakOnOpcode := flag.Int("break-on-opcode", -1, "An opcode to break at")
-	breakOnAddrRead := flag.Int("break-on-addr-read", -1, "A memory address to break at on read")
-	breakOnAddrWrite := flag.Int("break-on-addr-write", -1, "A memory address to break at on write")
-	enableProfiling := flag.Bool("profile", false, "Generates a pprof file if set")
+	scaleFactor := flag.Float64("scale", 2,
+		"The amount to scale the window by, with 1 being native resolution")
+	breakOnOpcode := flag.Int("break-on-opcode", -1,
+		"An opcode to break at")
+	breakOnAddrRead := flag.Int("break-on-addr-read", -1,
+		"A memory address to break at on read")
+	breakOnAddrWrite := flag.Int("break-on-addr-write", -1,
+		"A memory address to break at on write")
+	enableProfiling := flag.Bool("profile", false,
+		"Generates a pprof file if set")
 
 	flag.Parse()
 
 	if len(flag.Args()) < 1 {
 		fmt.Println("Usage: gopherboy [OPTIONS] rom_file")
+		os.Exit(1)
+	}
+
+	if *scaleFactor <= 0 {
+		fmt.Println("Scale factor must be higher than 0")
 		os.Exit(1)
 	}
 
@@ -92,7 +103,7 @@ func main() {
 	timers := newTimers(env)
 
 	// Start the display controller
-	vc, err := newVideoController(env, timers)
+	vc, err := newVideoController(env, timers, *scaleFactor)
 	if err != nil {
 		fmt.Println("Error while creating video controller:", err)
 		os.Exit(1)
