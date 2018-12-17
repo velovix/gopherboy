@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"runtime"
 
 	"github.com/pkg/profile"
 )
@@ -18,6 +19,10 @@ var (
 )
 
 func main() {
+	// Necessary because SDL2 uses OpenGL in the back end, which is not
+	// thread-safe and does not like being moved around
+	runtime.LockOSThread()
+
 	scaleFactor := flag.Float64("scale", 2,
 		"The amount to scale the window by, with 1 being native resolution")
 	breakOnOpcode := flag.Int("break-on-opcode", -1,
