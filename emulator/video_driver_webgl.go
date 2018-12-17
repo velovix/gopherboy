@@ -19,7 +19,7 @@ func newVideoDriver(scaleFactor float64) (*videoDriver, error) {
 	var vd videoDriver
 
 	doc := js.Global().Get("document")
-	canvas := doc.Call("getElementById", "myCanvas")
+	canvas := doc.Call("getElementById", "emulator-canvas")
 	vd.gl = canvas.Call("getContext", "webgl")
 	if vd.gl == js.Undefined() {
 		return nil, errors.New("browser does not support WebGL")

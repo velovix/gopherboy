@@ -1,4 +1,5 @@
 gopherboy
+emulator/emulator
 
 # Ignore Gameboy code and compiled files
 *.asm
@@ -14,4 +15,6 @@ docs/
 # Profiling and other docs
 *.pdf
 
-emulator/emulator
+# Build results
+*.wasm
+

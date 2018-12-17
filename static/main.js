@@ -86,7 +86,7 @@ function loadShaders(gl) {
 }
 
 function main() {
-    const canvas = document.querySelector("#myCanvas");
+    const canvas = document.querySelector("#emulator-canvas");
     const gl = canvas.getContext("webgl");
 
     if (gl === null) {
