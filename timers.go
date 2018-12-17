@@ -1,12 +1,18 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 const (
 	// The Game Boy processor clock speed
 	cpuClockRate = 4194304
 	// dividerClockRate is the rate at which the divider timer increments.
 	dividerClockRate = 16384
+
+	// The time that it takes in hardware to perform one cycle.
+	timePerClock = time.Nanosecond * 238
 )
 
 // timers keeps track of all timers in the Gameboy, including the TIMA.

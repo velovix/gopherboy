@@ -35,6 +35,9 @@ const (
 	// spriteShortHeight is the pixel height of a sprite if 8x8 mode is
 	// enabled.
 	spriteShortHeight = 8
+
+	// targetFPS is the FPS of the Game Boy screen.
+	targetFPS = 60
 )
 
 type drawStep int
@@ -77,8 +80,14 @@ type videoController struct {
 	timers *timers
 	env    *environment
 
+	// Used for finding FPS
 	lastSecond time.Time
 	frameCnt   int
+
+	// Used to cap FPS
+	lastFrameTime time.Time
+	// If true, frame rate will not be capped.
+	unlimitedFPS bool
 }
 
 func newVideoController(env *environment, timers *timers, scaleFactor float64) (*videoController, error) {
@@ -190,7 +199,17 @@ func (vc *videoController) tick(opTime int) {
 				if err != nil {
 					panic(fmt.Sprintf("copying frame to screen: %v", err))
 				}
+
 				vc.renderer.Present()
+
+				frameTexture.Destroy()
+
+				if !vc.unlimitedFPS {
+					if time.Since(vc.lastFrameTime) < time.Second/targetFPS {
+						time.Sleep((time.Second / targetFPS) - time.Since(vc.lastFrameTime))
+					}
+				}
+				vc.lastFrameTime = time.Now()
 
 				vc.frameCnt++
 				if time.Since(vc.lastSecond) >= time.Second {
@@ -235,7 +254,12 @@ func (vc *videoController) drawScanLine(line uint8) {
 					// Flip the sprite vertically
 					// TODO(velovix): This will have to be readdressed when
 					// tall sprite support is added
-					yOffset = (spriteShortHeight - 1) - yOffset
+					switch vc.lcdc.spriteSize {
+					case spriteSize8x8:
+						yOffset = (spriteShortHeight - 1) - yOffset
+					case spriteSize8x16:
+						yOffset = (spriteTallHeight - 1) - yOffset
+					}
 				}
 
 				spriteDotCode := vc.dotCodeInSprite(
@@ -281,16 +305,20 @@ func (vc *videoController) coordInWindow(x, y uint8) bool {
 // spriteAt returns the sprite that is at the given X and Y value. If none
 // exists, an empty OAM and an ok value of false will be returned.
 func (vc *videoController) spriteAt(x, y uint8) (entry oam, ok bool) {
-	if vc.lcdc.spriteSize == spriteSize8x16 {
-		panic("8x16 sprites are not yet supported")
-	}
-
 	for _, entry := range vc.oams {
+		var spriteTop uint8
+		switch vc.lcdc.spriteSize {
+		case spriteSize8x8:
+			spriteTop = entry.yPos - spriteShortHeight
+		case spriteSize8x16:
+			spriteTop = entry.yPos
+		}
+
 		// Check if the sprite this OAM entry corresponds to is in the given
 		// point. Remember that a sprite's X and Y position is relative to the
 		// bottom right of the sprite.
-		if x < entry.xPos && x >= entry.xPos-spriteWidth &&
-			y < entry.yPos-spriteShortHeight && y >= entry.yPos-spriteTallHeight {
+		if x < entry.xPos && int(x) >= int(entry.xPos)-spriteWidth &&
+			y < spriteTop && y >= entry.yPos-spriteTallHeight {
 			return entry, true
 		}
 	}
@@ -380,11 +408,14 @@ func (vc *videoController) dotCodeInTile(tileID uint8, inTileX, inTileY int) uin
 // sprite's ID and the coordinates within the sprite to look at.
 func (vc *videoController) dotCodeInSprite(spriteID uint8, inSpriteX, inSpriteY int) uint8 {
 	if vc.lcdc.spriteSize == spriteSize8x16 {
-		panic("8x16 sprites are not yet supported")
+		// The first bit of the sprite ID is ignored in this mode. This is
+		// because sprites in this mode take up twice the space, making only
+		// every other sprite ID valid
+		spriteID &= ^uint8(0x1)
 	}
 
 	// Find the address of the tile data
-	spriteDataAddr := spriteDataTable + uint16(spriteID)*tileBytes
+	spriteDataAddr := spriteDataTable + uint16(spriteID)*spriteBytes8x8
 
 	lower := vc.env.mmu.at(spriteDataAddr + uint16(inSpriteY*2))
 	upper := vc.env.mmu.at(spriteDataAddr + uint16((inSpriteY*2)+1))
@@ -428,6 +459,9 @@ const (
 	windowTileWidth = bgTileWidth
 	// windowTileHeight is the height in pixels of a window tile.
 	windowTileHeight = bgTileHeight
+
+	spriteBytes8x8  = 16
+	spriteBytes8x16 = 32
 
 	// bgWidthInTiles is the number of tiles per row in the background.
 	bgWidthInTiles = 32
@@ -722,6 +756,8 @@ func (vc *videoController) loadSpritePalette(paletteNum int) map[uint8]color {
 
 // pixelDataToTexture puts the current frame into an SDL texture to be put
 // on-screen.
+//
+// It is the job of the caller to release the given texture object.
 func (vc *videoController) pixelDataToTexture() (*sdl.Texture, error) {
 	surface, err := sdl.CreateRGBSurfaceFrom(
 		unsafe.Pointer(&vc.currFrame[0]),
@@ -737,6 +773,8 @@ func (vc *videoController) pixelDataToTexture() (*sdl.Texture, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating surface: %v", err)
 	}
+	defer surface.Free()
+
 	texture, err := vc.renderer.CreateTextureFromSurface(surface)
 	if err != nil {
 		return nil, fmt.Errorf("converting surface to a texture: %v", err)

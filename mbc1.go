@@ -94,7 +94,6 @@ func (m *mbc1) set(addr uint16, val uint8) {
 		// Replace the first 5 bits of the current ROM bank with these
 		m.currROMBank &= 0xE0
 		m.currROMBank |= bank
-		fmt.Println("Switching to ROM bank", m.currROMBank)
 	} else if addr < 0x6000 {
 		// RAM Bank Number or Upper Bits of ROM Bank Number "register"
 		// This area is used to specify the upper 2 bits of the desired ROM

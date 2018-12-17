@@ -109,6 +109,5 @@ func startMainLoop(
 				env.interruptsEnabled = false
 			}
 		}
-
 	}
 }

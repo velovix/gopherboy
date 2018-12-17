@@ -132,10 +132,6 @@ func (m *mmu) setNoNotify(addr uint16, val uint8) {
 		m.db.memWriteHook(addr)
 	}
 
-	if addr == 0x91F0 {
-		fmt.Printf("Charbois tail %#x\n", val)
-	}
-
 	switch {
 	case inBank0ROMArea(addr) || inBankedROMArea(addr):
 		// "Writes" to ROM areas are used to control MBCs

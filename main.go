@@ -33,6 +33,8 @@ func main() {
 		"A memory address to break at on write")
 	enableProfiling := flag.Bool("profile", false,
 		"Generates a pprof file if set")
+	unlimitedFPS := flag.Bool("unlimited-fps", false,
+		"If true, frame rate will not be capped. Games will run as quickly as possible.")
 
 	flag.Parse()
 
@@ -114,6 +116,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer vc.destroy()
+
+	vc.unlimitedFPS = *unlimitedFPS
 
 	// Start reading joypad input
 	joypad := newJoypad(env)
