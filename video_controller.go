@@ -318,7 +318,7 @@ func (vc *videoController) spriteAt(x, y uint8) (entry oam, ok bool) {
 		// point. Remember that a sprite's X and Y position is relative to the
 		// bottom right of the sprite.
 		if x < entry.xPos && int(x) >= int(entry.xPos)-spriteWidth &&
-			y < spriteTop && y >= entry.yPos-spriteTallHeight {
+			y < spriteTop && int(y) >= int(entry.yPos)-spriteTallHeight {
 			return entry, true
 		}
 	}
