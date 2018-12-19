@@ -81,14 +81,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	env := newEnvironment(newMMU(cartridgeData, mbc))
+	state := NewState(newMMU(cartridgeData, mbc))
 
 	// Start the debugger
 	var db *debugger
 	if *breakOnOpcode != -1 || *breakOnAddrRead != -1 || *breakOnAddrWrite != -1 {
 		printInstructions = true
 		fmt.Println("Setting up debugger")
-		db = &debugger{env: env}
+		db = &debugger{state: state}
 
 		if *breakOnOpcode != -1 {
 			val := uint8(*breakOnOpcode)
@@ -103,14 +103,14 @@ func main() {
 			db.breakOnAddrWrite = &val
 		}
 
-		env.mmu.db = db
+		state.mmu.db = db
 	}
 
 	// Start the timers
-	timers := newTimers(env)
+	timers := newTimers(state)
 
 	// Start the display controller
-	vc, err := newVideoController(env, timers, *scaleFactor)
+	vc, err := newVideoController(state, timers, *scaleFactor)
 	if err != nil {
 		fmt.Println("Error while creating video controller:", err)
 		os.Exit(1)
@@ -120,7 +120,7 @@ func main() {
 	vc.unlimitedFPS = *unlimitedFPS
 
 	// Start reading joypad input
-	joypad := newJoypad(env)
+	joypad := newJoypad(state)
 
 	// Stop main loop on sigint
 	sigint := make(chan os.Signal, 1)
@@ -134,7 +134,7 @@ func main() {
 	}()
 
 	// Start running
-	err = startMainLoop(env, vc, timers, joypad, db, onExit)
+	err = startMainLoop(state, vc, timers, joypad, db, onExit)
 	if err != nil {
 		fmt.Println("Error while running ROM:", err)
 		os.Exit(1)
@@ -149,6 +149,6 @@ func main() {
 	}
 	defer dump.Close()
 
-	dump.Write(env.mmu.dump())
+	dump.Write(state.mmu.dump())
 	fmt.Println("Done dumping (tee hee!)")
 }

@@ -3,7 +3,7 @@ package main
 import "fmt"
 
 // nop does nothing.
-func nop(env *environment) int {
+func nop(state *State) int {
 	if printInstructions {
 		fmt.Printf("NOP\n")
 	}
@@ -12,8 +12,8 @@ func nop(env *environment) int {
 
 // di sets the master interrupt flag to false, disabling all interrupt
 // handling, but not until the instruction after DI has been executed.
-func di(env *environment) int {
-	env.disableInterruptsTimer = 2
+func di(state *State) int {
+	state.disableInterruptsTimer = 2
 
 	if printInstructions {
 		fmt.Printf("DI\n")
@@ -24,8 +24,8 @@ func di(env *environment) int {
 // ei sets the master interrupt flag to true, but not until the instruction
 // after EI has been executed. Interrupts may still be disabled using the
 // interrupt flags memory register, however.
-func ei(env *environment) int {
-	env.enableInterruptsTimer = 2
+func ei(state *State) int {
+	state.enableInterruptsTimer = 2
 
 	if printInstructions {
 		fmt.Printf("EI\n")
@@ -34,8 +34,8 @@ func ei(env *environment) int {
 }
 
 // halt stops running instructions until an interrupt is triggered.
-func halt(env *environment) int {
-	env.waitingForInterrupts = true
+func halt(state *State) int {
+	state.waitingForInterrupts = true
 
 	if printInstructions {
 		fmt.Printf("HALT\n")
@@ -44,12 +44,12 @@ func halt(env *environment) int {
 }
 
 // cpl inverts the value of register A.
-func cpl(env *environment) int {
-	invertedA := ^env.regs8[regA].get()
-	env.regs8[regA].set(invertedA)
+func cpl(state *State) int {
+	invertedA := ^state.regs8[regA].get()
+	state.regs8[regA].set(invertedA)
 
-	env.setHalfCarryFlag(true)
-	env.setSubtractFlag(true)
+	state.setHalfCarryFlag(true)
+	state.setSubtractFlag(true)
 
 	if printInstructions {
 		fmt.Printf("CPL\n")
@@ -58,11 +58,11 @@ func cpl(env *environment) int {
 }
 
 // ccf flips the carry flag.
-func ccf(env *environment) int {
-	env.setCarryFlag(!env.getCarryFlag())
+func ccf(state *State) int {
+	state.setCarryFlag(!state.getCarryFlag())
 
-	env.setHalfCarryFlag(false)
-	env.setSubtractFlag(false)
+	state.setHalfCarryFlag(false)
+	state.setSubtractFlag(false)
 
 	if printInstructions {
 		fmt.Printf("CCF\n")
@@ -71,10 +71,10 @@ func ccf(env *environment) int {
 }
 
 // scf sets the carry flag to true.
-func scf(env *environment) int {
-	env.setCarryFlag(true)
-	env.setHalfCarryFlag(false)
-	env.setSubtractFlag(false)
+func scf(state *State) int {
+	state.setCarryFlag(true)
+	state.setHalfCarryFlag(false)
+	state.setSubtractFlag(false)
 
 	if printInstructions {
 		fmt.Printf("SCF\n")
@@ -84,13 +84,13 @@ func scf(env *environment) int {
 
 // stop puts the Game Boy in stop mode. In this mode, the screen is blank and
 // the CPU stops. Stop mode is exited when a button is pressed.
-func stop(env *environment) int {
+func stop(state *State) int {
 	// For whatever reason, this instruction is two bytes in length
-	env.incrementPC()
+	state.incrementPC()
 
 	fmt.Println("Switch to STOP mode")
 
-	env.stopped = true
+	state.stopped = true
 
 	return 4
 }

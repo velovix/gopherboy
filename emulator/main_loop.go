@@ -2,7 +2,7 @@ package main
 
 // startMainLoop starts the main processing loop of the Gameboy.
 func startMainLoop(
-	env *environment,
+	state *State,
 	vc *videoController,
 	timers *timers,
 	joypad *joypad,
@@ -20,42 +20,42 @@ func startMainLoop(
 		}
 
 		joypad.tick()
-		if env.stopped {
+		if state.stopped {
 			// We're in stop mode, don't do anything
 			continue
 		}
 
 		var opTime int
-		if env.waitingForInterrupts {
+		if state.waitingForInterrupts {
 			// Spin our wheels running NOPs until an interrupt happens
 			opTime = 4
 		} else {
 			// Fetch and run an operation
-			opcode := env.incrementPC()
+			opcode := state.incrementPC()
 
 			if db != nil {
 				db.opcodeHook(opcode)
 			}
 
-			opTime, err = runOpcode(env, opcode)
+			opTime, err = runOpcode(state, opcode)
 			if err != nil {
 				return err
 			}
 		}
 
 		timers.tick(opTime)
-		env.mmu.tick(opTime)
+		state.mmu.tick(opTime)
 		vc.tick(opTime)
 
 		// TODO(velovix): Should interrupt flags be unset here if the interrupt
 		// is disabled?
 
 		// Check if any interrupts need to be processed
-		if env.interruptsEnabled && env.mmu.at(ifAddr) != 0 {
+		if state.interruptsEnabled && state.mmu.at(ifAddr) != 0 {
 			var target uint16
 
-			interruptEnable := env.mmu.at(ieAddr)
-			interruptFlag := env.mmu.at(ifAddr)
+			interruptEnable := state.mmu.at(ieAddr)
+			interruptFlag := state.mmu.at(ifAddr)
 
 			// Check each bit of the interrupt flag to see if an interrupt
 			// happened, and each bit of the interrupt enable flag to check if
@@ -82,31 +82,31 @@ func startMainLoop(
 				interruptFlag &= ^uint8(0x10)
 			}
 
-			env.mmu.setNoNotify(ifAddr, interruptFlag)
+			state.mmu.setNoNotify(ifAddr, interruptFlag)
 
 			if target != 0 {
 				// Disable all other interrupts
-				env.interruptsEnabled = false
-				env.waitingForInterrupts = false
+				state.interruptsEnabled = false
+				state.waitingForInterrupts = false
 				// Push the current program counter to the stack for later use
-				env.pushToStack16(env.regs16[regPC].get())
+				state.pushToStack16(state.regs16[regPC].get())
 				// Jump to the target
-				env.regs16[regPC].set(target)
+				state.regs16[regPC].set(target)
 			}
 		}
 
 		// Process any delayed requests to toggle the master interrupt switch.
 		// These are created by the EI and DI instructions.
-		if env.enableInterruptsTimer > 0 {
-			env.enableInterruptsTimer--
-			if env.enableInterruptsTimer == 0 {
-				env.interruptsEnabled = true
+		if state.enableInterruptsTimer > 0 {
+			state.enableInterruptsTimer--
+			if state.enableInterruptsTimer == 0 {
+				state.interruptsEnabled = true
 			}
 		}
-		if env.disableInterruptsTimer > 0 {
-			env.disableInterruptsTimer--
-			if env.disableInterruptsTimer == 0 {
-				env.interruptsEnabled = false
+		if state.disableInterruptsTimer > 0 {
+			state.disableInterruptsTimer--
+			if state.disableInterruptsTimer == 0 {
+				state.interruptsEnabled = false
 			}
 		}
 	}

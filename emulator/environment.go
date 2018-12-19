@@ -1,7 +1,7 @@
 package main
 
-// environment holds the entire state of the Game Boy.
-type environment struct {
+// State holds the entire state of the Game Boy.
+type State struct {
 	// A map of 8-bit register names to their corresponding register.
 	regs8 map[registerType]register8
 	// A map of 16-bit register names to their corresponding register.
@@ -28,184 +28,184 @@ type environment struct {
 	stopped bool
 }
 
-// newEnvironment creates a new Game Boy environment with special memory
-// addresses initialized in accordance with the Game Boy's start up sequence.
-func newEnvironment(mmu *mmu) *environment {
-	env := &environment{
+// NewState creates a new Game Boy state object with special memory addresses
+// initialized in accordance with the Game Boy's start up sequence.
+func NewState(mmu *mmu) *State {
+	state := &State{
 		regs8:  make(map[registerType]register8),
 		regs16: make(map[registerType]register16),
 		mmu:    mmu,
 	}
 
-	env.regs8[regA] = &normalRegister8{0}
-	env.regs8[regB] = &normalRegister8{0}
-	env.regs8[regC] = &normalRegister8{0}
-	env.regs8[regD] = &normalRegister8{0}
-	env.regs8[regE] = &normalRegister8{0}
-	env.regs8[regH] = &normalRegister8{0}
-	env.regs8[regL] = &normalRegister8{0}
+	state.regs8[regA] = &normalRegister8{0}
+	state.regs8[regB] = &normalRegister8{0}
+	state.regs8[regC] = &normalRegister8{0}
+	state.regs8[regD] = &normalRegister8{0}
+	state.regs8[regE] = &normalRegister8{0}
+	state.regs8[regH] = &normalRegister8{0}
+	state.regs8[regL] = &normalRegister8{0}
 
-	env.regs8[regF] = &flagRegister8{0}
+	state.regs8[regF] = &flagRegister8{0}
 
-	env.regs16[regAF] = &registerCombined{
-		first:  env.regs8[regA],
-		second: env.regs8[regF]}
-	env.regs16[regBC] = &registerCombined{
-		first:  env.regs8[regB],
-		second: env.regs8[regC]}
-	env.regs16[regDE] = &registerCombined{
-		first:  env.regs8[regD],
-		second: env.regs8[regE]}
-	env.regs16[regHL] = &registerCombined{
-		first:  env.regs8[regH],
-		second: env.regs8[regL]}
+	state.regs16[regAF] = &registerCombined{
+		first:  state.regs8[regA],
+		second: state.regs8[regF]}
+	state.regs16[regBC] = &registerCombined{
+		first:  state.regs8[regB],
+		second: state.regs8[regC]}
+	state.regs16[regDE] = &registerCombined{
+		first:  state.regs8[regD],
+		second: state.regs8[regE]}
+	state.regs16[regHL] = &registerCombined{
+		first:  state.regs8[regH],
+		second: state.regs8[regL]}
 
-	env.regs16[regSP] = &normalRegister16{0}
-	env.regs16[regPC] = &normalRegister16{0}
+	state.regs16[regSP] = &normalRegister16{0}
+	state.regs16[regPC] = &normalRegister16{0}
 
 	// Set registers to their initial value
 	// 0x100 is the designated entry point of a Gameboy ROM
-	env.regs16[regPC].set(0x100)
+	state.regs16[regPC].set(0x100)
 	// Set the stack pointer to a high initial value
-	env.regs16[regSP].set(0xFFFE)
+	state.regs16[regSP].set(0xFFFE)
 	// I don't know why these values are set this way
-	env.regs16[regAF].set(0x01B0)
-	env.regs16[regBC].set(0x0013)
-	env.regs16[regDE].set(0x00D8)
-	env.regs16[regHL].set(0x014D)
+	state.regs16[regAF].set(0x01B0)
+	state.regs16[regBC].set(0x0013)
+	state.regs16[regDE].set(0x00D8)
+	state.regs16[regHL].set(0x014D)
 
 	// Set memory addresses
-	env.mmu.setNoNotify(timaAddr, 0x00)
-	env.mmu.setNoNotify(tmaAddr, 0x00)
-	env.mmu.setNoNotify(tacAddr, 0x00)
-	env.mmu.setNoNotify(ieAddr, 0x00)
-	env.mmu.setNoNotify(lcdcAddr, 0x91)
-	env.mmu.setNoNotify(scrollYAddr, 0x00)
-	env.mmu.setNoNotify(scrollXAddr, 0x00)
-	env.mmu.setNoNotify(lycAddr, 0x00)
-	env.mmu.setNoNotify(bgpAddr, 0xFC)
-	env.mmu.setNoNotify(opb0Addr, 0xFF)
-	env.mmu.setNoNotify(opb1Addr, 0xFF)
-	env.mmu.setNoNotify(windowPosYAddr, 0x00)
-	env.mmu.setNoNotify(windowPosXAddr, 0x00)
-	env.mmu.setNoNotify(ieAddr, 0x00)
+	state.mmu.setNoNotify(timaAddr, 0x00)
+	state.mmu.setNoNotify(tmaAddr, 0x00)
+	state.mmu.setNoNotify(tacAddr, 0x00)
+	state.mmu.setNoNotify(ieAddr, 0x00)
+	state.mmu.setNoNotify(lcdcAddr, 0x91)
+	state.mmu.setNoNotify(scrollYAddr, 0x00)
+	state.mmu.setNoNotify(scrollXAddr, 0x00)
+	state.mmu.setNoNotify(lycAddr, 0x00)
+	state.mmu.setNoNotify(bgpAddr, 0xFC)
+	state.mmu.setNoNotify(opb0Addr, 0xFF)
+	state.mmu.setNoNotify(opb1Addr, 0xFF)
+	state.mmu.setNoNotify(windowPosYAddr, 0x00)
+	state.mmu.setNoNotify(windowPosXAddr, 0x00)
+	state.mmu.setNoNotify(ieAddr, 0x00)
 	// TODO(velovix): Set even more memory addresses
 
-	return env
+	return state
 }
 
 // incrementPC increments the program counter by 1 and returns the value that
 // was at its previous location.
-func (env *environment) incrementPC() uint8 {
-	poppedVal := env.mmu.at(env.regs16[regPC].get())
-	env.regs16[regPC].set(env.regs16[regPC].get() + 1)
+func (state *State) incrementPC() uint8 {
+	poppedVal := state.mmu.at(state.regs16[regPC].get())
+	state.regs16[regPC].set(state.regs16[regPC].get() + 1)
 
 	return poppedVal
 }
 
 // popFromStack reads a value from the current stack position and increments
 // the stack pointer.
-func (env *environment) popFromStack() uint8 {
-	val := env.mmu.at(env.regs16[regSP].get())
+func (state *State) popFromStack() uint8 {
+	val := state.mmu.at(state.regs16[regSP].get())
 
-	env.regs16[regSP].set(env.regs16[regSP].get() + 1)
+	state.regs16[regSP].set(state.regs16[regSP].get() + 1)
 
 	return val
 }
 
 // popFromStack16 reads a 16-bit value from the current stack position and
 // decrements the stack pointer twice.
-func (env *environment) popFromStack16() uint16 {
-	lower := env.popFromStack()
-	upper := env.popFromStack()
+func (state *State) popFromStack16() uint16 {
+	lower := state.popFromStack()
+	upper := state.popFromStack()
 
 	return combine16(lower, upper)
 }
 
 // pushToStack decrements the stack pointer and writes the given value.
-func (env *environment) pushToStack(val uint8) {
-	env.regs16[regSP].set(env.regs16[regSP].get() - 1)
+func (state *State) pushToStack(val uint8) {
+	state.regs16[regSP].set(state.regs16[regSP].get() - 1)
 
-	env.mmu.set(env.regs16[regSP].get(), val)
+	state.mmu.set(state.regs16[regSP].get(), val)
 }
 
 // pushToStack16 pushes a 16-bit value to the stack, decrementing the stack
 // pointer twice.
-func (env *environment) pushToStack16(val uint16) {
+func (state *State) pushToStack16(val uint16) {
 	lower, upper := split16(val)
-	env.pushToStack(upper)
-	env.pushToStack(lower)
+	state.pushToStack(upper)
+	state.pushToStack(lower)
 }
 
 // relativeJump moves the program counter by the given signed value.
-func (env *environment) relativeJump(offset int) {
-	env.regs16[regPC].set(uint16(int(env.regs16[regPC].get()) + offset))
+func (state *State) relativeJump(offset int) {
+	state.regs16[regPC].set(uint16(int(state.regs16[regPC].get()) + offset))
 }
 
 // getZeroFlag returns the state of the zero bit in the flag register.
-func (env *environment) getZeroFlag() bool {
+func (state *State) getZeroFlag() bool {
 	mask := uint8(0x80)
-	return env.regs8[regF].get()&mask == mask
+	return state.regs8[regF].get()&mask == mask
 }
 
 // setZeroFlag sets the zero bit in the flag register to the given value.
-func (env *environment) setZeroFlag(on bool) {
+func (state *State) setZeroFlag(on bool) {
 	mask := uint8(0x80)
 	if on {
-		env.regs8[regF].set(env.regs8[regF].get() | mask)
+		state.regs8[regF].set(state.regs8[regF].get() | mask)
 	} else {
-		env.regs8[regF].set(env.regs8[regF].get() & ^mask)
+		state.regs8[regF].set(state.regs8[regF].get() & ^mask)
 	}
 }
 
 // getSubtractFlag returns the state of the subtract bit in the flag register.
-func (env *environment) getSubtractFlag() bool {
+func (state *State) getSubtractFlag() bool {
 	mask := uint8(0x40)
-	return env.regs8[regF].get()&mask == mask
+	return state.regs8[regF].get()&mask == mask
 }
 
 // setSubtractFlag sets the subtract bit in the flag register to the given
 // value.
-func (env *environment) setSubtractFlag(on bool) {
+func (state *State) setSubtractFlag(on bool) {
 	mask := uint8(0x40)
 	if on {
-		env.regs8[regF].set(env.regs8[regF].get() | mask)
+		state.regs8[regF].set(state.regs8[regF].get() | mask)
 	} else {
-		env.regs8[regF].set(env.regs8[regF].get() & ^mask)
+		state.regs8[regF].set(state.regs8[regF].get() & ^mask)
 	}
 }
 
 // getHalfCarryFlag returns the state of the half carry bit in the flag
 // register.
-func (env *environment) getHalfCarryFlag() bool {
+func (state *State) getHalfCarryFlag() bool {
 	mask := uint8(0x20)
-	return env.regs8[regF].get()&mask == mask
+	return state.regs8[regF].get()&mask == mask
 }
 
 // setHalfCarryFlag sets the half carry bit in the flag register to the given
 // value.
-func (env *environment) setHalfCarryFlag(on bool) {
+func (state *State) setHalfCarryFlag(on bool) {
 	mask := uint8(0x20)
 	if on {
-		env.regs8[regF].set(env.regs8[regF].get() | mask)
+		state.regs8[regF].set(state.regs8[regF].get() | mask)
 	} else {
-		env.regs8[regF].set(env.regs8[regF].get() & ^mask)
+		state.regs8[regF].set(state.regs8[regF].get() & ^mask)
 	}
 }
 
 // getCarryFlag returns the state of the carry bit in the flag register.
-func (env *environment) getCarryFlag() bool {
+func (state *State) getCarryFlag() bool {
 	mask := uint8(0x10)
-	return env.regs8[regF].get()&mask == mask
+	return state.regs8[regF].get()&mask == mask
 }
 
 // setCarryFlag sets the carry bit in the flag register to the given value.
-func (env *environment) setCarryFlag(on bool) {
+func (state *State) setCarryFlag(on bool) {
 	mask := uint8(0x10)
 	if on {
-		env.regs8[regF].set(env.regs8[regF].get() | mask)
+		state.regs8[regF].set(state.regs8[regF].get() | mask)
 	} else {
-		env.regs8[regF].set(env.regs8[regF].get() & ^mask)
+		state.regs8[regF].set(state.regs8[regF].get() & ^mask)
 	}
 }
 

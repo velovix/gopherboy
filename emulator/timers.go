@@ -28,14 +28,14 @@ type timers struct {
 	// referred to as the TIMA. Available as a register in memory.
 	tima uint8
 
-	env *environment
+	state *State
 }
 
-func newTimers(env *environment) *timers {
-	t := &timers{env: env}
+func newTimers(state *State) *timers {
+	t := &timers{state: state}
 
-	t.env.mmu.subscribeTo(dividerAddr, t.onDividerWrite)
-	t.env.mmu.subscribeTo(tacAddr, t.onTACWrite)
+	t.state.mmu.subscribeTo(dividerAddr, t.onDividerWrite)
+	t.state.mmu.subscribeTo(tacAddr, t.onTACWrite)
 
 	return t
 }
@@ -43,7 +43,7 @@ func newTimers(env *environment) *timers {
 // tick increments the timers given the amount of cycles that have passed since
 // the last call to tick. Flags interrupts as needed.
 func (t *timers) tick(amount int) {
-	tac := t.env.mmu.at(tacAddr)
+	tac := t.state.mmu.at(tacAddr)
 	timaRate, timaRunning := parseTAC(tac)
 
 	// Increment the clock
@@ -63,19 +63,19 @@ func (t *timers) tick(amount int) {
 
 			if t.tima == 0 {
 				// Start back up at the specified modulo value
-				t.tima = t.env.mmu.at(tmaAddr)
+				t.tima = t.state.mmu.at(tmaAddr)
 
-				timaInterruptEnabled := t.env.mmu.at(ieAddr)&0x04 == 0x04
-				if t.env.interruptsEnabled && timaInterruptEnabled {
+				timaInterruptEnabled := t.state.mmu.at(ieAddr)&0x04 == 0x04
+				if t.state.interruptsEnabled && timaInterruptEnabled {
 					// Flag a TIMA overflow interrupt
-					t.env.mmu.setNoNotify(ifAddr, t.env.mmu.at(ifAddr)|0x04)
+					t.state.mmu.setNoNotify(ifAddr, t.state.mmu.at(ifAddr)|0x04)
 				}
 			}
 		}
 
 		// Update the timers in memory
-		t.env.mmu.setNoNotify(dividerAddr, t.divider)
-		t.env.mmu.setNoNotify(timaAddr, t.tima)
+		t.state.mmu.setNoNotify(dividerAddr, t.divider)
+		t.state.mmu.setNoNotify(timaAddr, t.tima)
 	}
 
 }

@@ -4,7 +4,7 @@ package main
 
 type joypad struct{}
 
-func newJoypad(env *environment) *joypad {
+func newJoypad(state *State) *joypad {
 	return &joypad{}
 }
 

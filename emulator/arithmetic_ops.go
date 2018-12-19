@@ -3,17 +3,17 @@ package main
 import "fmt"
 
 // add adds the value of reg, an 8-bit register, into register A.
-func add(env *environment, reg registerType) int {
-	aVal := env.regs8[regA].get()
-	regVal := env.regs8[reg].get()
+func add(state *State, reg registerType) int {
+	aVal := state.regs8[regA].get()
+	regVal := state.regs8[reg].get()
 
-	env.setHalfCarryFlag(isHalfCarry(aVal, regVal))
-	env.setCarryFlag(isCarry(aVal, regVal))
+	state.setHalfCarryFlag(isHalfCarry(aVal, regVal))
+	state.setCarryFlag(isCarry(aVal, regVal))
 
-	aVal = env.regs8[regA].set(aVal + regVal)
+	aVal = state.regs8[regA].set(aVal + regVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
 
 	if printInstructions {
 		fmt.Printf("ADD A,%v\n", reg)
@@ -23,18 +23,18 @@ func add(env *environment, reg registerType) int {
 
 // addFromMemHL adds the value stored in the memory address specified by HL
 // into register A.
-func addFromMemHL(env *environment) int {
-	aVal := env.regs8[regA].get()
-	hlVal := env.regs16[regHL].get()
-	memVal := env.mmu.at(hlVal)
+func addFromMemHL(state *State) int {
+	aVal := state.regs8[regA].get()
+	hlVal := state.regs16[regHL].get()
+	memVal := state.mmu.at(hlVal)
 
-	env.setHalfCarryFlag(isHalfCarry(aVal, memVal))
-	env.setCarryFlag(isCarry(aVal, memVal))
+	state.setHalfCarryFlag(isHalfCarry(aVal, memVal))
+	state.setCarryFlag(isCarry(aVal, memVal))
 
-	aVal = env.regs8[regA].set(aVal + memVal)
+	aVal = state.regs8[regA].set(aVal + memVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
 
 	if printInstructions {
 		fmt.Printf("ADD A,(HL)\n")
@@ -43,15 +43,15 @@ func addFromMemHL(env *environment) int {
 }
 
 // addToHL adds the value of the given 16-bit register into register HL.
-func addToHL(env *environment, reg registerType) int {
-	hlVal := env.regs16[regHL].get()
-	regVal := env.regs16[reg].get()
+func addToHL(state *State, reg registerType) int {
+	hlVal := state.regs16[regHL].get()
+	regVal := state.regs16[reg].get()
 
-	env.setHalfCarryFlag(isHalfCarry16(hlVal, regVal))
-	env.setCarryFlag(isCarry16(hlVal, regVal))
-	env.setSubtractFlag(false)
+	state.setHalfCarryFlag(isHalfCarry16(hlVal, regVal))
+	state.setCarryFlag(isCarry16(hlVal, regVal))
+	state.setSubtractFlag(false)
 
-	hlVal = env.regs16[regHL].set(hlVal + regVal)
+	hlVal = state.regs16[regHL].set(hlVal + regVal)
 
 	if printInstructions {
 		fmt.Printf("ADD HL,%v\n", reg)
@@ -61,17 +61,17 @@ func addToHL(env *environment, reg registerType) int {
 
 // add8BitImm loads an 8-bit immediate value and adds it to register A, storing
 // the results in register A.
-func add8BitImm(env *environment) int {
-	imm := env.incrementPC()
-	aVal := env.regs8[regA].get()
+func add8BitImm(state *State) int {
+	imm := state.incrementPC()
+	aVal := state.regs8[regA].get()
 
-	env.setHalfCarryFlag(isHalfCarry(aVal, imm))
-	env.setCarryFlag(isCarry(aVal, imm))
+	state.setHalfCarryFlag(isHalfCarry(aVal, imm))
+	state.setCarryFlag(isCarry(aVal, imm))
 
-	aVal = env.regs8[regA].set(imm + aVal)
+	aVal = state.regs8[regA].set(imm + aVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
 
 	if printInstructions {
 		fmt.Printf("ADD %v,%#x\n", regA, imm)
@@ -81,10 +81,10 @@ func add8BitImm(env *environment) int {
 
 // addToSP loads an immediate signed 8-bit value and adds it to the stack
 // pointer register.
-func addToSP(env *environment) int {
-	immUnsigned := env.incrementPC()
+func addToSP(state *State) int {
+	immUnsigned := state.incrementPC()
 	imm := int8(immUnsigned)
-	spVal := env.regs16[regSP].get()
+	spVal := state.regs16[regSP].get()
 
 	// This instruction's behavior for the carry and half carry flags is very
 	// weird.
@@ -93,13 +93,13 @@ func addToSP(env *environment) int {
 	// as _unsigned_ for some reason and only the lowest 8 bits of the stack
 	// pointer are considered.
 	lowerSP, _ := split16(spVal)
-	env.setHalfCarryFlag(isHalfCarry(lowerSP, immUnsigned))
-	env.setCarryFlag(isCarry(lowerSP, immUnsigned))
+	state.setHalfCarryFlag(isHalfCarry(lowerSP, immUnsigned))
+	state.setCarryFlag(isCarry(lowerSP, immUnsigned))
 
-	env.regs16[regSP].set(uint16(int(spVal) + int(imm)))
+	state.regs16[regSP].set(uint16(int(spVal) + int(imm)))
 
-	env.setZeroFlag(false)
-	env.setSubtractFlag(false)
+	state.setZeroFlag(false)
+	state.setSubtractFlag(false)
 
 	if printInstructions {
 		fmt.Printf("ADD SP,%#x\n", imm)
@@ -111,22 +111,22 @@ func addToSP(env *environment) int {
 // storing the results in register A.
 //
 // regA = regA + reg + carry bit
-func adc(env *environment, reg registerType) int {
-	aVal := env.regs8[regA].get()
-	regVal := env.regs8[reg].get()
+func adc(state *State, reg registerType) int {
+	aVal := state.regs8[regA].get()
+	regVal := state.regs8[reg].get()
 	carryVal := uint8(0)
 
-	if env.getCarryFlag() {
+	if state.getCarryFlag() {
 		carryVal = 1
 	}
 
-	env.setHalfCarryFlag(isHalfCarry(aVal, regVal, carryVal))
-	env.setCarryFlag(isCarry(aVal, regVal, carryVal))
+	state.setHalfCarryFlag(isHalfCarry(aVal, regVal, carryVal))
+	state.setCarryFlag(isCarry(aVal, regVal, carryVal))
 
-	aVal = env.regs8[regA].set(aVal + regVal + carryVal)
+	aVal = state.regs8[regA].set(aVal + regVal + carryVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
 
 	if printInstructions {
 		fmt.Printf("ADC A,%v\n", reg)
@@ -138,22 +138,22 @@ func adc(env *environment, reg registerType) int {
 // HL to register A, then adds the carry bit. Results are stored in register A.
 //
 // regA = regA + mem[regHL] + carry bit
-func adcFromMemHL(env *environment) int {
-	aVal := env.regs8[regA].get()
-	memVal := env.mmu.at(env.regs16[regHL].get())
+func adcFromMemHL(state *State) int {
+	aVal := state.regs8[regA].get()
+	memVal := state.mmu.at(state.regs16[regHL].get())
 	carryVal := uint8(0)
 
-	if env.getCarryFlag() {
+	if state.getCarryFlag() {
 		carryVal = 1
 	}
 
-	env.setHalfCarryFlag(isHalfCarry(aVal, memVal, carryVal))
-	env.setCarryFlag(isCarry(aVal, memVal, carryVal))
+	state.setHalfCarryFlag(isHalfCarry(aVal, memVal, carryVal))
+	state.setCarryFlag(isCarry(aVal, memVal, carryVal))
 
-	aVal = env.regs8[regA].set(aVal + memVal + carryVal)
+	aVal = state.regs8[regA].set(aVal + memVal + carryVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
 
 	if printInstructions {
 		fmt.Printf("ADC %v,(%v)\n", regA, regHL)
@@ -165,22 +165,22 @@ func adcFromMemHL(env *environment) int {
 // register to register A, storing the result in register A.
 //
 // regA = regA + imm + carry bit
-func adc8BitImm(env *environment) int {
-	aVal := env.regs8[regA].get()
-	imm := env.incrementPC()
+func adc8BitImm(state *State) int {
+	aVal := state.regs8[regA].get()
+	imm := state.incrementPC()
 	var carry uint8
 
-	if env.getCarryFlag() {
+	if state.getCarryFlag() {
 		carry = 1
 	}
 
-	env.setHalfCarryFlag(isHalfCarry(aVal, imm, carry))
-	env.setCarryFlag(isCarry(aVal, imm, carry))
+	state.setHalfCarryFlag(isHalfCarry(aVal, imm, carry))
+	state.setCarryFlag(isCarry(aVal, imm, carry))
 
-	aVal = env.regs8[regA].set(aVal + imm + carry)
+	aVal = state.regs8[regA].set(aVal + imm + carry)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
 
 	if printInstructions {
 		fmt.Printf("ADC A,%#x\n", imm)
@@ -189,19 +189,19 @@ func adc8BitImm(env *environment) int {
 }
 
 // sub subtracts the value of reg, an 8-bit register, from register A.
-func sub(env *environment, reg registerType) int {
-	aVal := env.regs8[regA].get()
-	regVal := env.regs8[reg].get()
+func sub(state *State, reg registerType) int {
+	aVal := state.regs8[regA].get()
+	regVal := state.regs8[reg].get()
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
-	env.setCarryFlag(regVal > aVal)
-	env.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
+	state.setCarryFlag(regVal > aVal)
+	state.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
 
-	aVal = env.regs8[regA].set(aVal - regVal)
+	aVal = state.regs8[regA].set(aVal - regVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(true)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(true)
 
 	if printInstructions {
 		fmt.Printf("SUB %v\n", reg)
@@ -211,19 +211,19 @@ func sub(env *environment, reg registerType) int {
 
 // subFromMemHL subtracts the value in memory at the address specified by HL
 // from register A.
-func subFromMemHL(env *environment) int {
-	aVal := env.regs8[regA].get()
-	memVal := env.mmu.at(env.regs16[regHL].get())
+func subFromMemHL(state *State) int {
+	aVal := state.regs8[regA].get()
+	memVal := state.mmu.at(state.regs16[regHL].get())
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
-	env.setCarryFlag(memVal > aVal)
-	env.setHalfCarryFlag(isHalfBorrow(aVal, memVal))
+	state.setCarryFlag(memVal > aVal)
+	state.setHalfCarryFlag(isHalfBorrow(aVal, memVal))
 
-	aVal = env.regs8[regA].set(aVal - memVal)
+	aVal = state.regs8[regA].set(aVal - memVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(true)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(true)
 
 	if printInstructions {
 		fmt.Printf("SUB (%v)\n", regHL)
@@ -233,19 +233,19 @@ func subFromMemHL(env *environment) int {
 
 // sub8BitImm loads an 8-bit immediate value and subtracts it from register A,
 // storing the result in register A.
-func sub8BitImm(env *environment) int {
-	imm := env.incrementPC()
-	aVal := env.regs8[regA].get()
+func sub8BitImm(state *State) int {
+	imm := state.incrementPC()
+	aVal := state.regs8[regA].get()
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
-	env.setCarryFlag(imm > aVal)
-	env.setHalfCarryFlag(isHalfBorrow(aVal, imm))
+	state.setCarryFlag(imm > aVal)
+	state.setHalfCarryFlag(isHalfBorrow(aVal, imm))
 
-	aVal = env.regs8[regA].set(aVal - imm)
+	aVal = state.regs8[regA].set(aVal - imm)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(true)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(true)
 
 	if printInstructions {
 		fmt.Printf("SUB %#x\n", imm)
@@ -257,22 +257,22 @@ func sub8BitImm(env *environment) int {
 // register A, storing the results in register A.
 //
 // regA = regA - reg - carry bit
-func sbc(env *environment, reg registerType) int {
-	aVal := env.regs8[regA].get()
-	regVal := env.regs8[reg].get()
+func sbc(state *State, reg registerType) int {
+	aVal := state.regs8[regA].get()
+	regVal := state.regs8[reg].get()
 	carryVal := uint8(0)
 
-	if env.getCarryFlag() {
+	if state.getCarryFlag() {
 		carryVal = 1
 	}
 
-	env.setCarryFlag(isBorrow(aVal, regVal, carryVal))
-	env.setHalfCarryFlag(isHalfBorrow(aVal, regVal, carryVal))
+	state.setCarryFlag(isBorrow(aVal, regVal, carryVal))
+	state.setHalfCarryFlag(isHalfBorrow(aVal, regVal, carryVal))
 
-	aVal = env.regs8[regA].set(aVal - regVal - carryVal)
+	aVal = state.regs8[regA].set(aVal - regVal - carryVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(true)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(true)
 
 	if printInstructions {
 		fmt.Printf("SBC %v\n", reg)
@@ -285,22 +285,22 @@ func sbc(env *environment, reg registerType) int {
 // in register A.
 //
 // regA = regA - mem[regHL] - carry bit
-func sbcFromMemHL(env *environment) int {
-	aVal := env.regs8[regA].get()
-	memVal := env.mmu.at(env.regs16[regHL].get())
+func sbcFromMemHL(state *State) int {
+	aVal := state.regs8[regA].get()
+	memVal := state.mmu.at(state.regs16[regHL].get())
 	carryVal := uint8(0)
 
-	if env.getCarryFlag() {
+	if state.getCarryFlag() {
 		carryVal = 1
 	}
 
-	env.setCarryFlag(isBorrow(aVal, memVal, carryVal))
-	env.setHalfCarryFlag(isHalfBorrow(aVal, memVal, carryVal))
+	state.setCarryFlag(isBorrow(aVal, memVal, carryVal))
+	state.setHalfCarryFlag(isHalfBorrow(aVal, memVal, carryVal))
 
-	aVal = env.regs8[regA].set(aVal - memVal - carryVal)
+	aVal = state.regs8[regA].set(aVal - memVal - carryVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(true)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(true)
 
 	if printInstructions {
 		fmt.Printf("SBC (%v)\n", regHL)
@@ -312,22 +312,22 @@ func sbcFromMemHL(env *environment) int {
 // register from register A, storing the result in register A.
 //
 // regA = regA - imm - carry bit
-func sbc8BitImm(env *environment) int {
-	aVal := env.regs8[regA].get()
-	imm := env.incrementPC()
+func sbc8BitImm(state *State) int {
+	aVal := state.regs8[regA].get()
+	imm := state.incrementPC()
 	carryVal := uint8(0)
 
-	if env.getCarryFlag() {
+	if state.getCarryFlag() {
 		carryVal = 1
 	}
 
-	env.setCarryFlag(isBorrow(aVal, imm, carryVal))
-	env.setHalfCarryFlag(isHalfBorrow(aVal, imm, carryVal))
+	state.setCarryFlag(isBorrow(aVal, imm, carryVal))
+	state.setHalfCarryFlag(isHalfBorrow(aVal, imm, carryVal))
 
-	aVal = env.regs8[regA].set(aVal - imm - carryVal)
+	aVal = state.regs8[regA].set(aVal - imm - carryVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(true)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(true)
 
 	if printInstructions {
 		fmt.Printf("SBC %v,%#x\n", regA, imm)
@@ -337,16 +337,16 @@ func sbc8BitImm(env *environment) int {
 
 // and performs a bitwise & on the given register and register A, storing the
 // result in register A.
-func and(env *environment, reg registerType) int {
-	aVal := env.regs8[regA].get()
-	regVal := env.regs8[reg].get()
+func and(state *State, reg registerType) int {
+	aVal := state.regs8[regA].get()
+	regVal := state.regs8[reg].get()
 
-	aVal = env.regs8[regA].set(aVal & regVal)
+	aVal = state.regs8[regA].set(aVal & regVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
-	env.setHalfCarryFlag(true)
-	env.setCarryFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
+	state.setHalfCarryFlag(true)
+	state.setCarryFlag(false)
 
 	if printInstructions {
 		fmt.Printf("AND %v\n", reg)
@@ -356,16 +356,16 @@ func and(env *environment, reg registerType) int {
 
 // andFromMemHL performs a bitwise & on the value in memory at the address
 // specified by register HL and register A, storing the result in register A.
-func andFromMemHL(env *environment) int {
-	aVal := env.regs8[regA].get()
-	memVal := env.mmu.at(env.regs16[regHL].get())
+func andFromMemHL(state *State) int {
+	aVal := state.regs8[regA].get()
+	memVal := state.mmu.at(state.regs16[regHL].get())
 
-	aVal = env.regs8[regA].set(aVal & memVal)
+	aVal = state.regs8[regA].set(aVal & memVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
-	env.setHalfCarryFlag(true)
-	env.setCarryFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
+	state.setHalfCarryFlag(true)
+	state.setCarryFlag(false)
 
 	if printInstructions {
 		fmt.Printf("AND (%v)\n", regHL)
@@ -375,16 +375,16 @@ func andFromMemHL(env *environment) int {
 
 // and8BitImm performs a bitwise & on register A and an immediate value,
 // storing the result in register A.
-func and8BitImm(env *environment) int {
-	imm := env.incrementPC()
-	aVal := env.regs8[regA].get()
+func and8BitImm(state *State) int {
+	imm := state.incrementPC()
+	aVal := state.regs8[regA].get()
 
-	aVal = env.regs8[regA].set(aVal & imm)
+	aVal = state.regs8[regA].set(aVal & imm)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
-	env.setHalfCarryFlag(true)
-	env.setCarryFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
+	state.setHalfCarryFlag(true)
+	state.setCarryFlag(false)
 
 	if printInstructions {
 		fmt.Printf("AND %#x\n", imm)
@@ -394,16 +394,16 @@ func and8BitImm(env *environment) int {
 
 // or performs a bitwise | on the given register and register A, storing the
 // result in register A.
-func or(env *environment, reg registerType) int {
-	aVal := env.regs8[regA].get()
-	regVal := env.regs8[reg].get()
+func or(state *State, reg registerType) int {
+	aVal := state.regs8[regA].get()
+	regVal := state.regs8[reg].get()
 
-	aVal = env.regs8[regA].set(aVal | regVal)
+	aVal = state.regs8[regA].set(aVal | regVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
-	env.setHalfCarryFlag(false)
-	env.setCarryFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
+	state.setHalfCarryFlag(false)
+	state.setCarryFlag(false)
 
 	if printInstructions {
 		fmt.Printf("OR %v\n", reg)
@@ -413,16 +413,16 @@ func or(env *environment, reg registerType) int {
 
 // orFromMemHL performs a bitwise | on the value in memory at the address
 // specified by register HL and register A, storing the result in register A.
-func orFromMemHL(env *environment) int {
-	aVal := env.regs8[regA].get()
-	memVal := env.mmu.at(env.regs16[regHL].get())
+func orFromMemHL(state *State) int {
+	aVal := state.regs8[regA].get()
+	memVal := state.mmu.at(state.regs16[regHL].get())
 
-	aVal = env.regs8[regA].set(aVal | memVal)
+	aVal = state.regs8[regA].set(aVal | memVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
-	env.setHalfCarryFlag(false)
-	env.setCarryFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
+	state.setHalfCarryFlag(false)
+	state.setCarryFlag(false)
 
 	if printInstructions {
 		fmt.Printf("OR (%v)\n", regHL)
@@ -432,16 +432,16 @@ func orFromMemHL(env *environment) int {
 
 // or8BitImm performs a bitwise | on register A and an immediate value,
 // storing the result in register A.
-func or8BitImm(env *environment) int {
-	aVal := env.regs8[regA].get()
-	imm := env.incrementPC()
+func or8BitImm(state *State) int {
+	aVal := state.regs8[regA].get()
+	imm := state.incrementPC()
 
-	aVal = env.regs8[regA].set(aVal | imm)
+	aVal = state.regs8[regA].set(aVal | imm)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
-	env.setHalfCarryFlag(false)
-	env.setCarryFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
+	state.setHalfCarryFlag(false)
+	state.setCarryFlag(false)
 
 	if printInstructions {
 		fmt.Printf("OR %#x\n", imm)
@@ -451,16 +451,16 @@ func or8BitImm(env *environment) int {
 
 // xor performs a bitwise ^ on register A and the given register, storing the
 // result in register A.
-func xor(env *environment, reg registerType) int {
-	aVal := env.regs8[regA].get()
-	regVal := env.regs8[reg].get()
+func xor(state *State, reg registerType) int {
+	aVal := state.regs8[regA].get()
+	regVal := state.regs8[reg].get()
 
-	aVal = env.regs8[regA].set(aVal ^ regVal)
+	aVal = state.regs8[regA].set(aVal ^ regVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
-	env.setHalfCarryFlag(false)
-	env.setCarryFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
+	state.setHalfCarryFlag(false)
+	state.setCarryFlag(false)
 
 	if printInstructions {
 		fmt.Printf("XOR %v\n", reg)
@@ -470,16 +470,16 @@ func xor(env *environment, reg registerType) int {
 
 // xorFromMemHL performs a bitwise ^ on the value in memory specified by
 // register HL and register A, storing the result in register A.
-func xorFromMemHL(env *environment) int {
-	aVal := env.regs8[regA].get()
-	memVal := env.mmu.at(env.regs16[regHL].get())
+func xorFromMemHL(state *State) int {
+	aVal := state.regs8[regA].get()
+	memVal := state.mmu.at(state.regs16[regHL].get())
 
-	aVal = env.regs8[regA].set(aVal ^ memVal)
+	aVal = state.regs8[regA].set(aVal ^ memVal)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
-	env.setHalfCarryFlag(false)
-	env.setCarryFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
+	state.setHalfCarryFlag(false)
+	state.setCarryFlag(false)
 
 	if printInstructions {
 		fmt.Printf("XOR (%v)\n", regHL)
@@ -489,16 +489,16 @@ func xorFromMemHL(env *environment) int {
 
 // xor8BitImm performs a bitwise ^ on register A and an immediate value,
 // storing the result in register A.
-func xor8BitImm(env *environment) int {
-	imm := env.incrementPC()
-	aVal := env.regs8[regA].get()
+func xor8BitImm(state *State) int {
+	imm := state.incrementPC()
+	aVal := state.regs8[regA].get()
 
-	aVal = env.regs8[regA].set(aVal ^ imm)
+	aVal = state.regs8[regA].set(aVal ^ imm)
 
-	env.setZeroFlag(aVal == 0)
-	env.setSubtractFlag(false)
-	env.setHalfCarryFlag(false)
-	env.setCarryFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setSubtractFlag(false)
+	state.setHalfCarryFlag(false)
+	state.setCarryFlag(false)
 
 	if printInstructions {
 		fmt.Printf("XOR %#x\n", imm)
@@ -507,15 +507,15 @@ func xor8BitImm(env *environment) int {
 }
 
 // inc8Bit increments the given 8-bit register by 1.
-func inc8Bit(env *environment, reg registerType) int {
-	oldVal := env.regs8[reg].get()
-	newVal := env.regs8[reg].set(oldVal + 1)
+func inc8Bit(state *State, reg registerType) int {
+	oldVal := state.regs8[reg].get()
+	newVal := state.regs8[reg].set(oldVal + 1)
 
-	env.setZeroFlag(newVal == 0)
-	env.setSubtractFlag(false)
+	state.setZeroFlag(newVal == 0)
+	state.setSubtractFlag(false)
 	// A half carry occurs only if the bottom 4 bits of the number are 1,
 	// meaning all those "slots" are "filled"
-	env.setHalfCarryFlag(oldVal&0x0F == 0x0F)
+	state.setHalfCarryFlag(oldVal&0x0F == 0x0F)
 
 	if printInstructions {
 		fmt.Printf("INC %v\n", reg)
@@ -524,10 +524,10 @@ func inc8Bit(env *environment, reg registerType) int {
 }
 
 // inc16Bit increments the given 16-bit register by 1.
-func inc16Bit(env *environment, reg registerType) int {
-	oldVal := env.regs16[reg].get()
+func inc16Bit(state *State, reg registerType) int {
+	oldVal := state.regs16[reg].get()
 
-	env.regs16[reg].set(oldVal + 1)
+	state.regs16[reg].set(oldVal + 1)
 
 	if printInstructions {
 		fmt.Printf("INC %v\n", reg)
@@ -537,18 +537,18 @@ func inc16Bit(env *environment, reg registerType) int {
 
 // incMemHL increments the value in memory at the address specified by register
 // HL.
-func incMemHL(env *environment) int {
-	addr := env.regs16[regHL].get()
+func incMemHL(state *State) int {
+	addr := state.regs16[regHL].get()
 
-	oldVal := env.mmu.at(addr)
-	env.mmu.set(addr, oldVal+1)
-	newVal := env.mmu.at(addr)
+	oldVal := state.mmu.at(addr)
+	state.mmu.set(addr, oldVal+1)
+	newVal := state.mmu.at(addr)
 
-	env.setZeroFlag(newVal == 0)
-	env.setSubtractFlag(false)
+	state.setZeroFlag(newVal == 0)
+	state.setSubtractFlag(false)
 	// A half carry occurs only if the bottom 4 bits of the number are 1,
 	// meaning all those "slots" are "filled"
-	env.setHalfCarryFlag(oldVal&0x0F == 0x0F)
+	state.setHalfCarryFlag(oldVal&0x0F == 0x0F)
 
 	if printInstructions {
 		fmt.Printf("INC (HL)\n")
@@ -558,14 +558,14 @@ func incMemHL(env *environment) int {
 }
 
 // dec8Bit decrements the given 8-bit register by 1.
-func dec8Bit(env *environment, reg registerType) int {
-	oldVal := env.regs8[reg].get()
+func dec8Bit(state *State, reg registerType) int {
+	oldVal := state.regs8[reg].get()
 
-	newVal := env.regs8[reg].set(oldVal - 1)
+	newVal := state.regs8[reg].set(oldVal - 1)
 
-	env.setHalfCarryFlag(isHalfBorrow(oldVal, 1))
-	env.setZeroFlag(newVal == 0)
-	env.setSubtractFlag(true)
+	state.setHalfCarryFlag(isHalfBorrow(oldVal, 1))
+	state.setZeroFlag(newVal == 0)
+	state.setSubtractFlag(true)
 
 	if printInstructions {
 		fmt.Printf("DEC %v\n", reg)
@@ -574,8 +574,8 @@ func dec8Bit(env *environment, reg registerType) int {
 }
 
 // dec16Bit decrements the given 16-bit register by 1.
-func dec16Bit(env *environment, reg registerType) int {
-	env.regs16[reg].set(env.regs16[reg].get() - 1)
+func dec16Bit(state *State, reg registerType) int {
+	state.regs16[reg].set(state.regs16[reg].get() - 1)
 
 	if printInstructions {
 		fmt.Printf("DEC %v\n", reg)
@@ -585,17 +585,17 @@ func dec16Bit(env *environment, reg registerType) int {
 
 // decMemHL decrements the value in memory at the address specified by register
 // HL.
-func decMemHL(env *environment) int {
-	addr := env.regs16[regHL].get()
+func decMemHL(state *State) int {
+	addr := state.regs16[regHL].get()
 
-	oldVal := env.mmu.at(addr)
+	oldVal := state.mmu.at(addr)
 
-	env.mmu.set(addr, oldVal-1)
-	newVal := env.mmu.at(addr)
+	state.mmu.set(addr, oldVal-1)
+	newVal := state.mmu.at(addr)
 
-	env.setZeroFlag(newVal == 0)
-	env.setSubtractFlag(true)
-	env.setHalfCarryFlag(isHalfBorrow(oldVal, 1))
+	state.setZeroFlag(newVal == 0)
+	state.setSubtractFlag(true)
+	state.setHalfCarryFlag(isHalfBorrow(oldVal, 1))
 
 	if printInstructions {
 		fmt.Printf("DEC (HL)\n")
@@ -607,25 +607,25 @@ func decMemHL(env *environment) int {
 // cp compares the value in register A with the value of the given register and
 // sets flags accordingly.  The semantics are the same as the SUB operator, but
 // the result value is not saved.
-func cp(env *environment, reg registerType) int {
-	aVal := env.regs8[regA].get()
-	regVal := env.regs8[reg].get()
+func cp(state *State, reg registerType) int {
+	aVal := state.regs8[regA].get()
+	regVal := state.regs8[reg].get()
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
-	env.setCarryFlag(regVal > aVal)
-	env.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
+	state.setCarryFlag(regVal > aVal)
+	state.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
 
 	subVal := aVal - regVal
 
-	env.setZeroFlag(subVal == 0)
-	env.setSubtractFlag(true)
+	state.setZeroFlag(subVal == 0)
+	state.setSubtractFlag(true)
 
 	if printInstructions {
 		fmt.Printf("CP %v (%#x,%#x)\n",
 			reg,
-			env.regs8[regA].get(),
-			env.regs8[reg].get())
+			state.regs8[regA].get(),
+			state.regs8[reg].get())
 	}
 	return 4
 }
@@ -634,19 +634,19 @@ func cp(env *environment, reg registerType) int {
 // address specified by the HL register and sets flags accordingly. The
 // semantics are the same as the SUB operator, but the result value is not
 // saved.
-func cpFromMemHL(env *environment) int {
-	aVal := env.regs8[regA].get()
-	memVal := env.mmu.at(env.regs16[regHL].get())
+func cpFromMemHL(state *State) int {
+	aVal := state.regs8[regA].get()
+	memVal := state.mmu.at(state.regs16[regHL].get())
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
-	env.setCarryFlag(memVal > aVal)
-	env.setHalfCarryFlag(isHalfBorrow(aVal, memVal))
+	state.setCarryFlag(memVal > aVal)
+	state.setHalfCarryFlag(isHalfBorrow(aVal, memVal))
 
 	subVal := aVal - memVal
 
-	env.setZeroFlag(subVal == 0)
-	env.setSubtractFlag(true)
+	state.setZeroFlag(subVal == 0)
+	state.setSubtractFlag(true)
 
 	if printInstructions {
 		fmt.Printf("CP (%v)\n", regHL)
@@ -657,19 +657,19 @@ func cpFromMemHL(env *environment) int {
 // cp8BitImm compares register A with an immediate value and sets flags
 // accordingly. The semantics are the same as the SUB operator, but the result
 // value is not saved.
-func cp8BitImm(env *environment) int {
-	aVal := env.regs8[regA].get()
-	imm := env.incrementPC()
+func cp8BitImm(state *State) int {
+	aVal := state.regs8[regA].get()
+	imm := state.incrementPC()
 
 	// A carry occurs if the value we're subtracting is greater than register
 	// A, meaning that the register A value rolled over
-	env.setCarryFlag(aVal < imm)
-	env.setHalfCarryFlag(isHalfBorrow(aVal, imm))
+	state.setCarryFlag(aVal < imm)
+	state.setHalfCarryFlag(isHalfBorrow(aVal, imm))
 
 	subVal := aVal - imm
 
-	env.setZeroFlag(subVal == 0)
-	env.setSubtractFlag(true)
+	state.setZeroFlag(subVal == 0)
+	state.setSubtractFlag(true)
 
 	if printInstructions {
 		fmt.Printf("CP %#x\n", imm)
@@ -700,37 +700,37 @@ func cp8BitImm(env *environment) int {
 // necessary corrections to the result of the last operation to make it once
 // again BCD encoded. If you're doing math with BCD numbers, this instruction
 // would be called after every add or subtract instruction.
-func daa(env *environment) int {
-	aVal := env.regs8[regA].get()
+func daa(state *State) int {
+	aVal := state.regs8[regA].get()
 
 	var correction uint8
 
 	// Check if there was a half borrow or if the least significant nibble
 	// (which represents the first decimal digit) is overfilled. If it is, a
 	// correction needs to be performed.
-	if env.getHalfCarryFlag() || (!env.getSubtractFlag() && (aVal&0xF) > 9) {
+	if state.getHalfCarryFlag() || (!state.getSubtractFlag() && (aVal&0xF) > 9) {
 		correction = 0x06
 	}
 
 	// Check if there was a full borrow or if the most significant nibble
 	// (which represents the second decimal digit) is overfilled (I think?). If
 	// it is, a correction needs to be performed.
-	if env.getCarryFlag() || (!env.getSubtractFlag() && aVal > 0x99) {
+	if state.getCarryFlag() || (!state.getSubtractFlag() && aVal > 0x99) {
 		correction |= 0x60
-		env.setCarryFlag(true)
+		state.setCarryFlag(true)
 	} else {
-		env.setCarryFlag(false)
+		state.setCarryFlag(false)
 	}
 
 	// The direction of the correction depends on what the last operation was
-	if env.getSubtractFlag() {
-		aVal = env.regs8[regA].set(aVal - correction)
+	if state.getSubtractFlag() {
+		aVal = state.regs8[regA].set(aVal - correction)
 	} else {
-		aVal = env.regs8[regA].set(aVal + correction)
+		aVal = state.regs8[regA].set(aVal + correction)
 	}
 
-	env.setZeroFlag(aVal == 0)
-	env.setHalfCarryFlag(false)
+	state.setZeroFlag(aVal == 0)
+	state.setHalfCarryFlag(false)
 
 	if printInstructions {
 		fmt.Printf("DAA\n")

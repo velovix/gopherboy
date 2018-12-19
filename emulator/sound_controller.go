@@ -10,13 +10,13 @@ type soundController struct {
 	pulseALength    uint8
 	pulseADutyCycle float64
 
-	env *environment
+	state *State
 }
 
-func newSoundController(env *environment) *soundController {
+func newSoundController(state *State) *soundController {
 	return &soundController{
 		sinceLastSample: cpuClockRate / sampleRate,
-		env:             env,
+		state:           state,
 	}
 }
 

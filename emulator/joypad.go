@@ -1,46 +1,31 @@
-// +build linux darwin windows
-
 package main
 
 import (
 	"time"
-
-	"github.com/veandco/go-sdl2/sdl"
 )
 
-// eventProcessDelay is the time in between keyboard event processing.
+// eventProcessDelay is the time in between joypad event processing.
 const eventProcessDelay = time.Second / 60
 
 // joypad handles user input events and exposes them to the ROM.
 type joypad struct {
-	env *environment
+	state *State
 
-	// The last known key states, where the map's key is a scan code and the
-	// map's value is true if pressed.
-	keyStates map[sdl.Scancode]bool
+	driver *inputDriver
 
-	// The last time keyboard events were processed.
+	// The last time joypad events were processed.
 	lastEventProcess time.Time
 }
 
 // newJoypad creates a new joypad manager object.
-func newJoypad(env *environment) *joypad {
-	j := &joypad{env: env}
-
-	// Initialize all relevant keyboard values
-	j.keyStates = map[sdl.Scancode]bool{
-		sdl.SCANCODE_W:     false, // Start
-		sdl.SCANCODE_Q:     false, // Select
-		sdl.SCANCODE_Z:     false, // B
-		sdl.SCANCODE_X:     false, // A
-		sdl.SCANCODE_DOWN:  false, // Down
-		sdl.SCANCODE_UP:    false, // Up
-		sdl.SCANCODE_LEFT:  false, // Left
-		sdl.SCANCODE_RIGHT: false, // Right
+func newJoypad(state *State) *joypad {
+	j := &joypad{
+		state:  state,
+		driver: newInputDriver(),
 	}
 
 	// Subscribe to P1 address writes
-	j.env.mmu.subscribeTo(p1Addr, j.onP1Write)
+	j.state.mmu.subscribeTo(p1Addr, j.onP1Write)
 
 	return j
 }
@@ -55,32 +40,17 @@ func (j *joypad) tick() {
 	}
 	j.lastEventProcess = time.Now()
 
-	buttonPressed := false
+	buttonPressed := j.driver.update()
 
-	for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
-		switch event := event.(type) {
-		case *sdl.KeyboardEvent:
-			scancode := event.Keysym.Scancode
-			if _, ok := j.keyStates[scancode]; ok {
-				if event.State == sdl.PRESSED {
-					buttonPressed = true
-					j.keyStates[scancode] = true
-				} else {
-					j.keyStates[scancode] = false
-				}
-			}
-		}
-	}
-
-	if j.env.stopped && buttonPressed {
+	if j.state.stopped && buttonPressed {
 		// Exit stop mode on button press
-		j.env.stopped = false
+		j.state.stopped = false
 	}
 
 	// Generate an interrupt if any new buttons have been pressed
-	p10ThruP13InterruptEnabled := j.env.mmu.at(ieAddr)&0x10 == 0x10
-	if buttonPressed && j.env.interruptsEnabled && p10ThruP13InterruptEnabled {
-		j.env.mmu.setNoNotify(ifAddr, j.env.mmu.at(ifAddr)|0x10)
+	p10ThruP13InterruptEnabled := j.state.mmu.at(ieAddr)&0x10 == 0x10
+	if buttonPressed && j.state.interruptsEnabled && p10ThruP13InterruptEnabled {
+		j.state.mmu.setNoNotify(ifAddr, j.state.mmu.at(ifAddr)|0x10)
 	}
 }
 
@@ -103,17 +73,17 @@ func (j *joypad) onP1Write(addr uint16, writeVal uint8) uint8 {
 	if getDPadState {
 		// Check Down, Up, Left, and Right buttons
 		newP1 |= buttonStatesToNibble(
-			j.keyStates[sdl.SCANCODE_DOWN],
-			j.keyStates[sdl.SCANCODE_UP],
-			j.keyStates[sdl.SCANCODE_LEFT],
-			j.keyStates[sdl.SCANCODE_RIGHT])
+			j.driver.buttonStates[buttonDown],
+			j.driver.buttonStates[buttonUp],
+			j.driver.buttonStates[buttonLeft],
+			j.driver.buttonStates[buttonRight])
 	} else if getButtonState {
 		// Check Start, Select, B, and A buttons
 		newP1 |= buttonStatesToNibble(
-			j.keyStates[sdl.SCANCODE_W],
-			j.keyStates[sdl.SCANCODE_Q],
-			j.keyStates[sdl.SCANCODE_Z],
-			j.keyStates[sdl.SCANCODE_X])
+			j.driver.buttonStates[buttonStart],
+			j.driver.buttonStates[buttonSelect],
+			j.driver.buttonStates[buttonB],
+			j.driver.buttonStates[buttonA])
 	} else {
 		// No selection, provide nothing
 		newP1 = 0

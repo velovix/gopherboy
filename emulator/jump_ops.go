@@ -4,9 +4,9 @@ import "fmt"
 
 // jr loads a signed offset value, then jumps to the operation at address PC +
 // offset. In other words, it's a jump relative to the current position.
-func jr(env *environment) int {
-	offset := int8(env.incrementPC())
-	env.relativeJump(int(offset))
+func jr(state *State) int {
+	offset := int8(state.incrementPC())
+	state.relativeJump(int(offset))
 
 	if printInstructions {
 		fmt.Printf("JR %#x\n", offset)
@@ -17,9 +17,9 @@ func jr(env *environment) int {
 
 // jrIfFlag loads an offset value, then jumps to the operation at address PC +
 // offset if the given flag is at the expected setting.
-func jrIfFlag(env *environment, flagMask uint8, isSet bool) int {
-	flagState := env.regs8[regF].get()&flagMask == flagMask
-	offset := int8(env.incrementPC())
+func jrIfFlag(state *State, flagMask uint8, isSet bool) int {
+	flagState := state.regs8[regF].get()&flagMask == flagMask
+	offset := int8(state.incrementPC())
 
 	if printInstructions {
 		conditional := getConditionalStr(flagMask, isSet)
@@ -27,7 +27,7 @@ func jrIfFlag(env *environment, flagMask uint8, isSet bool) int {
 	}
 
 	if flagState == isSet {
-		env.relativeJump(int(offset))
+		state.relativeJump(int(offset))
 		return 12
 	}
 	// A relative jump didn't happen, so the instruction took fewer cycles
@@ -35,9 +35,9 @@ func jrIfFlag(env *environment, flagMask uint8, isSet bool) int {
 }
 
 // jp loads a 16-bit address and jumps to it.
-func jp(env *environment) int {
-	address := combine16(env.incrementPC(), env.incrementPC())
-	env.regs16[regPC].set(address)
+func jp(state *State) int {
+	address := combine16(state.incrementPC(), state.incrementPC())
+	state.regs16[regPC].set(address)
 
 	if printInstructions {
 		fmt.Printf("JP %#x\n", address)
@@ -47,9 +47,9 @@ func jp(env *environment) int {
 
 // jpIfFlag loads a 16-bit address and jumps to it if the given flag is at the
 // expected setting.
-func jpIfFlag(env *environment, flagMask uint8, isSet bool) int {
-	flagState := env.regs8[regF].get()&flagMask == flagMask
-	address := combine16(env.incrementPC(), env.incrementPC())
+func jpIfFlag(state *State, flagMask uint8, isSet bool) int {
+	flagState := state.regs8[regF].get()&flagMask == flagMask
+	address := combine16(state.incrementPC(), state.incrementPC())
 
 	if printInstructions {
 		conditional := getConditionalStr(flagMask, isSet)
@@ -57,7 +57,7 @@ func jpIfFlag(env *environment, flagMask uint8, isSet bool) int {
 	}
 
 	if flagState == isSet {
-		env.regs16[regPC].set(address)
+		state.regs16[regPC].set(address)
 		return 16
 	}
 	// A jump didn't happen, so the instruction took fewer cycles
@@ -65,10 +65,10 @@ func jpIfFlag(env *environment, flagMask uint8, isSet bool) int {
 }
 
 // jpToHL jumps to the address specified by register HL.
-func jpToHL(env *environment) int {
-	hlVal := env.regs16[regHL].get()
+func jpToHL(state *State) int {
+	hlVal := state.regs16[regHL].get()
 
-	env.regs16[regPC].set(hlVal)
+	state.regs16[regPC].set(hlVal)
 
 	if printInstructions {
 		fmt.Printf("JP (%v)\n", regHL)

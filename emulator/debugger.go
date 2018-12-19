@@ -10,7 +10,7 @@ import (
 )
 
 type debugger struct {
-	env *environment
+	state *State
 
 	breakOnOpcode    *uint8
 	breakOnAddrRead  *uint16
@@ -43,12 +43,12 @@ func (db *debugger) memWriteHook(addr uint16) {
 }
 
 func (db *debugger) printState() {
-	fmt.Printf("  AF: %#04x\n", db.env.regs16[regAF].get())
-	fmt.Printf("  BC: %#04x\n", db.env.regs16[regBC].get())
-	fmt.Printf("  DE: %#04x\n", db.env.regs16[regDE].get())
-	fmt.Printf("  HL: %#04x\n", db.env.regs16[regHL].get())
-	fmt.Printf("  SP: %#04x\n", db.env.regs16[regSP].get())
-	fmt.Printf("  PC: %#04x\n", db.env.regs16[regPC].get())
+	fmt.Printf("  AF: %#04x\n", db.state.regs16[regAF].get())
+	fmt.Printf("  BC: %#04x\n", db.state.regs16[regBC].get())
+	fmt.Printf("  DE: %#04x\n", db.state.regs16[regDE].get())
+	fmt.Printf("  HL: %#04x\n", db.state.regs16[regHL].get())
+	fmt.Printf("  SP: %#04x\n", db.state.regs16[regSP].get())
+	fmt.Printf("  PC: %#04x\n", db.state.regs16[regPC].get())
 }
 
 func (db *debugger) readCommand() {
@@ -86,7 +86,7 @@ func (db *debugger) readCommand() {
 			db.breakOnAddrRead = nil
 			fmt.Printf("Value at address %#04x: %#x\n",
 				uint16(addr),
-				db.env.mmu.at(uint16(addr)))
+				db.state.mmu.at(uint16(addr)))
 			db.breakOnAddrRead = oldBreakOnAddrRead
 		} else if command == "trace" {
 			stacktrace := debug.Stack()

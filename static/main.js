@@ -85,6 +85,10 @@ function loadShaders(gl) {
     return program;
 }
 
+function helloToJS(message) {
+    alert("Got a message! " + message);
+}
+
 function main() {
     const canvas = document.querySelector("#emulator-canvas");
     const gl = canvas.getContext("webgl");

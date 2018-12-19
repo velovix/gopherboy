@@ -3,22 +3,22 @@ package main
 import "fmt"
 
 // ld loads the value of reg2 into reg1.
-func ld(env *environment, reg1, reg2 registerType) int {
-	env.regs8[reg1].set(env.regs8[reg2].get())
+func ld(state *State, reg1, reg2 registerType) int {
+	state.regs8[reg1].set(state.regs8[reg2].get())
 
 	if printInstructions {
 		fmt.Printf("LD %v,%v (%#x,%#x)\n",
 			reg1, reg2,
-			env.regs8[reg1].get(), env.regs8[reg2].get())
+			state.regs8[reg1].get(), state.regs8[reg2].get())
 	}
 	return 4
 }
 
 // ldHLToSP puts the value of register HL into register SP.
-func ldHLToSP(env *environment) int {
-	hlVal := env.regs16[regHL].get()
+func ldHLToSP(state *State) int {
+	hlVal := state.regs16[regHL].get()
 
-	env.regs16[regSP].set(hlVal)
+	state.regs16[regSP].set(hlVal)
 
 	if printInstructions {
 		fmt.Printf("LD %v,%v\n", regSP, regHL)
@@ -27,8 +27,8 @@ func ldHLToSP(env *environment) int {
 }
 
 // ldToMem loads the value of reg2 into the memory address specified by reg1.
-func ldToMem(env *environment, reg1, reg2 registerType) int {
-	env.mmu.set(env.regs16[reg1].get(), env.regs8[reg2].get())
+func ldToMem(state *State, reg1, reg2 registerType) int {
+	state.mmu.set(state.regs16[reg1].get(), state.regs8[reg2].get())
 
 	if printInstructions {
 		fmt.Printf("LD (%v),%v\n", reg1, reg2)
@@ -37,9 +37,9 @@ func ldToMem(env *environment, reg1, reg2 registerType) int {
 }
 
 // ldFromMem loads the value in the memory address specified by reg2 into reg1.
-func ldFromMem(env *environment, reg1, reg2 registerType) int {
-	val := env.mmu.at(env.regs16[reg2].get())
-	env.regs8[reg1].set(val)
+func ldFromMem(state *State, reg1, reg2 registerType) int {
+	val := state.mmu.at(state.regs16[reg2].get())
+	state.regs8[reg1].set(val)
 
 	if printInstructions {
 		fmt.Printf("LD %v,(%v)\n", reg1, reg2)
@@ -49,10 +49,10 @@ func ldFromMem(env *environment, reg1, reg2 registerType) int {
 }
 
 // ld8BitImm loads an 8-bit immediate value into the given register.
-func ld8BitImm(env *environment, reg registerType) int {
-	imm := env.incrementPC()
+func ld8BitImm(state *State, reg registerType) int {
+	imm := state.incrementPC()
 
-	env.regs8[reg].set(imm)
+	state.regs8[reg].set(imm)
 
 	if printInstructions {
 		fmt.Printf("LD %v,%#x\n", reg, imm)
@@ -61,9 +61,9 @@ func ld8BitImm(env *environment, reg registerType) int {
 }
 
 // ld16BitImm loads a 16-bit immediate value into the given 16-bit register.
-func ld16BitImm(env *environment, reg registerType) int {
-	imm := combine16(env.incrementPC(), env.incrementPC())
-	env.regs16[reg].set(imm)
+func ld16BitImm(state *State, reg registerType) int {
+	imm := combine16(state.incrementPC(), state.incrementPC())
+	state.regs16[reg].set(imm)
 
 	if printInstructions {
 		fmt.Printf("LD %v,%#x\n", reg, imm)
@@ -73,11 +73,11 @@ func ld16BitImm(env *environment, reg registerType) int {
 
 // ldTo16BitImmMem saves the value of register A to an address in memory
 // specified by a 16-bit immediate value.
-func ldTo16BitImmMem(env *environment) int {
-	imm := combine16(env.incrementPC(), env.incrementPC())
-	aVal := env.regs8[regA].get()
+func ldTo16BitImmMem(state *State) int {
+	imm := combine16(state.incrementPC(), state.incrementPC())
+	aVal := state.regs8[regA].get()
 
-	env.mmu.set(imm, aVal)
+	state.mmu.set(imm, aVal)
 
 	if printInstructions {
 		fmt.Printf("LD (%#x),%v\n", imm, regA)
@@ -87,11 +87,11 @@ func ldTo16BitImmMem(env *environment) int {
 
 // ldFrom16BitImmMem loads the value in memory at the address specified by a
 // 16-bit immediate value into register A.
-func ldFrom16BitImmMem(env *environment) int {
-	imm := combine16(env.incrementPC(), env.incrementPC())
-	memVal := env.mmu.at(imm)
+func ldFrom16BitImmMem(state *State) int {
+	imm := combine16(state.incrementPC(), state.incrementPC())
+	memVal := state.mmu.at(imm)
 
-	env.regs8[regA].set(memVal)
+	state.regs8[regA].set(memVal)
 
 	if printInstructions {
 		fmt.Printf("LD %v,(%#x)\n", regA, imm)
@@ -101,10 +101,10 @@ func ldFrom16BitImmMem(env *environment) int {
 
 // ld8BitImmToMemHL loads an 8-bit immediate value into the memory address
 // specified by the HL register.
-func ld8BitImmToMemHL(env *environment) int {
-	imm := env.incrementPC()
+func ld8BitImmToMemHL(state *State) int {
+	imm := state.incrementPC()
 
-	env.mmu.set(env.regs16[regHL].get(), imm)
+	state.mmu.set(state.regs16[regHL].get(), imm)
 
 	if printInstructions {
 		fmt.Printf("LD (%v),%#x\n", regHL, imm)
@@ -114,13 +114,13 @@ func ld8BitImmToMemHL(env *environment) int {
 
 // ldSPToMem loads a 16-bit address and saves the stack pointer at that
 // address.
-func ldSPToMem(env *environment) int {
-	imm := combine16(env.incrementPC(), env.incrementPC())
+func ldSPToMem(state *State) int {
+	imm := combine16(state.incrementPC(), state.incrementPC())
 
 	// Save each byte of the stack pointer into memory
-	lower, upper := split16(env.regs16[regSP].get())
-	env.mmu.set(imm, lower)
-	env.mmu.set(imm+1, upper)
+	lower, upper := split16(state.regs16[regSP].get())
+	state.mmu.set(imm, lower)
+	state.mmu.set(imm+1, upper)
 
 	if printInstructions {
 		fmt.Printf("LD (%#x),%v\n", imm, regSP)
@@ -130,11 +130,11 @@ func ldSPToMem(env *environment) int {
 
 // ldToMemC saves the value of register A at the memory address
 // 0xFF00+register C.
-func ldToMemC(env *environment) int {
-	aVal := env.regs8[regA].get()
-	addr := uint16(env.regs8[regC].get()) + 0xFF00
+func ldToMemC(state *State) int {
+	aVal := state.regs8[regA].get()
+	addr := uint16(state.regs8[regC].get()) + 0xFF00
 
-	env.mmu.set(addr, aVal)
+	state.mmu.set(addr, aVal)
 
 	if printInstructions {
 		fmt.Printf("LD (%v),%v\n", regC, regA)
@@ -144,11 +144,11 @@ func ldToMemC(env *environment) int {
 
 // ldFromMemC loads the value at memory address 0xFF00 + register C into
 // register A.
-func ldFromMemC(env *environment) int {
-	addr := uint16(env.regs8[regC].get()) + 0xFF00
-	memVal := env.mmu.at(addr)
+func ldFromMemC(state *State) int {
+	addr := uint16(state.regs8[regC].get()) + 0xFF00
+	memVal := state.mmu.at(addr)
 
-	env.regs8[regA].set(memVal)
+	state.regs8[regA].set(memVal)
 
 	if printInstructions {
 		fmt.Printf("LD %v,(%v)\n", regA, regC)
@@ -158,10 +158,10 @@ func ldFromMemC(env *environment) int {
 
 // ldiToMem loads register A into the memory address specified by register HL,
 // then increments register HL.
-func ldiToMem(env *environment) int {
-	env.mmu.set(env.regs16[regHL].get(), env.regs8[regA].get())
+func ldiToMem(state *State) int {
+	state.mmu.set(state.regs16[regHL].get(), state.regs8[regA].get())
 
-	env.regs16[regHL].set(env.regs16[regHL].get() + 1)
+	state.regs16[regHL].set(state.regs16[regHL].get() + 1)
 
 	if printInstructions {
 		fmt.Printf("LD (%v+),%v\n", regHL, regA)
@@ -171,10 +171,10 @@ func ldiToMem(env *environment) int {
 
 // lddToMem loads register A into the memory address specified by register HL,
 // then decrements register HL.
-func lddToMem(env *environment) int {
-	env.mmu.set(env.regs16[regHL].get(), env.regs8[regA].get())
+func lddToMem(state *State) int {
+	state.mmu.set(state.regs16[regHL].get(), state.regs8[regA].get())
 
-	env.regs16[regHL].set(env.regs16[regHL].get() - 1)
+	state.regs16[regHL].set(state.regs16[regHL].get() - 1)
 
 	if printInstructions {
 		fmt.Printf("LD (%v-),%v\n", regHL, regA)
@@ -184,11 +184,11 @@ func lddToMem(env *environment) int {
 
 // ldiFromMem puts the value stored in the memory address specified by register
 // HL into register A, then increments register HL.
-func ldiFromMem(env *environment) int {
-	memVal := env.mmu.at(env.regs16[regHL].get())
-	env.regs8[regA].set(memVal)
+func ldiFromMem(state *State) int {
+	memVal := state.mmu.at(state.regs16[regHL].get())
+	state.regs8[regA].set(memVal)
 
-	env.regs16[regHL].set(env.regs16[regHL].get() + 1)
+	state.regs16[regHL].set(state.regs16[regHL].get() + 1)
 
 	if printInstructions {
 		fmt.Printf("LD %v,(%v+)\n", regA, regHL)
@@ -198,11 +198,11 @@ func ldiFromMem(env *environment) int {
 
 // lddFromMem puts the value stored in the memory address specified by register
 // HL into register A, then decrements register HL.
-func lddFromMem(env *environment) int {
-	memVal := env.mmu.at(env.regs16[regHL].get())
-	env.regs8[regA].set(memVal)
+func lddFromMem(state *State) int {
+	memVal := state.mmu.at(state.regs16[regHL].get())
+	state.regs8[regA].set(memVal)
 
-	env.regs16[regHL].set(env.regs16[regHL].get() - 1)
+	state.regs16[regHL].set(state.regs16[regHL].get() - 1)
 
 	if printInstructions {
 		fmt.Printf("LD %v,(%v-)\n", regA, regHL)
@@ -212,10 +212,10 @@ func lddFromMem(env *environment) int {
 
 // ldhToMem loads an offset value, then saves the value of register A into the
 // memory address 0xFF00 + offset.
-func ldhToMem(env *environment) int {
-	offset := env.incrementPC()
+func ldhToMem(state *State) int {
+	offset := state.incrementPC()
 
-	env.mmu.set(0xFF00+uint16(offset), env.regs8[regA].get())
+	state.mmu.set(0xFF00+uint16(offset), state.regs8[regA].get())
 
 	if printInstructions {
 		fmt.Printf("LDH (%#x),%v (%#x)\n", offset, regA, 0xFF00+uint16(offset))
@@ -225,11 +225,11 @@ func ldhToMem(env *environment) int {
 
 // ldhFromMem loads an offset value, then loads the value at memory address
 // 0xFF00 + offset into register A.
-func ldhFromMem(env *environment) int {
-	offset := env.incrementPC()
+func ldhFromMem(state *State) int {
+	offset := state.incrementPC()
 
-	fromMem := env.mmu.at(0xFF00 + uint16(offset))
-	env.regs8[regA].set(fromMem)
+	fromMem := state.mmu.at(0xFF00 + uint16(offset))
+	state.regs8[regA].set(fromMem)
 
 	if printInstructions {
 		fmt.Printf("LDH %v,(%#x)\n", regA, offset)
@@ -239,10 +239,10 @@ func ldhFromMem(env *environment) int {
 
 // ldhl loads an 8-bit immediate value and adds it to the stack pointer. The
 // result is stored in register HL.
-func ldhl(env *environment) int {
-	immUnsigned := env.incrementPC()
+func ldhl(state *State) int {
+	immUnsigned := state.incrementPC()
 	imm := int8(immUnsigned)
-	spVal := env.regs16[regSP].get()
+	spVal := state.regs16[regSP].get()
 
 	// This instruction's behavior for the carry and half carry flags is very
 	// weird.
@@ -251,13 +251,13 @@ func ldhl(env *environment) int {
 	// as _unsigned_ for some reason and only the lowest 8 bits of the stack
 	// pointer are considered. HL does not play into this calculation at all.
 	lowerSP, _ := split16(spVal)
-	env.setHalfCarryFlag(isHalfCarry(lowerSP, immUnsigned))
-	env.setCarryFlag(isCarry(lowerSP, immUnsigned))
+	state.setHalfCarryFlag(isHalfCarry(lowerSP, immUnsigned))
+	state.setCarryFlag(isCarry(lowerSP, immUnsigned))
 
-	env.regs16[regHL].set(uint16(int(imm) + int(spVal)))
+	state.regs16[regHL].set(uint16(int(imm) + int(spVal)))
 
-	env.setZeroFlag(false)
-	env.setSubtractFlag(false)
+	state.setZeroFlag(false)
+	state.setSubtractFlag(false)
 
 	if printInstructions {
 		fmt.Printf("LD %v,%v+%#x\n", regHL, regSP, imm)
@@ -267,8 +267,8 @@ func ldhl(env *environment) int {
 
 // push decrements the stack pointer by 2, then puts the value of the given
 // register at its position.
-func push(env *environment, reg registerType) int {
-	env.pushToStack16(env.regs16[reg].get())
+func push(state *State, reg registerType) int {
+	state.pushToStack16(state.regs16[reg].get())
 
 	if printInstructions {
 		fmt.Printf("PUSH %v\n", reg)
@@ -278,8 +278,8 @@ func push(env *environment, reg registerType) int {
 
 // pop loads the two bytes at the top of the stack in the given register and
 // increments the stack pointer by 2.
-func pop(env *environment, reg registerType) int {
-	env.regs16[reg].set(env.popFromStack16())
+func pop(state *State, reg registerType) int {
+	state.regs16[reg].set(state.popFromStack16())
 
 	if printInstructions {
 		fmt.Printf("POP %v\n", reg)
