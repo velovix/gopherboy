@@ -1,5 +1,6 @@
 gopherboy
-emulator/emulator
+server/server
+cmd/gopherboy_sdl/gopherboy_sdl
 
 # Ignore Gameboy code and compiled files
 *.asm

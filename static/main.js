@@ -90,6 +90,22 @@ function helloToJS(message) {
 }
 
 function main() {
+    let dropZone = document.querySelector("#rom-drop-zone")
+    dropZone.addEventListener("drop", function(ev) {
+        ev.preventDefault();
+        console.log("Gotem!", ev.dataTransfer.items);
+        for (let i=0; i<ev.dataTransfer.items.length; i++) {
+            console.log("gitem", ev.dataTransfer.items[i]);
+            ev.dataTransfer.items[i].getAsString(function (s) {
+                console.log("and check it", s)
+            });
+        }
+    });
+    dropZone.addEventListener("dragover", function(ev) {
+        ev.preventDefault();
+    });
+    console.log("The trap has been set");
+
     const canvas = document.querySelector("#emulator-canvas");
     const gl = canvas.getContext("webgl");
 
