@@ -52,17 +52,17 @@ func (vd *videoDriver) Clear() {
 
 // render renders the given RGBA frame data on-screen. This is done by turning
 // it into a texture and copying it onto the renderer.
-func (vd *videoDriver) Render(frameData []uint32) error {
+func (vd *videoDriver) Render(frameData []uint8) error {
 	surface, err := sdl.CreateRGBSurfaceFrom(
 		unsafe.Pointer(&frameData[0]),
 		gameboy.ScreenWidth,
 		gameboy.ScreenHeight,
 		32,                    // Bits per pixel
 		4*gameboy.ScreenWidth, // Bytes per row
-		0xFF000000,            // Bitmask for R value
-		0x00FF0000,            // Bitmask for G value
-		0x0000FF00,            // Bitmask for B value
-		0x000000FF,            // Bitmask for alpha value
+		0x000000FF,            // Bitmask for R value
+		0x0000FF00,            // Bitmask for G value
+		0x00FF0000,            // Bitmask for B value
+		0xFF000000,            // Bitmask for alpha value
 	)
 	if err != nil {
 		return fmt.Errorf("creating surface: %v", err)

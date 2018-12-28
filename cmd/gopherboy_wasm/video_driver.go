@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"syscall/js"
 )
 
@@ -9,32 +8,28 @@ import (
 // This can be used inside a WebGL-capable browser as a WebAssembly
 // application.
 type videoDriver struct {
-	// gl is the WebGL context of the target canvas.
-	gl js.Value
 }
 
 func newVideoDriver(scaleFactor float64) (*videoDriver, error) {
 	var vd videoDriver
-
-	doc := js.Global().Get("document")
-	canvas := doc.Call("getElementById", "emulator-canvas")
-	vd.gl = canvas.Call("getContext", "webgl")
-	if vd.gl == js.Undefined() {
-		return nil, errors.New("browser does not support WebGL")
-	}
-
-	vd.gl.Call("clearColor", 1.0, 0.0, 0.0, 1.0)
-	vd.gl.Call("enable", vd.gl.Get("DEPTH_TEST"))
-	vd.gl.Call("clear", vd.gl.Get("COLOR_BUFFER_BIT"))
-
 	return &vd, nil
 }
 
 func (vd *videoDriver) Clear() {
-	vd.gl.Call("clear", vd.gl.Get("COLOR_BUFFER_BIT"))
 }
 
-func (vd *videoDriver) Render(frameData []uint32) error {
+func (vd *videoDriver) Render(frameData []uint8) error {
+	jsFrameData := js.TypedArrayOf(frameData)
+	defer jsFrameData.Release()
+
+	jsClamped := js.Global().Get("Uint8ClampedArray").New(jsFrameData)
+
+	js.Global().Call("postMessage",
+		[]interface{}{
+			"NewFrame",
+			jsClamped,
+		},
+	)
 	return nil
 }
 

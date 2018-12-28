@@ -2,37 +2,33 @@ package main
 
 import (
 	"fmt"
-	"time"
+	"syscall/js"
 
 	"github.com/velovix/gopherboy/gameboy"
 )
 
 func main() {
-	//dropZone := js.Global().Get("document").Call("getElementById", "rom-drop-zone")
+	fmt.Println("emulator: Waiting for cartridge data")
 
-	onCartridgeData := make(chan []byte)
+	cartridgeDataChan := make(chan []byte)
 
-	/*dropCallback := js.NewCallback(
-		func(args []js.Value) {
-			items := event.Get("dataTransfer").Get("items")
-			fmt.Println("All items", items)
-			fmt.Println(items.Get("length"))
+	onMessage := js.NewEventCallback(0, func(event js.Value) {
+		fmt.Println("emulator: Cartridge data message received")
 
-			for i := 0; i < items.Length(); i++ {
-				if items.Index(i).Get("kind").String() == "file" {
-					fmt.Println("got file!")
-				} else {
-					fmt.Println("Ignoring non-file")
-				}
-			}
-			onCartridgeData <- []byte{1, 2, 3}
-		})
+		jsData := event.Get("data")
 
-	dropZone.Call("addEventListener", "drop", dropCallback)*/
+		data := make([]uint8, jsData.Length())
+		for i := 0; i < jsData.Length(); i++ {
+			data[i] = uint8(jsData.Index(i).Int())
+		}
+		cartridgeDataChan <- data
+	})
 
-	time.Sleep(time.Second * 5)
+	js.Global().Set("onmessage", onMessage)
 
-	cartridgeData := <-onCartridgeData
+	cartridgeData := <-cartridgeDataChan
+
+	fmt.Println("emulator: Main thread received cartridge data")
 
 	video, err := newVideoDriver(2)
 	if err != nil {

@@ -70,8 +70,8 @@ type videoController struct {
 	// spritePalette1 is the second of the two available sprite palettes.
 	spritePalette1 map[uint8]color
 
-	// Raw frame data in RGBA format.
-	currFrame []uint32
+	// Raw frame data in 8-bit RGBA format.
+	currFrame []uint8
 
 	timers *timers
 	state  *State
@@ -115,7 +115,7 @@ func (vc *videoController) tick(opTime int) {
 			vc.windowY = vc.state.mmu.at(windowPosYAddr)
 
 			// Make a new frame
-			vc.currFrame = make([]uint32, ScreenWidth*ScreenHeight)
+			vc.currFrame = make([]uint8, ScreenWidth*ScreenHeight*4)
 		}
 
 		// Update the LY register with the current scan line. Note that this
@@ -254,7 +254,11 @@ func (vc *videoController) drawScanLine(line uint8) {
 		}
 
 		// Add this pixel to the in-progress frame
-		vc.currFrame[(int(line)*ScreenWidth)+int(x)] = pixelColor.toInt32()
+		pixelStart := ((int(line) * ScreenWidth) + int(x)) * 4
+		vc.currFrame[pixelStart] = pixelColor.r
+		vc.currFrame[pixelStart+1] = pixelColor.g
+		vc.currFrame[pixelStart+2] = pixelColor.b
+		vc.currFrame[pixelStart+3] = pixelColor.a
 	}
 }
 
@@ -720,8 +724,4 @@ func (vc *videoController) loadSpritePalette(paletteNum int) map[uint8]color {
 
 type color struct {
 	r, g, b, a uint8
-}
-
-func (c *color) toInt32() uint32 {
-	return (uint32(c.r) << 24) | (uint32(c.g) << 16) | (uint32(c.b) << 8) | uint32(c.a)
 }

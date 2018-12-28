@@ -1,21 +1,19 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <script src="/static/wasm_exec.js"></script>
-    <script>
-      const go = new Go();
-      WebAssembly.instantiateStreaming(fetch("/static/emulator.wasm"), go.importObject).then((result) => {
-        go.run(result.instance);
-      });
-    </script>
     <script src="/static/main.js"></script>
 
     <title>WebGL Test</title>
   </head>
 
   <body>
-    <div id="rom-drop-zone" style="width:100px; height:100px;background:black;">
+    <div style="text-align: center;">
+      <div>
+        <canvas id="frame-display" width="480" height="432"></canvas>
+      </div>
+      <div>
+        <input type="file" id="rom-selector">
+      </div>
     </div>
-    <canvas id="emulator-canvas" width="320" height="288"></canvas>
   </body>
 </html>

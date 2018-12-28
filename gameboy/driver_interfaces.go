@@ -3,9 +3,9 @@ package gameboy
 type VideoDriver interface {
 	// Render displays the given frame data on-screen.
 	//
-	// Each element of the frame data is a combination of 8-bit R, G, B, and A
-	// values in that order.
-	Render(frameData []uint32) error
+	// Each element of the frame data is 8-bit R, G, B, and A values laid out
+	// in that order.
+	Render(frameData []uint8) error
 	// Clear clears the display in preparation for another frame.
 	Clear()
 	// Close de-initializes the driver.
