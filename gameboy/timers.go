@@ -1,7 +1,6 @@
 package gameboy
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -19,14 +18,15 @@ const (
 type timers struct {
 	// A clock that increments every clock cycle
 	cpuClock int
-	// A clock that increments every 4 clock cycles
-	mClock int
 	// A clock that increments every 64 clock cycles. Available as a register
 	// in memory.
 	divider uint8
 	// A configurable timer, also known as the "counter" but technically
 	// referred to as the TIMA. Available as a register in memory.
 	tima uint8
+
+	sinceLastDividerIncrement int
+	sinceLastTIMAIncrement    int
 
 	state *State
 }
@@ -46,19 +46,18 @@ func (t *timers) tick(amount int) {
 	tac := t.state.mmu.at(tacAddr)
 	timaRate, timaRunning := parseTAC(tac)
 
-	// Increment the clock
-	for i := 0; i < amount/4; i++ {
-		t.cpuClock += 4
-		// Wrap the CPU clock every cycle
-		if t.cpuClock == cpuClockRate {
-			t.cpuClock = 0
-		}
+	t.cpuClock += amount
+	t.cpuClock %= cpuClockRate
 
-		if t.cpuClock%(cpuClockRate/dividerClockRate) == 0 {
-			t.divider++
-		}
+	t.sinceLastDividerIncrement += amount
+	if t.sinceLastDividerIncrement >= cpuClockRate/dividerClockRate {
+		t.divider++
+		t.sinceLastDividerIncrement %= cpuClockRate / dividerClockRate
+	}
 
-		if timaRunning && t.cpuClock%(cpuClockRate/timaRate) == 0 {
+	t.sinceLastTIMAIncrement += amount
+	if timaRunning {
+		if t.sinceLastTIMAIncrement >= cpuClockRate/timaRate {
 			t.tima++
 
 			if t.tima == 0 {
@@ -72,12 +71,12 @@ func (t *timers) tick(amount int) {
 				}
 			}
 		}
-
-		// Update the timers in memory
-		t.state.mmu.setNoNotify(dividerAddr, t.divider)
-		t.state.mmu.setNoNotify(timaAddr, t.tima)
 	}
+	t.sinceLastTIMAIncrement %= cpuClockRate / timaRate
 
+	// Update the timers in memory
+	t.state.mmu.setNoNotify(dividerAddr, t.divider)
+	t.state.mmu.setNoNotify(timaAddr, t.tima)
 }
 
 // onDividerWrite is called when the divider register is written to. This
@@ -86,7 +85,6 @@ func (t *timers) onDividerWrite(addr uint16, writeVal uint8) uint8 {
 	t.divider = 0
 	// TODO(velovix): Is this actually proper behavior?
 	//t.tima = 0
-	fmt.Println("is this?")
 	return 0
 }
 

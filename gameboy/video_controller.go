@@ -55,6 +55,10 @@ type videoController struct {
 	lcdc           lcdcConfig
 	// All OAM entries. Used to control sprites on-screen.
 	oams []oam
+	// oamCount is the number of OAM entries in the oams slice. This is
+	// necessary because the oams list is recycled and not resized between
+	// frames for performance reason.
+	oamCount int
 	// scrollX controls the X position of the background.
 	scrollX int8
 	// scrollY controls the Y position of the background.
@@ -96,6 +100,8 @@ func newVideoController(state *State, timers *timers, driver VideoDriver) *video
 
 	vc.lastSecond = time.Now()
 
+	vc.oams = make([]oam, 40)
+
 	return &vc
 }
 
@@ -134,7 +140,7 @@ func (vc *videoController) tick(opTime int) {
 				vc.setMode(vcMode2)
 				// TODO(velovix): Lock OAM?
 
-				vc.oams = vc.loadOAM()
+				vc.loadOAM()
 
 				// This is the start of this scan line, read some scan line
 				// wide values
@@ -274,21 +280,21 @@ func (vc *videoController) coordInWindow(x, y uint8) bool {
 // spriteAt returns the sprite that is at the given X and Y value. If none
 // exists, an empty OAM and an ok value of false will be returned.
 func (vc *videoController) spriteAt(x, y uint8) (entry oam, ok bool) {
-	for _, entry := range vc.oams {
+	for i := 0; i < vc.oamCount; i++ {
 		var spriteTop uint8
 		switch vc.lcdc.spriteSize {
 		case spriteSize8x8:
-			spriteTop = entry.yPos - spriteShortHeight
+			spriteTop = vc.oams[i].yPos - spriteShortHeight
 		case spriteSize8x16:
-			spriteTop = entry.yPos
+			spriteTop = vc.oams[i].yPos
 		}
 
 		// Check if the sprite this OAM entry corresponds to is in the given
 		// point. Remember that a sprite's X and Y position is relative to the
 		// bottom right of the sprite.
-		if x < entry.xPos && int(x) >= int(entry.xPos)-spriteWidth &&
-			y < spriteTop && int(y) >= int(entry.yPos)-spriteTallHeight {
-			return entry, true
+		if x < vc.oams[i].xPos && int(x) >= int(vc.oams[i].xPos)-spriteWidth &&
+			y < spriteTop && int(y) >= int(vc.oams[i].yPos)-spriteTallHeight {
+			return vc.oams[i], true
 		}
 	}
 
@@ -555,30 +561,35 @@ type oam struct {
 }
 
 // loadOAM loads all OAM entries from memory.
-func (vc *videoController) loadOAM() []oam {
-	oams := make([]oam, 40)
+func (vc *videoController) loadOAM() {
+	vc.oamCount = 0
 
 	for i := 0; i < 40; i++ {
 		entryStart := uint16(oamRAMAddr + (i * oamBytes))
-		oams[i] = oam{
+		newOAM := oam{
 			yPos:         vc.state.mmu.at(entryStart),
 			xPos:         vc.state.mmu.at(entryStart + 1),
 			spriteNumber: vc.state.mmu.at(entryStart + 2),
 		}
 
+		if newOAM.xPos == 0 || newOAM.yPos == 0 {
+			// Skip sprites that are out of frame
+			continue
+		}
+
 		flags := vc.state.mmu.at(entryStart + 3)
-		oams[i].priority = flags&0x80 == 0x80
-		oams[i].yFlip = flags&0x40 == 0x40
-		oams[i].xFlip = flags&0x20 == 0x20
+		newOAM.priority = flags&0x80 == 0x80
+		newOAM.yFlip = flags&0x40 == 0x40
+		newOAM.xFlip = flags&0x20 == 0x20
 
 		if flags&0x10 == 0x10 {
-			oams[i].paletteNumber = 1
+			newOAM.paletteNumber = 1
 		} else {
-			oams[i].paletteNumber = 0
+			newOAM.paletteNumber = 0
 		}
+		vc.oams[i] = newOAM
+		vc.oamCount++
 	}
-
-	return oams
 }
 
 const (
