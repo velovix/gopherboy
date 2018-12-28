@@ -10,23 +10,31 @@ import (
 func main() {
 	fmt.Println("emulator: Waiting for cartridge data")
 
-	cartridgeDataChan := make(chan []byte)
+	// Set up the event handler
+	eventHandler := eventHandler{}
+	js.Global().Set("onmessage", js.NewEventCallback(0, eventHandler.onMessage))
 
-	onMessage := js.NewEventCallback(0, func(event js.Value) {
-		fmt.Println("emulator: Cartridge data message received")
+	var cartridgeData []byte
 
-		jsData := event.Get("data")
+	// Wait for cartridge data
+	cartridgeDataEvents := make(chan message)
+	eventHandler.subscribers = append(eventHandler.subscribers, cartridgeDataEvents)
+	for cartridgeData == nil {
+		msg := <-cartridgeDataEvents
 
-		data := make([]uint8, jsData.Length())
-		for i := 0; i < jsData.Length(); i++ {
-			data[i] = uint8(jsData.Index(i).Int())
+		switch msg.kind {
+		case "CartridgeData":
+			cartridgeData = make([]uint8, msg.data.Length())
+			for i := 0; i < msg.data.Length(); i++ {
+				cartridgeData[i] = uint8(msg.data.Index(i).Int())
+			}
+
+			fmt.Println("emulator: Cartridge data message received")
+		default:
+			fmt.Println("emulator: Ignoring message", msg)
 		}
-		cartridgeDataChan <- data
-	})
-
-	js.Global().Set("onmessage", onMessage)
-
-	cartridgeData := <-cartridgeDataChan
+	}
+	eventHandler.subscribers = []chan message{}
 
 	fmt.Println("emulator: Main thread received cartridge data")
 
@@ -40,6 +48,7 @@ func main() {
 		fmt.Println("Error: While initializing input driver:", err)
 		return
 	}
+	eventHandler.subscribers = append(eventHandler.subscribers, input.messages)
 
 	device, err := gameboy.NewDevice(cartridgeData, video, input, gameboy.DebugConfiguration{})
 	if err != nil {

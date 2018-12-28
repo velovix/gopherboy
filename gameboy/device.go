@@ -1,6 +1,9 @@
 package gameboy
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type Device struct {
 	state           *State
@@ -68,7 +71,7 @@ func NewDevice(
 	return &device, nil
 }
 
-// startMainLoop starts the main processing loop of the Gameboy.
+// Start starts the main processing loop of the Gameboy.
 func (device *Device) Start(onExit chan bool) error {
 	for {
 		var err error
@@ -83,6 +86,7 @@ func (device *Device) Start(onExit chan bool) error {
 		device.joypad.tick()
 		if device.state.stopped {
 			// We're in stop mode, don't do anything
+			time.Sleep(time.Millisecond)
 			continue
 		}
 

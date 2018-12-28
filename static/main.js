@@ -1,5 +1,16 @@
 "use strict";
 
+const KEY_CODE_TO_BUTTON_CODE = {
+    87: 1,
+    81: 2,
+    90: 3,
+    88: 4,
+    40: 5,
+    38: 6,
+    37: 7,
+    39: 8
+};
+
 function main() {
     let emulatorWorker = new Worker("/static/emulator_worker.js");
 
@@ -15,7 +26,7 @@ function main() {
         fileReader.onload = function(ev) {
             let array = new Uint8Array(ev.target.result);
 
-            emulatorWorker.postMessage(array);
+            emulatorWorker.postMessage(["CartridgeData", array]);
             console.log("js: Sent ROM data to emulator");
         }
         fileReader.readAsArrayBuffer(files[0]);
@@ -36,6 +47,24 @@ function main() {
                 displayContext.drawImage(response, 0, 0);
             });
             break;
+        }
+    }
+
+    document.onkeydown = function(ev) {
+        if (ev.keyCode in KEY_CODE_TO_BUTTON_CODE) {
+            emulatorWorker.postMessage([
+                "ButtonPressed",
+                KEY_CODE_TO_BUTTON_CODE[ev.keyCode]
+            ]);
+        }
+    }
+    
+    document.onkeyup = function(ev) {
+        if (ev.keyCode in KEY_CODE_TO_BUTTON_CODE) {
+            emulatorWorker.postMessage([
+                "ButtonReleased",
+                KEY_CODE_TO_BUTTON_CODE[ev.keyCode]
+            ]);
         }
     }
 }
