@@ -18,12 +18,11 @@ const (
 type timers struct {
 	// A clock that increments every clock cycle
 	cpuClock int
-	// A clock that increments every 64 clock cycles. Available as a register
-	// in memory.
-	divider uint8
-	// A configurable timer, also known as the "counter" but technically
-	// referred to as the TIMA. Available as a register in memory.
-	tima uint8
+
+	// A clock that also increments every clock cycle, but its 8 most
+	// significant bits are saved to the divider register.
+	divider uint16
+	tima    uint8
 
 	sinceLastDividerIncrement int
 	sinceLastTIMAIncrement    int
@@ -37,6 +36,12 @@ func newTimers(state *State) *timers {
 	t.state.mmu.subscribeTo(dividerAddr, t.onDividerWrite)
 	t.state.mmu.subscribeTo(tacAddr, t.onTACWrite)
 
+	// The CPU runs 2 NOPs before the boot ROM starts. Fake these NOPs by
+	// incrementing the timer.
+	// TODO(velovix): Is this sufficient or do these NOPs effect any other
+	// subsystem?
+	t.tick(8)
+
 	return t
 }
 
@@ -46,45 +51,46 @@ func (t *timers) tick(amount int) {
 	tac := t.state.mmu.at(tacAddr)
 	timaRate, timaRunning := parseTAC(tac)
 
-	t.cpuClock += amount
-	t.cpuClock %= cpuClockRate
+	for i := 0; i < amount; i++ {
+		t.cpuClock++
+		if t.cpuClock >= cpuClockRate {
+			t.cpuClock = 0
+		}
 
-	t.sinceLastDividerIncrement += amount
-	if t.sinceLastDividerIncrement >= cpuClockRate/dividerClockRate {
 		t.divider++
-		t.sinceLastDividerIncrement %= cpuClockRate / dividerClockRate
-	}
 
-	t.sinceLastTIMAIncrement += amount
-	if timaRunning {
-		if t.sinceLastTIMAIncrement >= cpuClockRate/timaRate {
-			t.tima++
+		t.sinceLastTIMAIncrement++
+		if timaRunning {
+			if t.sinceLastTIMAIncrement >= cpuClockRate/timaRate {
+				t.tima++
 
-			if t.tima == 0 {
-				// Start back up at the specified modulo value
-				t.tima = t.state.mmu.at(tmaAddr)
+				if t.tima == 0 {
+					// Start back up at the specified modulo value
+					t.tima = t.state.mmu.at(tmaAddr)
 
-				timaInterruptEnabled := t.state.mmu.at(ieAddr)&0x04 == 0x04
-				if t.state.interruptsEnabled && timaInterruptEnabled {
-					// Flag a TIMA overflow interrupt
-					t.state.mmu.setNoNotify(ifAddr, t.state.mmu.at(ifAddr)|0x04)
+					timaInterruptEnabled := t.state.mmu.at(ieAddr)&0x04 == 0x04
+					if t.state.interruptsEnabled && timaInterruptEnabled {
+						// Flag a TIMA overflow interrupt
+						t.state.mmu.setNoNotify(ifAddr, t.state.mmu.at(ifAddr)|0x04)
+					}
 				}
+
+				t.sinceLastTIMAIncrement = 0
 			}
 		}
 	}
-	t.sinceLastTIMAIncrement %= cpuClockRate / timaRate
 
 	// Update the timers in memory
-	t.state.mmu.setNoNotify(dividerAddr, t.divider)
+	t.state.mmu.setNoNotify(dividerAddr, uint8(t.divider>>8))
 	t.state.mmu.setNoNotify(timaAddr, t.tima)
 }
 
 // onDividerWrite is called when the divider register is written to. This
-// triggers the divider timer to reset to zero. This also resets the TIMA.
+// triggers the divider timer to reset to zero.
 func (t *timers) onDividerWrite(addr uint16, writeVal uint8) uint8 {
-	t.divider = 0
-	// TODO(velovix): Is this actually proper behavior?
+	// TODO(velovix): I'm pretty sure this isn't quite the right behavior
 	//t.tima = 0
+	t.divider = 0
 	return 0
 }
 

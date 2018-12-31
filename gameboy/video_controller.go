@@ -587,7 +587,7 @@ func (vc *videoController) loadOAM() {
 		} else {
 			newOAM.paletteNumber = 0
 		}
-		vc.oams[i] = newOAM
+		vc.oams[vc.oamCount] = newOAM
 		vc.oamCount++
 	}
 }

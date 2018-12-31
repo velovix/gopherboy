@@ -11,6 +11,9 @@ const dmaCycleLength = 671
 // to all Game Boy games and defers to the cartridge's memory bank controller
 // in cartridge-specific cases.
 type mmu struct {
+	// bootROM refers to the first 256 bytes of ROM, which is where the Game
+	// Boy boot sequence is stored.
+	bootROM []uint8
 	// bank0ROM refers to the first 16 KB of ROM, which is always assigned to
 	// bank 0.
 	bank0ROM []uint8
@@ -26,6 +29,10 @@ type mmu struct {
 	// hram is a special general-purpose RAM area
 	hram []uint8
 
+	// bootROMEnabled is true if the boot ROM is available at 0x0000 to 0x0100.
+	// The boot ROM itself turns this off before the game starts. If this is
+	// turned off, 0x0000 to 0x0100 maps to ROM bank 0.
+	bootROMEnabled bool
 	// dmaActive is true if a DMA transfer is happening.
 	dmaActive bool
 	// dmaCursor is the next memory address to be transferred.
@@ -46,22 +53,29 @@ type mmu struct {
 
 type onWriteFunc func(addr uint16, val uint8) uint8
 
-func newMMU(cartridgeData []uint8, mbc mbc) *mmu {
+func newMMU(bootROM []byte, cartridgeData []uint8, mbc mbc) *mmu {
+	if len(bootROM) != bootROMEndAddr {
+		panic(fmt.Sprintf("invalid boot ROM size %#x", len(bootROM)))
+	}
+
 	m := &mmu{
-		videoRAM:    make([]uint8, bankedRAMAddr-videoRAMAddr),
-		oamRAM:      make([]uint8, invalidArea2Addr-oamRAMAddr),
-		ioRAM:       make([]uint8, hramAddr-ioAddr),
-		hram:        make([]uint8, lastAddr-hramAddr+1),
-		subscribers: make(map[uint16]onWriteFunc),
-		mbc:         mbc,
+		bootROM:        bootROM,
+		bootROMEnabled: true,
+		videoRAM:       make([]uint8, bankedRAMAddr-videoRAMAddr),
+		oamRAM:         make([]uint8, invalidArea2Addr-oamRAMAddr),
+		ioRAM:          make([]uint8, hramAddr-ioAddr),
+		hram:           make([]uint8, lastAddr-hramAddr+1),
+		subscribers:    make(map[uint16]onWriteFunc),
+		mbc:            mbc,
 	}
 
 	// Put cartridge data into bank 0
-	m.bank0ROM = make([]uint8, bankedROMAddr-bank0ROMAddr)
-	for i := 0; i < bankedROMAddr; i++ {
+	m.bank0ROM = make([]uint8, bankedROMAddr)
+	for i := 0; i < len(m.bank0ROM); i++ {
 		m.bank0ROM[i] = cartridgeData[i]
 	}
 
+	m.subscribeTo(bootROMDisableAddr, m.onBootROMDisableWrite)
 	m.subscribeTo(dmaAddr, m.onDMAWrite)
 
 	return m
@@ -73,6 +87,12 @@ func (m *mmu) at(addr uint16) uint8 {
 	}
 
 	switch {
+	case inBootROMArea(addr):
+		if m.bootROMEnabled {
+			return m.bootROM[addr-bootROMAddr]
+		} else {
+			return m.bank0ROM[addr-bank0ROMAddr]
+		}
 	case inBank0ROMArea(addr):
 		return m.bank0ROM[addr-bank0ROMAddr]
 	case inBankedROMArea(addr):
@@ -210,6 +230,14 @@ func (m *mmu) onDMAWrite(addr uint16, val uint8) uint8 {
 	m.dmaCursor = uint16(val) << 8
 	m.dmaCycleCount = 0
 
+	return val
+}
+
+// onBootROMDisableWrite triggers when a write to the boot ROM disable register
+// is written to. It disables the boot ROM.
+func (m *mmu) onBootROMDisableWrite(addr uint16, val uint8) uint8 {
+	fmt.Println("Disabled boot ROM")
+	m.bootROMEnabled = false
 	return val
 }
 

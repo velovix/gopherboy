@@ -26,6 +26,10 @@ type State struct {
 	// halted and the screen is turned white. This mode is exited when a button
 	// is pressed.
 	stopped bool
+
+	// A program counter value pointing to the start of the current
+	// instruction.
+	instructionStart uint16
 }
 
 // NewState creates a new Game Boy state object with special memory addresses
@@ -64,8 +68,7 @@ func NewState(mmu *mmu) *State {
 	state.regs16[regPC] = &normalRegister16{0}
 
 	// Set registers to their initial value
-	// 0x100 is the designated entry point of a Gameboy ROM
-	state.regs16[regPC].set(0x100)
+	/*state.regs16[regPC].set(0x0000)
 	// Set the stack pointer to a high initial value
 	state.regs16[regSP].set(0xFFFE)
 	// I don't know why these values are set this way
@@ -89,7 +92,14 @@ func NewState(mmu *mmu) *State {
 	state.mmu.setNoNotify(windowPosYAddr, 0x00)
 	state.mmu.setNoNotify(windowPosXAddr, 0x00)
 	state.mmu.setNoNotify(ieAddr, 0x00)
+
+	// Set initial values of timers. On actual hardware, the boot ROM runs
+	// before the game and the timers have a chance to get up to these values.
+	state.mmu.setNoNotify(dividerAddr, 0xAB)*/
+
 	// TODO(velovix): Set even more memory addresses
+
+	state.instructionStart = state.regs16[regPC].get()
 
 	return state
 }
@@ -101,6 +111,13 @@ func (state *State) incrementPC() uint8 {
 	state.regs16[regPC].set(state.regs16[regPC].get() + 1)
 
 	return poppedVal
+}
+
+// instructionDone signals to the state object that an instruction has
+// finished. This moves the instructionStart value to the current position of
+// the program counter.
+func (state *State) instructionDone() {
+	state.instructionStart = state.regs16[regPC].get()
 }
 
 // popFromStack reads a value from the current stack position and increments

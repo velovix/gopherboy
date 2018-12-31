@@ -15,10 +15,19 @@ var printInstructions = false
 type debugger struct {
 	state *State
 
+	breakOnPC        *uint16
 	breakOnOpcode    *uint8
 	breakOnAddrRead  *uint16
 	breakOnAddrWrite *uint16
 	stepping         bool
+}
+
+func (db *debugger) pcHook(pc uint16) {
+	if db.breakOnPC != nil && pc == *db.breakOnPC {
+		fmt.Printf("PC BREAK: %#04x\n", pc)
+		db.printState()
+		db.readCommand()
+	}
 }
 
 func (db *debugger) opcodeHook(opcode uint8) {
@@ -51,7 +60,8 @@ func (db *debugger) printState() {
 	fmt.Printf("  DE: %#04x\n", db.state.regs16[regDE].get())
 	fmt.Printf("  HL: %#04x\n", db.state.regs16[regHL].get())
 	fmt.Printf("  SP: %#04x\n", db.state.regs16[regSP].get())
-	fmt.Printf("  PC: %#04x\n", db.state.regs16[regPC].get())
+	fmt.Printf("  PC: %#04x\n", db.state.instructionStart)
+	fmt.Printf("  DV: %#02x\n", db.state.mmu.at(dividerAddr))
 }
 
 func (db *debugger) readCommand() {
@@ -59,6 +69,10 @@ func (db *debugger) readCommand() {
 	for {
 		fmt.Print("Now what? ")
 		command, _ := reader.ReadString('\n')
+		if len(command) < 2 {
+			fmt.Println("\nNo command received")
+			continue
+		}
 		// Remove trailing newline
 		command = command[:len(command)-1]
 

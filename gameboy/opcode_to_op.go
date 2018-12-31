@@ -12,7 +12,7 @@ func runOpcode(state *State, opcode uint8) (cycles int, err error) {
 	lowerNibble, upperNibble := split(opcode)
 
 	if printInstructions {
-		fmt.Printf("%#x: ", opcode)
+		fmt.Printf("@PC %#x | %#x: ", state.instructionStart, opcode)
 	}
 
 	switch {

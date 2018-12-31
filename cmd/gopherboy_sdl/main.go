@@ -17,8 +17,12 @@ func main() {
 	// thread-safe and does not like being moved around
 	runtime.LockOSThread()
 
+	bootROM := flag.String("boot-rom", "",
+		"Path to a file containing the Game Boy boot ROM")
 	scaleFactor := flag.Float64("scale", 2,
 		"The amount to scale the window by, with 1 being native resolution")
+	breakOnPC := flag.Int("break-on-pc", -1,
+		"A program counter value to break at")
 	breakOnOpcode := flag.Int("break-on-opcode", -1,
 		"An opcode to break at")
 	breakOnAddrRead := flag.Int("break-on-addr-read", -1,
@@ -38,6 +42,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *bootROM == "" {
+		fmt.Println("A boot ROM is required. Please provide one with the --boot-rom flag.")
+		os.Exit(1)
+	}
+
 	if *scaleFactor <= 0 {
 		fmt.Println("Scale factor must be higher than 0")
 		os.Exit(1)
@@ -46,6 +55,13 @@ func main() {
 	if *enableProfiling {
 		fmt.Println("Profiling has been enabled")
 		defer profile.Start(profile.NoShutdownHook).Stop()
+	}
+
+	// Load the boot ROM
+	bootROMData, err := ioutil.ReadFile(*bootROM)
+	if err != nil {
+		fmt.Println("Error: While reading boot ROM:", err)
+		os.Exit(1)
 	}
 
 	// Load the ROM file
@@ -68,8 +84,14 @@ func main() {
 
 	var dbConfig gameboy.DebugConfiguration
 
-	if *breakOnOpcode != -1 || *breakOnAddrRead != -1 || *breakOnAddrWrite != -1 {
+	if *breakOnPC != -1 || *breakOnOpcode != -1 || *breakOnAddrRead != -1 ||
+		*breakOnAddrWrite != -1 {
+
 		dbConfig.Debugging = true
+		if *breakOnPC != -1 {
+			val := uint16(*breakOnPC)
+			dbConfig.BreakOnPC = &val
+		}
 		if *breakOnOpcode != -1 {
 			val := uint8(*breakOnOpcode)
 			dbConfig.BreakOnOpcode = &val
@@ -84,7 +106,7 @@ func main() {
 		}
 	}
 
-	device, err := gameboy.NewDevice(cartridgeData, video, input, dbConfig)
+	device, err := gameboy.NewDevice(bootROMData, cartridgeData, video, input, dbConfig)
 	if err != nil {
 		fmt.Println("Error: While initializing Game Boy:", err)
 		os.Exit(1)

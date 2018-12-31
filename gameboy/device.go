@@ -17,12 +17,14 @@ type Device struct {
 type DebugConfiguration struct {
 	Debugging bool
 
+	BreakOnPC        *uint16
 	BreakOnOpcode    *uint8
 	BreakOnAddrRead  *uint16
 	BreakOnAddrWrite *uint16
 }
 
 func NewDevice(
+	bootROM []byte,
 	cartridgeData []byte,
 	video VideoDriver,
 	input InputDriver,
@@ -48,11 +50,12 @@ func NewDevice(
 		return nil, fmt.Errorf("unknown cartridge type %#x", device.header.cartridgeType)
 	}
 
-	device.state = NewState(newMMU(cartridgeData, mbc))
+	device.state = NewState(newMMU(bootROM, cartridgeData, mbc))
 
 	if dbConfig.Debugging {
 		device.debugger = &debugger{state: device.state}
 
+		device.debugger.breakOnPC = dbConfig.BreakOnPC
 		device.debugger.breakOnOpcode = dbConfig.BreakOnOpcode
 		device.debugger.breakOnAddrRead = dbConfig.BreakOnAddrRead
 		device.debugger.breakOnAddrWrite = dbConfig.BreakOnAddrWrite
@@ -73,6 +76,8 @@ func NewDevice(
 
 // Start starts the main processing loop of the Gameboy.
 func (device *Device) Start(onExit chan bool) error {
+	var opTime int
+
 	for {
 		var err error
 
@@ -90,11 +95,15 @@ func (device *Device) Start(onExit chan bool) error {
 			continue
 		}
 
-		var opTime int
 		if device.state.waitingForInterrupts {
 			// Spin our wheels running NOPs until an interrupt happens
 			opTime = 4
 		} else {
+			// Notify the debugger that we're at this PC value
+			if device.debugger != nil {
+				device.debugger.pcHook(device.state.regs16[regPC].get())
+			}
+
 			// Fetch and run an operation
 			opcode := device.state.incrementPC()
 
@@ -106,6 +115,7 @@ func (device *Device) Start(onExit chan bool) error {
 			if err != nil {
 				return err
 			}
+			device.state.instructionDone()
 		}
 
 		device.timers.tick(opTime)
@@ -171,5 +181,6 @@ func (device *Device) Start(onExit chan bool) error {
 				device.state.interruptsEnabled = false
 			}
 		}
+
 	}
 }

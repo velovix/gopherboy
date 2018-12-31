@@ -106,6 +106,10 @@ func makeRAMBanks(ramSizeType uint8) (ramBanks map[int][]uint8) {
 	return ramBanks
 }
 
+func inBootROMArea(addr uint16) bool {
+	return addr < bootROMEndAddr
+}
+
 func inBank0ROMArea(addr uint16) bool {
 	return addr < bankedROMAddr
 }
@@ -148,13 +152,15 @@ func inHRAMArea(addr uint16) bool {
 
 // The start of each section of the memory map.
 const (
-	bank0ROMAddr  = 0x0000
-	bankedROMAddr = 0x4000
-	videoRAMAddr  = 0x8000
-	bankedRAMAddr = 0xA000
-	ramAddr       = 0xC000
-	ramMirrorAddr = 0xE000
-	oamRAMAddr    = 0xFE00
+	bootROMAddr    = 0x0000
+	bootROMEndAddr = 0x0100
+	bank0ROMAddr   = 0x0000
+	bankedROMAddr  = 0x4000
+	videoRAMAddr   = 0x8000
+	bankedRAMAddr  = 0xA000
+	ramAddr        = 0xC000
+	ramMirrorAddr  = 0xE000
+	oamRAMAddr     = 0xFE00
 	// TODO(velovix): Rename this since there's only one invalid area
 	invalidArea2Addr = 0xFEA0
 	ioAddr           = 0xFF00

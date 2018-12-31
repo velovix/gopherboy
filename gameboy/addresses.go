@@ -146,6 +146,10 @@ const (
 	//             VRAM cannot be written to.
 	statAddr = 0xFF41
 
+	// bootROMDisableAddr is the address that, when written to, disables the
+	// boot ROM. The boot ROM itself writes to this when it is finished.
+	bootROMDisableAddr = 0xFF50
+
 	// videoRAMStart is the address where video RAM starts in memory.
 	videoRAMStart = 0x8000
 	// videoRAMEnd is the address where video RAM stops in memory.
