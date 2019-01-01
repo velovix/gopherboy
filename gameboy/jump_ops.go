@@ -15,23 +15,26 @@ func jr(state *State) int {
 	return 12
 }
 
-// jrIfFlag loads an offset value, then jumps to the operation at address PC +
-// offset if the given flag is at the expected setting.
-func jrIfFlag(state *State, flagMask uint8, isSet bool) int {
-	flagState := state.regs8[regF].get()&flagMask == flagMask
-	offset := int8(state.incrementPC())
+// jrIfFlag creates an instruction that loads an offset value, then jumps to
+// the operation at address PC + offset if the given flag is at the expected
+// setting.
+func jrIfFlag(flagMask uint8, isSet bool) instruction {
+	return func(state *State) int {
+		flagState := state.regs8[regF].get()&flagMask == flagMask
+		offset := int8(state.incrementPC())
 
-	if printInstructions {
-		conditional := getConditionalStr(flagMask, isSet)
-		fmt.Printf("JR %v,%#x\n", conditional, offset)
-	}
+		if printInstructions {
+			conditional := getConditionalStr(flagMask, isSet)
+			fmt.Printf("JR %v,%#x\n", conditional, offset)
+		}
 
-	if flagState == isSet {
-		state.relativeJump(int(offset))
-		return 12
+		if flagState == isSet {
+			state.relativeJump(int(offset))
+			return 12
+		}
+		// A relative jump didn't happen, so the instruction took fewer cycles
+		return 8
 	}
-	// A relative jump didn't happen, so the instruction took fewer cycles
-	return 8
 }
 
 // jp loads a 16-bit address and jumps to it.
@@ -45,23 +48,25 @@ func jp(state *State) int {
 	return 16
 }
 
-// jpIfFlag loads a 16-bit address and jumps to it if the given flag is at the
-// expected setting.
-func jpIfFlag(state *State, flagMask uint8, isSet bool) int {
-	flagState := state.regs8[regF].get()&flagMask == flagMask
-	address := combine16(state.incrementPC(), state.incrementPC())
+// jpIfFlag creates an instruction that loads a 16-bit address and jumps to it
+// if the given flag is at the expected setting.
+func jpIfFlag(flagMask uint8, isSet bool) instruction {
+	return func(state *State) int {
+		flagState := state.regs8[regF].get()&flagMask == flagMask
+		address := combine16(state.incrementPC(), state.incrementPC())
 
-	if printInstructions {
-		conditional := getConditionalStr(flagMask, isSet)
-		fmt.Printf("JP %v,%#x\n", conditional, address)
-	}
+		if printInstructions {
+			conditional := getConditionalStr(flagMask, isSet)
+			fmt.Printf("JP %v,%#x\n", conditional, address)
+		}
 
-	if flagState == isSet {
-		state.regs16[regPC].set(address)
-		return 16
+		if flagState == isSet {
+			state.regs16[regPC].set(address)
+			return 16
+		}
+		// A jump didn't happen, so the instruction took fewer cycles
+		return 12
 	}
-	// A jump didn't happen, so the instruction took fewer cycles
-	return 12
 }
 
 // jpToHL jumps to the address specified by register HL.

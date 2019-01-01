@@ -2,16 +2,18 @@ package gameboy
 
 import "fmt"
 
-// ld loads the value of reg2 into reg1.
-func ld(state *State, reg1, reg2 registerType) int {
-	state.regs8[reg1].set(state.regs8[reg2].get())
+// ld creates an instruction that loads the value of reg2 into reg1.
+func ld(reg1, reg2 registerType) instruction {
+	return func(state *State) int {
+		state.regs8[reg1].set(state.regs8[reg2].get())
 
-	if printInstructions {
-		fmt.Printf("LD %v,%v (%#x,%#x)\n",
-			reg1, reg2,
-			state.regs8[reg1].get(), state.regs8[reg2].get())
+		if printInstructions {
+			fmt.Printf("LD %v,%v (%#x,%#x)\n",
+				reg1, reg2,
+				state.regs8[reg1].get(), state.regs8[reg2].get())
+		}
+		return 4
 	}
-	return 4
 }
 
 // ldHLToSP puts the value of register HL into register SP.
@@ -26,49 +28,61 @@ func ldHLToSP(state *State) int {
 	return 8
 }
 
-// ldToMem loads the value of reg2 into the memory address specified by reg1.
-func ldToMem(state *State, reg1, reg2 registerType) int {
-	state.mmu.set(state.regs16[reg1].get(), state.regs8[reg2].get())
+// ldToMem creates an instruction that loads the value of reg2 into the memory
+// address specified by reg1.
+func ldToMem(reg1, reg2 registerType) instruction {
+	return func(state *State) int {
+		state.mmu.set(state.regs16[reg1].get(), state.regs8[reg2].get())
 
-	if printInstructions {
-		fmt.Printf("LD (%v),%v\n", reg1, reg2)
+		if printInstructions {
+			fmt.Printf("LD (%v),%v\n", reg1, reg2)
+		}
+		return 12
 	}
-	return 12
 }
 
-// ldFromMem loads the value in the memory address specified by reg2 into reg1.
-func ldFromMem(state *State, reg1, reg2 registerType) int {
-	val := state.mmu.at(state.regs16[reg2].get())
-	state.regs8[reg1].set(val)
+// ldFromMem creates an instruction that loads the value in the memory address
+// specified by reg2 into reg1.
+func ldFromMem(reg1, reg2 registerType) instruction {
+	return func(state *State) int {
+		val := state.mmu.at(state.regs16[reg2].get())
+		state.regs8[reg1].set(val)
 
-	if printInstructions {
-		fmt.Printf("LD %v,(%v)\n", reg1, reg2)
+		if printInstructions {
+			fmt.Printf("LD %v,(%v)\n", reg1, reg2)
+		}
+
+		return 8
 	}
-
-	return 8
 }
 
-// ld8BitImm loads an 8-bit immediate value into the given register.
-func ld8BitImm(state *State, reg registerType) int {
-	imm := state.incrementPC()
+// ld8BitImm creates an instruction that loads an 8-bit immediate value into
+// the given register.
+func ld8BitImm(reg registerType) instruction {
+	return func(state *State) int {
+		imm := state.incrementPC()
 
-	state.regs8[reg].set(imm)
+		state.regs8[reg].set(imm)
 
-	if printInstructions {
-		fmt.Printf("LD %v,%#x\n", reg, imm)
+		if printInstructions {
+			fmt.Printf("LD %v,%#x\n", reg, imm)
+		}
+		return 8
 	}
-	return 8
 }
 
-// ld16BitImm loads a 16-bit immediate value into the given 16-bit register.
-func ld16BitImm(state *State, reg registerType) int {
-	imm := combine16(state.incrementPC(), state.incrementPC())
-	state.regs16[reg].set(imm)
+// ld16BitImm creates an instruction that loads a 16-bit immediate value into
+// the specified 16-bit register.
+func ld16BitImm(reg registerType) func(*State) int {
+	return func(state *State) int {
+		imm := combine16(state.incrementPC(), state.incrementPC())
+		state.regs16[reg].set(imm)
 
-	if printInstructions {
-		fmt.Printf("LD %v,%#x\n", reg, imm)
+		if printInstructions {
+			fmt.Printf("LD %v,%#x\n", reg, imm)
+		}
+		return 12
 	}
-	return 12
 }
 
 // ldTo16BitImmMem saves the value of register A to an address in memory
@@ -265,24 +279,28 @@ func ldhl(state *State) int {
 	return 12
 }
 
-// push decrements the stack pointer by 2, then puts the value of the given
-// register at its position.
-func push(state *State, reg registerType) int {
-	state.pushToStack16(state.regs16[reg].get())
+// push creates an instruction that decrements the stack pointer by 2, then
+// puts the value of the given register at its position.
+func push(reg registerType) instruction {
+	return func(state *State) int {
+		state.pushToStack16(state.regs16[reg].get())
 
-	if printInstructions {
-		fmt.Printf("PUSH %v\n", reg)
+		if printInstructions {
+			fmt.Printf("PUSH %v\n", reg)
+		}
+		return 16
 	}
-	return 16
 }
 
-// pop loads the two bytes at the top of the stack in the given register and
-// increments the stack pointer by 2.
-func pop(state *State, reg registerType) int {
-	state.regs16[reg].set(state.popFromStack16())
+// pop creates an instruction that loads the two bytes at the top of the stack
+// in the given register and increments the stack pointer by 2.
+func pop(reg registerType) instruction {
+	return func(state *State) int {
+		state.regs16[reg].set(state.popFromStack16())
 
-	if printInstructions {
-		fmt.Printf("POP %v\n", reg)
+		if printInstructions {
+			fmt.Printf("POP %v\n", reg)
+		}
+		return 12
 	}
-	return 12
 }

@@ -42,21 +42,24 @@ func addFromMemHL(state *State) int {
 	return 8
 }
 
-// addToHL adds the value of the given 16-bit register into register HL.
-func addToHL(state *State, reg registerType) int {
-	hlVal := state.regs16[regHL].get()
-	regVal := state.regs16[reg].get()
+// addToHL creates an instruction that adds the value of the given 16-bit
+// register into register HL.
+func addToHL(reg registerType) instruction {
+	return func(state *State) int {
+		hlVal := state.regs16[regHL].get()
+		regVal := state.regs16[reg].get()
 
-	state.setHalfCarryFlag(isHalfCarry16(hlVal, regVal))
-	state.setCarryFlag(isCarry16(hlVal, regVal))
-	state.setSubtractFlag(false)
+		state.setHalfCarryFlag(isHalfCarry16(hlVal, regVal))
+		state.setCarryFlag(isCarry16(hlVal, regVal))
+		state.setSubtractFlag(false)
 
-	hlVal = state.regs16[regHL].set(hlVal + regVal)
+		hlVal = state.regs16[regHL].set(hlVal + regVal)
 
-	if printInstructions {
-		fmt.Printf("ADD HL,%v\n", reg)
+		if printInstructions {
+			fmt.Printf("ADD HL,%v\n", reg)
+		}
+		return 8
 	}
-	return 8
 }
 
 // add8BitImm loads an 8-bit immediate value and adds it to register A, storing
@@ -506,33 +509,39 @@ func xor8BitImm(state *State) int {
 	return 8
 }
 
-// inc8Bit increments the given 8-bit register by 1.
-func inc8Bit(state *State, reg registerType) int {
-	oldVal := state.regs8[reg].get()
-	newVal := state.regs8[reg].set(oldVal + 1)
+// inc8Bit creates an instruction that increments the given 8-bit register by
+// 1.
+func inc8Bit(reg registerType) instruction {
+	return func(state *State) int {
+		oldVal := state.regs8[reg].get()
+		newVal := state.regs8[reg].set(oldVal + 1)
 
-	state.setZeroFlag(newVal == 0)
-	state.setSubtractFlag(false)
-	// A half carry occurs only if the bottom 4 bits of the number are 1,
-	// meaning all those "slots" are "filled"
-	state.setHalfCarryFlag(oldVal&0x0F == 0x0F)
+		state.setZeroFlag(newVal == 0)
+		state.setSubtractFlag(false)
+		// A half carry occurs only if the bottom 4 bits of the number are 1,
+		// meaning all those "slots" are "filled"
+		state.setHalfCarryFlag(oldVal&0x0F == 0x0F)
 
-	if printInstructions {
-		fmt.Printf("INC %v\n", reg)
+		if printInstructions {
+			fmt.Printf("INC %v\n", reg)
+		}
+		return 4
 	}
-	return 4
 }
 
-// inc16Bit increments the given 16-bit register by 1.
-func inc16Bit(state *State, reg registerType) int {
-	oldVal := state.regs16[reg].get()
+// inc16Bit creates an instruction that increments the given 16-bit register by
+// 1.
+func inc16Bit(reg registerType) instruction {
+	return func(state *State) int {
+		oldVal := state.regs16[reg].get()
 
-	state.regs16[reg].set(oldVal + 1)
+		state.regs16[reg].set(oldVal + 1)
 
-	if printInstructions {
-		fmt.Printf("INC %v\n", reg)
+		if printInstructions {
+			fmt.Printf("INC %v\n", reg)
+		}
+		return 8
 	}
-	return 8
 }
 
 // incMemHL increments the value in memory at the address specified by register
@@ -557,30 +566,36 @@ func incMemHL(state *State) int {
 	return 12
 }
 
-// dec8Bit decrements the given 8-bit register by 1.
-func dec8Bit(state *State, reg registerType) int {
-	oldVal := state.regs8[reg].get()
+// dec8Bit creates an instruction that decrements the given 8-bit register by
+// 1.
+func dec8Bit(reg registerType) instruction {
+	return func(state *State) int {
+		oldVal := state.regs8[reg].get()
 
-	newVal := state.regs8[reg].set(oldVal - 1)
+		newVal := state.regs8[reg].set(oldVal - 1)
 
-	state.setHalfCarryFlag(isHalfBorrow(oldVal, 1))
-	state.setZeroFlag(newVal == 0)
-	state.setSubtractFlag(true)
+		state.setHalfCarryFlag(isHalfBorrow(oldVal, 1))
+		state.setZeroFlag(newVal == 0)
+		state.setSubtractFlag(true)
 
-	if printInstructions {
-		fmt.Printf("DEC %v\n", reg)
+		if printInstructions {
+			fmt.Printf("DEC %v\n", reg)
+		}
+		return 4
 	}
-	return 4
 }
 
-// dec16Bit decrements the given 16-bit register by 1.
-func dec16Bit(state *State, reg registerType) int {
-	state.regs16[reg].set(state.regs16[reg].get() - 1)
+// dec16Bit creates an instruction that decrements the given 16-bit register by
+// 1.
+func dec16Bit(reg registerType) instruction {
+	return func(state *State) int {
+		state.regs16[reg].set(state.regs16[reg].get() - 1)
 
-	if printInstructions {
-		fmt.Printf("DEC %v\n", reg)
+		if printInstructions {
+			fmt.Printf("DEC %v\n", reg)
+		}
+		return 8
 	}
-	return 8
 }
 
 // decMemHL decrements the value in memory at the address specified by register
@@ -604,30 +619,32 @@ func decMemHL(state *State) int {
 	return 12
 }
 
-// cp compares the value in register A with the value of the given register and
-// sets flags accordingly.  The semantics are the same as the SUB operator, but
-// the result value is not saved.
-func cp(state *State, reg registerType) int {
-	aVal := state.regs8[regA].get()
-	regVal := state.regs8[reg].get()
+// cp creates an instruction that compares the value in register A with the
+// value of the given register and sets flags accordingly. The semantics are
+// the same as the SUB operator, but the result value is not saved.
+func cp(reg registerType) instruction {
+	return func(state *State) int {
+		aVal := state.regs8[regA].get()
+		regVal := state.regs8[reg].get()
 
-	// A carry occurs if the value we're subtracting is greater than register
-	// A, meaning that the register A value rolled over
-	state.setCarryFlag(regVal > aVal)
-	state.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
+		// A carry occurs if the value we're subtracting is greater than register
+		// A, meaning that the register A value rolled over
+		state.setCarryFlag(regVal > aVal)
+		state.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
 
-	subVal := aVal - regVal
+		subVal := aVal - regVal
 
-	state.setZeroFlag(subVal == 0)
-	state.setSubtractFlag(true)
+		state.setZeroFlag(subVal == 0)
+		state.setSubtractFlag(true)
 
-	if printInstructions {
-		fmt.Printf("CP %v (%#x,%#x)\n",
-			reg,
-			state.regs8[regA].get(),
-			state.regs8[reg].get())
+		if printInstructions {
+			fmt.Printf("CP %v (%#x,%#x)\n",
+				reg,
+				state.regs8[regA].get(),
+				state.regs8[reg].get())
+		}
+		return 4
 	}
-	return 4
 }
 
 // cpFromMemHL compares the value in register A with the value in memory at the
