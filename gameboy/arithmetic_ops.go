@@ -2,23 +2,26 @@ package gameboy
 
 import "fmt"
 
-// add adds the value of reg, an 8-bit register, into register A.
-func add(state *State, reg registerType) int {
-	aVal := state.regs8[regA].get()
-	regVal := state.regs8[reg].get()
+// add creates an instruction that adds the value of reg, an 8-bit register,
+// into register A.
+func add(reg registerType) instruction {
+	return func(state *State) int {
+		aVal := state.regs8[regA].get()
+		regVal := state.regs8[reg].get()
 
-	state.setHalfCarryFlag(isHalfCarry(aVal, regVal))
-	state.setCarryFlag(isCarry(aVal, regVal))
+		state.setHalfCarryFlag(isHalfCarry(aVal, regVal))
+		state.setCarryFlag(isCarry(aVal, regVal))
 
-	aVal = state.regs8[regA].set(aVal + regVal)
+		aVal = state.regs8[regA].set(aVal + regVal)
 
-	state.setZeroFlag(aVal == 0)
-	state.setSubtractFlag(false)
+		state.setZeroFlag(aVal == 0)
+		state.setSubtractFlag(false)
 
-	if printInstructions {
-		fmt.Printf("ADD A,%v\n", reg)
+		if printInstructions {
+			fmt.Printf("ADD A,%v\n", reg)
+		}
+		return 4
 	}
-	return 4
 }
 
 // addFromMemHL adds the value stored in the memory address specified by HL
@@ -110,31 +113,33 @@ func addToSP(state *State) int {
 	return 16
 }
 
-// adc adds the value of the given register and the carry bit to register A,
-// storing the results in register A.
+// adc creates an instruction that adds the value of the given register and the
+// carry bit to register A, storing the results in register A.
 //
 // regA = regA + reg + carry bit
-func adc(state *State, reg registerType) int {
-	aVal := state.regs8[regA].get()
-	regVal := state.regs8[reg].get()
-	carryVal := uint8(0)
+func adc(reg registerType) instruction {
+	return func(state *State) int {
+		aVal := state.regs8[regA].get()
+		regVal := state.regs8[reg].get()
+		carryVal := uint8(0)
 
-	if state.getCarryFlag() {
-		carryVal = 1
+		if state.getCarryFlag() {
+			carryVal = 1
+		}
+
+		state.setHalfCarryFlag(isHalfCarry(aVal, regVal, carryVal))
+		state.setCarryFlag(isCarry(aVal, regVal, carryVal))
+
+		aVal = state.regs8[regA].set(aVal + regVal + carryVal)
+
+		state.setZeroFlag(aVal == 0)
+		state.setSubtractFlag(false)
+
+		if printInstructions {
+			fmt.Printf("ADC A,%v\n", reg)
+		}
+		return 4
 	}
-
-	state.setHalfCarryFlag(isHalfCarry(aVal, regVal, carryVal))
-	state.setCarryFlag(isCarry(aVal, regVal, carryVal))
-
-	aVal = state.regs8[regA].set(aVal + regVal + carryVal)
-
-	state.setZeroFlag(aVal == 0)
-	state.setSubtractFlag(false)
-
-	if printInstructions {
-		fmt.Printf("ADC A,%v\n", reg)
-	}
-	return 4
 }
 
 // adcFromMemHL adds the value in memory at the address specified by register
@@ -161,7 +166,7 @@ func adcFromMemHL(state *State) int {
 	if printInstructions {
 		fmt.Printf("ADC %v,(%v)\n", regA, regHL)
 	}
-	return 4
+	return 8
 }
 
 // adc8BitImm loads and 8-bit immediate value and adds it and the carry
@@ -188,28 +193,31 @@ func adc8BitImm(state *State) int {
 	if printInstructions {
 		fmt.Printf("ADC A,%#x\n", imm)
 	}
-	return 4
+	return 8
 }
 
-// sub subtracts the value of reg, an 8-bit register, from register A.
-func sub(state *State, reg registerType) int {
-	aVal := state.regs8[regA].get()
-	regVal := state.regs8[reg].get()
+// sub creates an instruction that subtracts the value of reg, an 8-bit
+// register, from register A.
+func sub(reg registerType) instruction {
+	return func(state *State) int {
+		aVal := state.regs8[regA].get()
+		regVal := state.regs8[reg].get()
 
-	// A carry occurs if the value we're subtracting is greater than register
-	// A, meaning that the register A value rolled over
-	state.setCarryFlag(regVal > aVal)
-	state.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
+		// A carry occurs if the value we're subtracting is greater than register
+		// A, meaning that the register A value rolled over
+		state.setCarryFlag(regVal > aVal)
+		state.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
 
-	aVal = state.regs8[regA].set(aVal - regVal)
+		aVal = state.regs8[regA].set(aVal - regVal)
 
-	state.setZeroFlag(aVal == 0)
-	state.setSubtractFlag(true)
+		state.setZeroFlag(aVal == 0)
+		state.setSubtractFlag(true)
 
-	if printInstructions {
-		fmt.Printf("SUB %v\n", reg)
+		if printInstructions {
+			fmt.Printf("SUB %v\n", reg)
+		}
+		return 4
 	}
-	return 4
 }
 
 // subFromMemHL subtracts the value in memory at the address specified by HL
@@ -256,31 +264,33 @@ func sub8BitImm(state *State) int {
 	return 8
 }
 
-// sbc subtracts the value of the given register and the carry bit from
-// register A, storing the results in register A.
+// sbc creates an instruction that subtracts the value of the given register
+// and the carry bit from register A, storing the results in register A.
 //
 // regA = regA - reg - carry bit
-func sbc(state *State, reg registerType) int {
-	aVal := state.regs8[regA].get()
-	regVal := state.regs8[reg].get()
-	carryVal := uint8(0)
+func sbc(reg registerType) instruction {
+	return func(state *State) int {
+		aVal := state.regs8[regA].get()
+		regVal := state.regs8[reg].get()
+		carryVal := uint8(0)
 
-	if state.getCarryFlag() {
-		carryVal = 1
+		if state.getCarryFlag() {
+			carryVal = 1
+		}
+
+		state.setCarryFlag(isBorrow(aVal, regVal, carryVal))
+		state.setHalfCarryFlag(isHalfBorrow(aVal, regVal, carryVal))
+
+		aVal = state.regs8[regA].set(aVal - regVal - carryVal)
+
+		state.setZeroFlag(aVal == 0)
+		state.setSubtractFlag(true)
+
+		if printInstructions {
+			fmt.Printf("SBC %v\n", reg)
+		}
+		return 4
 	}
-
-	state.setCarryFlag(isBorrow(aVal, regVal, carryVal))
-	state.setHalfCarryFlag(isHalfBorrow(aVal, regVal, carryVal))
-
-	aVal = state.regs8[regA].set(aVal - regVal - carryVal)
-
-	state.setZeroFlag(aVal == 0)
-	state.setSubtractFlag(true)
-
-	if printInstructions {
-		fmt.Printf("SBC %v\n", reg)
-	}
-	return 4
 }
 
 // sbcFromMemHL subtracts the value in memory at the address specified by
@@ -338,23 +348,25 @@ func sbc8BitImm(state *State) int {
 	return 8
 }
 
-// and performs a bitwise & on the given register and register A, storing the
-// result in register A.
-func and(state *State, reg registerType) int {
-	aVal := state.regs8[regA].get()
-	regVal := state.regs8[reg].get()
+// and creates an instruction that performs a bitwise & on the given register
+// and register A, storing the result in register A.
+func and(reg registerType) instruction {
+	return func(state *State) int {
+		aVal := state.regs8[regA].get()
+		regVal := state.regs8[reg].get()
 
-	aVal = state.regs8[regA].set(aVal & regVal)
+		aVal = state.regs8[regA].set(aVal & regVal)
 
-	state.setZeroFlag(aVal == 0)
-	state.setSubtractFlag(false)
-	state.setHalfCarryFlag(true)
-	state.setCarryFlag(false)
+		state.setZeroFlag(aVal == 0)
+		state.setSubtractFlag(false)
+		state.setHalfCarryFlag(true)
+		state.setCarryFlag(false)
 
-	if printInstructions {
-		fmt.Printf("AND %v\n", reg)
+		if printInstructions {
+			fmt.Printf("AND %v\n", reg)
+		}
+		return 4
 	}
-	return 4
 }
 
 // andFromMemHL performs a bitwise & on the value in memory at the address
@@ -395,23 +407,25 @@ func and8BitImm(state *State) int {
 	return 8
 }
 
-// or performs a bitwise | on the given register and register A, storing the
-// result in register A.
-func or(state *State, reg registerType) int {
-	aVal := state.regs8[regA].get()
-	regVal := state.regs8[reg].get()
+// or creates an instruction that performs a bitwise | on the given register
+// and register A, storing the result in register A.
+func or(reg registerType) instruction {
+	return func(state *State) int {
+		aVal := state.regs8[regA].get()
+		regVal := state.regs8[reg].get()
 
-	aVal = state.regs8[regA].set(aVal | regVal)
+		aVal = state.regs8[regA].set(aVal | regVal)
 
-	state.setZeroFlag(aVal == 0)
-	state.setSubtractFlag(false)
-	state.setHalfCarryFlag(false)
-	state.setCarryFlag(false)
+		state.setZeroFlag(aVal == 0)
+		state.setSubtractFlag(false)
+		state.setHalfCarryFlag(false)
+		state.setCarryFlag(false)
 
-	if printInstructions {
-		fmt.Printf("OR %v\n", reg)
+		if printInstructions {
+			fmt.Printf("OR %v\n", reg)
+		}
+		return 4
 	}
-	return 4
 }
 
 // orFromMemHL performs a bitwise | on the value in memory at the address
@@ -452,23 +466,25 @@ func or8BitImm(state *State) int {
 	return 8
 }
 
-// xor performs a bitwise ^ on register A and the given register, storing the
-// result in register A.
-func xor(state *State, reg registerType) int {
-	aVal := state.regs8[regA].get()
-	regVal := state.regs8[reg].get()
+// xor creates an instruction that performs a bitwise ^ on register A and the
+// given register, storing the result in register A.
+func xor(reg registerType) instruction {
+	return func(state *State) int {
+		aVal := state.regs8[regA].get()
+		regVal := state.regs8[reg].get()
 
-	aVal = state.regs8[regA].set(aVal ^ regVal)
+		aVal = state.regs8[regA].set(aVal ^ regVal)
 
-	state.setZeroFlag(aVal == 0)
-	state.setSubtractFlag(false)
-	state.setHalfCarryFlag(false)
-	state.setCarryFlag(false)
+		state.setZeroFlag(aVal == 0)
+		state.setSubtractFlag(false)
+		state.setHalfCarryFlag(false)
+		state.setCarryFlag(false)
 
-	if printInstructions {
-		fmt.Printf("XOR %v\n", reg)
+		if printInstructions {
+			fmt.Printf("XOR %v\n", reg)
+		}
+		return 4
 	}
-	return 4
 }
 
 // xorFromMemHL performs a bitwise ^ on the value in memory specified by

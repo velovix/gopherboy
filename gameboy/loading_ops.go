@@ -37,7 +37,7 @@ func ldToMem(reg1, reg2 registerType) instruction {
 		if printInstructions {
 			fmt.Printf("LD (%v),%v\n", reg1, reg2)
 		}
-		return 12
+		return 8
 	}
 }
 

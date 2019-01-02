@@ -67,7 +67,7 @@ var opcodeMapper = []instruction{
 	0x33: inc16Bit(regSP),
 	0x34: incMemHL,
 	0x35: decMemHL,
-	0x36: swapMemHL,
+	0x36: ld8BitImmToMemHL,
 	0x37: scf,
 	0x38: jrIfFlag(carryFlag, true),
 	0x39: addToHL(regSP),
@@ -99,7 +99,7 @@ var opcodeMapper = []instruction{
 	0x53: ld(regD, regE),
 	0x54: ld(regD, regH),
 	0x55: ld(regD, regL),
-	0x56: ldFromMemHL(regD, regHL),
+	0x56: ldFromMem(regD, regHL),
 	0x57: ld(regD, regA),
 	0x58: ld(regE, regB),
 	0x59: ld(regE, regC),
@@ -109,415 +109,184 @@ var opcodeMapper = []instruction{
 	0x5D: ld(regE, regL),
 	0x5E: ldFromMem(regE, regHL),
 	0x5F: ld(regE, regA),
+	0x60: ld(regH, regB),
+	0x61: ld(regH, regC),
+	0x62: ld(regH, regD),
+	0x63: ld(regH, regE),
+	0x64: ld(regH, regH),
+	0x65: ld(regH, regL),
+	0x66: ldFromMem(regH, regHL),
+	0x67: ld(regH, regA),
+	0x68: ld(regL, regB),
+	0x69: ld(regL, regC),
+	0x6A: ld(regL, regD),
+	0x6B: ld(regL, regE),
+	0x6C: ld(regL, regH),
+	0x6D: ld(regL, regL),
+	0x6E: ldFromMem(regL, regHL),
+	0x6F: ld(regL, regA),
+	0x70: ldToMem(regHL, regB),
+	0x71: ldToMem(regHL, regC),
+	0x72: ldToMem(regHL, regD),
+	0x73: ldToMem(regHL, regE),
+	0x74: ldToMem(regHL, regH),
+	0x75: ldToMem(regHL, regL),
+	0x76: halt,
+	0x77: ldToMem(regHL, regA),
+	0x78: ld(regA, regB),
+	0x79: ld(regA, regC),
+	0x7A: ld(regA, regD),
+	0x7B: ld(regA, regE),
+	0x7C: ld(regA, regH),
+	0x7D: ld(regA, regL),
+	0x7E: ldFromMem(regA, regHL),
+	0x7F: ld(regA, regA),
+	0x80: add(regB),
+	0x81: add(regC),
+	0x82: add(regD),
+	0x83: add(regE),
+	0x84: add(regH),
+	0x85: add(regL),
+	0x86: addFromMemHL,
+	0x87: add(regA),
+	0x88: adc(regB),
+	0x89: adc(regC),
+	0x8A: adc(regD),
+	0x8B: adc(regE),
+	0x8C: adc(regH),
+	0x8D: adc(regL),
+	0x8E: adcFromMemHL,
+	0x8F: adc(regA),
+	0x90: sub(regB),
+	0x91: sub(regC),
+	0x92: sub(regD),
+	0x93: sub(regE),
+	0x94: sub(regH),
+	0x95: sub(regL),
+	0x96: subFromMemHL,
+	0x97: sub(regA),
+	0x98: sbc(regB),
+	0x99: sbc(regC),
+	0x9A: sbc(regD),
+	0x9B: sbc(regE),
+	0x9C: sbc(regH),
+	0x9D: sbc(regL),
+	0x9E: sbcFromMemHL,
+	0x9F: sbc(regA),
+	0xA0: and(regB),
+	0xA1: and(regC),
+	0xA2: and(regD),
+	0xA3: and(regE),
+	0xA4: and(regH),
+	0xA5: and(regL),
+	0xA6: andFromMemHL,
+	0xA7: and(regA),
+	0xA8: xor(regB),
+	0xA9: xor(regC),
+	0xAA: xor(regD),
+	0xAB: xor(regE),
+	0xAC: xor(regH),
+	0xAD: xor(regL),
+	0xAE: xorFromMemHL,
+	0xAF: xor(regA),
+	0xB0: or(regB),
+	0xB1: or(regC),
+	0xB2: or(regD),
+	0xB3: or(regE),
+	0xB4: or(regH),
+	0xB5: or(regL),
+	0xB6: orFromMemHL,
+	0xB7: or(regA),
+	0xB8: cp(regB),
+	0xB9: cp(regC),
+	0xBA: cp(regD),
+	0xBB: cp(regE),
+	0xBC: cp(regH),
+	0xBD: cp(regL),
+	0xBE: cpFromMemHL,
+	0xBF: cp(regA),
+	0xC0: retIfFlag(zeroFlag, false),
+	0xC1: pop(regBC),
+	0xC2: jpIfFlag(zeroFlag, false),
+	0xC3: jp,
+	0xC4: callIfFlag(zeroFlag, false),
+	0xC5: push(regBC),
+	0xC6: add8BitImm,
+	0xC7: rst(0x00),
+	0xC8: retIfFlag(zeroFlag, true),
+	0xC9: ret,
+	0xCA: jpIfFlag(zeroFlag, true),
+	0xCB: cbOpcodeDispatcher,
+	0xCC: callIfFlag(zeroFlag, true),
+	0xCD: call,
+	0xCE: adc8BitImm,
+	0xCF: rst(0x08),
+	0xD0: retIfFlag(carryFlag, false),
+	0xD1: pop(regDE),
+	0xD2: jpIfFlag(carryFlag, false),
+	0xD3: nil,
+	0xD4: callIfFlag(carryFlag, false),
+	0xD5: push(regDE),
+	0xD6: sub8BitImm,
+	0xD7: rst(0x10),
+	0xD8: retIfFlag(carryFlag, true),
+	0xD9: reti,
+	0xDA: jpIfFlag(carryFlag, true),
+	0xDB: nil,
+	0xDC: callIfFlag(carryFlag, true),
+	0xDD: nil,
+	0xDE: sbc8BitImm,
+	0xDF: rst(0x18),
+	0xE0: ldhToMem,
+	0xE1: pop(regHL),
+	0xE2: ldToMemC,
+	0xE3: nil,
+	0xE4: nil,
+	0xE5: push(regHL),
+	0xE6: and8BitImm,
+	0xE7: rst(0x20),
+	0xE8: addToSP,
+	0xE9: jpToHL,
+	0xEA: ldTo16BitImmMem,
+	0xEB: nil,
+	0xEC: nil,
+	0xED: nil,
+	0xEE: xor8BitImm,
+	0xEF: rst(0x28),
+	0xF0: ldhFromMem,
+	0xF1: pop(regAF),
+	0xF2: ldFromMemC,
+	0xF3: di,
+	0xF4: nil,
+	0xF5: push(regAF),
+	0xF6: or8BitImm,
+	0xF7: rst(0x30),
+	0xF8: ldhl,
+	0xF9: ldHLToSP,
+	0xFA: ldFrom16BitImmMem,
+	0xFB: ei,
+	0xFC: nil,
+	0xFD: nil,
+	0xFE: cp8BitImm,
+	0xFF: rst(0x38),
 }
 
 // runOpcode runs the operation that maps to the given opcode.
 func runOpcode(state *State, opcode uint8) (cycles int, err error) {
-	// Splits the 8-bit opcode into two nibbles
-	lowerNibble, upperNibble := split(opcode)
-
 	if printInstructions {
 		fmt.Printf("@PC %#x | %#x: ", state.instructionStart, opcode)
 	}
 
-	switch {
-	// NOP
-	case opcode == 0x00:
-		return nop(state), nil
-	// The CB prefix. Comes before an extended instruction set.
-	case opcode == 0xCB:
-		cbOpcode := state.incrementPC()
-		return runCBOpcode(state, cbOpcode)
-	// STOP 0
-	case opcode == 0x10:
-		return stop(state), nil
-	// DI
-	case opcode == 0xF3:
-		return di(state), nil
-	// EI
-	case opcode == 0xFB:
-		return ei(state), nil
-	// HALT
-	case opcode == 0x76:
-		return halt(state), nil
-	// LD (BC),A
-	case opcode == 0x02:
-		return ldToMem(regBC, regA)(state), nil
-	// LD (DE),A
-	case opcode == 0x12:
-		return ldToMem(regDE, regA)(state), nil
-	// LD A,(BC)
-	case opcode == 0x0A:
-		return ldFromMem(regA, regBC)(state), nil
-	// LD A,(DE)
-	case opcode == 0x1A:
-		return ldFromMem(regA, regDE)(state), nil
-	// LD (a16),A
-	case opcode == 0xEA:
-		return ldTo16BitImmMem(state), nil
-	// LD A,(a16)
-	case opcode == 0xFA:
-		return ldFrom16BitImmMem(state), nil
-	// LD (C),A
-	case opcode == 0xE2:
-		return ldToMemC(state), nil
-	// LD A,(C)
-	case opcode == 0xF2:
-		return ldFromMemC(state), nil
-	// LDH (a8),A
-	case opcode == 0xE0:
-		return ldhToMem(state), nil
-	// LDH A,(a8)
-	case opcode == 0xF0:
-		return ldhFromMem(state), nil
-	// LD HL,SP+r8
-	case opcode == 0xF8:
-		return ldhl(state), nil
-	// LD SP,HL
-	case opcode == 0xF9:
-		return ldHLToSP(state), nil
-	// JR a8
-	case opcode == 0x18:
-		return jr(state), nil
-	// JR NZ,a8
-	case opcode == 0x20:
-		return jrIfFlag(zeroFlag, false)(state), nil
-	// JR Z,a8
-	case opcode == 0x28:
-		return jrIfFlag(zeroFlag, true)(state), nil
-	// JR NC,a8
-	case opcode == 0x30:
-		return jrIfFlag(carryFlag, false)(state), nil
-	// JR C,a8
-	case opcode == 0x38:
-		return jrIfFlag(carryFlag, true)(state), nil
-	// JP a16
-	case opcode == 0xC3:
-		return jp(state), nil
-	// JP NZ,a16
-	case opcode == 0xC2:
-		return jpIfFlag(zeroFlag, false)(state), nil
-	// JP Z,a16
-	case opcode == 0xCA:
-		return jpIfFlag(zeroFlag, true)(state), nil
-	// JP NC,a16
-	case opcode == 0xD2:
-		return jpIfFlag(carryFlag, false)(state), nil
-	// JP C,a16
-	case opcode == 0xDA:
-		return jpIfFlag(carryFlag, true)(state), nil
-	// JP (HL)
-	case opcode == 0xE9:
-		return jpToHL(state), nil
-	// RET
-	case opcode == 0xC9:
-		return ret(state), nil
-	// RET NZ
-	case opcode == 0xC0:
-		return retIfFlag(zeroFlag, false)(state), nil
-	// RET Z
-	case opcode == 0xC8:
-		return retIfFlag(zeroFlag, true)(state), nil
-	// RET NC
-	case opcode == 0xD0:
-		return retIfFlag(carryFlag, false)(state), nil
-	// RET C
-	case opcode == 0xD8:
-		return retIfFlag(carryFlag, true)(state), nil
-	// RETI
-	case opcode == 0xD9:
-		return reti(state), nil
-	// CALL a16
-	case opcode == 0xCD:
-		return call(state), nil
-	// CALL NZ,a16
-	case opcode == 0xC4:
-		return callIfFlag(zeroFlag, false)(state), nil
-	// CALL Z,a16
-	case opcode == 0xCC:
-		return callIfFlag(zeroFlag, true)(state), nil
-	// CALL NC,a16
-	case opcode == 0xD4:
-		return callIfFlag(carryFlag, false)(state), nil
-	// CALL C,a16
-	case opcode == 0xDC:
-		return callIfFlag(carryFlag, true)(state), nil
-	// RLCA
-	case opcode == 0x07:
-		return rlca(state), nil
-	// RLA
-	case opcode == 0x17:
-		return rla(state), nil
-	// RRCA
-	case opcode == 0x0F:
-		return rrca(state), nil
-	// RRA
-	case opcode == 0x1F:
-		return rra(state), nil
-	// LD A,(HL+)
-	case opcode == 0x2A:
-		return ldiFromMem(state), nil
-	// LD A,(HL-)
-	case opcode == 0x3A:
-		return lddFromMem(state), nil
-	// LD (HL+),A
-	case opcode == 0x22:
-		return ldiToMem(state), nil
-	// LD (HL-),A
-	case opcode == 0x32:
-		return lddToMem(state), nil
-	// ADD HL,nn
-	case lowerNibble == 0x09 && upperNibble <= 0x03:
-		return addToHL(indexTo16BitRegister[upperNibble])(state), nil
-	// LD nn,SP
-	case opcode == 0x08:
-		return ldSPToMem(state), nil
-	// LD r,d16
-	case lowerNibble == 0x01 && upperNibble <= 0x03:
-		return ld16BitImm(indexTo16BitRegister[upperNibble])(state), nil
-	// LD A,(HL)
-	case opcode == 0x7E:
-		return ldFromMem(regA, regHL)(state), nil
-	// LD r,(HL)
-	case upperNibble >= 0x04 && upperNibble <= 0x06 && (lowerNibble == 0x06 || lowerNibble == 0x0E):
-		regIndex := (upperNibble - 0x04) * 2
-		if lowerNibble == 0x0E {
-			regIndex++
-		}
-		return ldFromMem(indexToRegister[regIndex], regHL)(state), nil
-	// LD (HL),A
-	case opcode == 0x77:
-		return ldToMem(regHL, regA)(state), nil
-	// LD A,A
-	case opcode == 0x7F:
-		return ld(regA, regA)(state), nil
-	// LD r,A
-	case upperNibble >= 0x04 && upperNibble <= 0x06 && (lowerNibble == 0x07 || lowerNibble == 0x0F):
-		regIndex := (upperNibble - 0x04) * 2
-		if lowerNibble == 0x0F {
-			regIndex++
-		}
-		return ld(indexToRegister[regIndex], regA)(state), nil
-	// LD B,r
-	case upperNibble == 0x04 && lowerNibble <= 0x05:
-		return ld(regB, indexToRegister[lowerNibble])(state), nil
-	// LD C,r
-	case upperNibble == 0x04 && lowerNibble >= 0x08 && lowerNibble <= 0x0D:
-		regIndex := lowerNibble - 0x08
-		return ld(regC, indexToRegister[regIndex])(state), nil
-	// LD D,r
-	case upperNibble == 0x05 && lowerNibble <= 0x05:
-		return ld(regD, indexToRegister[lowerNibble])(state), nil
-	// LD E,r
-	case upperNibble == 0x05 && lowerNibble >= 0x08 && lowerNibble <= 0x0D:
-		regIndex := lowerNibble - 0x08
-		return ld(regE, indexToRegister[regIndex])(state), nil
-	// LD H,r
-	case upperNibble == 0x06 && lowerNibble <= 0x05:
-		return ld(regH, indexToRegister[lowerNibble])(state), nil
-	// LD L,r
-	case upperNibble == 0x06 && lowerNibble >= 0x08 && lowerNibble <= 0x0D:
-		regIndex := lowerNibble - 0x08
-		return ld(regL, indexToRegister[regIndex])(state), nil
-	// LD (HL),r
-	case upperNibble == 0x07 && lowerNibble <= 0x05:
-		return ldToMem(regHL, indexToRegister[lowerNibble])(state), nil
-	// LD A,r
-	case upperNibble == 0x07 && lowerNibble >= 0x08 && lowerNibble <= 0x0D:
-		regIndex := lowerNibble - 0x08
-		return ld(regA, indexToRegister[regIndex])(state), nil
-	// LD (HL),d8
-	case opcode == 0x36:
-		return ld8BitImmToMemHL(state), nil
-	// LD A,d8
-	case opcode == 0x3E:
-		return ld8BitImm(regA)(state), nil
-	// LD r,d8
-	case upperNibble <= 0x02 && (lowerNibble == 0x06 || lowerNibble == 0x0E):
-		regIndex := upperNibble * 2
-		if lowerNibble == 0x0E {
-			regIndex++
-		}
-		return ld8BitImm(indexToRegister[regIndex])(state), nil
-	// ADD A,A
-	case opcode == 0x87:
-		return add(state, regA), nil
-	// ADD A,(HL)
-	case opcode == 0x86:
-		return addFromMemHL(state), nil
-	// ADD A,r
-	case opcode >= 0x80 && opcode <= 0x85:
-		return add(state, indexToRegister[lowerNibble]), nil
-	// ADD A,d8
-	case opcode == 0xC6:
-		return add8BitImm(state), nil
-	// ADD SP,n
-	case opcode == 0xE8:
-		return addToSP(state), nil
-	// ADC A
-	case opcode == 0x8F:
-		return adc(state, regA), nil
-	// ADC (HL)
-	case opcode == 0x8E:
-		return adcFromMemHL(state), nil
-	// ADC r
-	case opcode >= 0x88 && opcode <= 0x8D:
-		regIndex := opcode - 0x88
-		return adc(state, indexToRegister[regIndex]), nil
-	// ADC n
-	case opcode == 0xCE:
-		return adc8BitImm(state), nil
-	// SUB A
-	case opcode == 0x97:
-		return sub(state, regA), nil
-	// SUB (HL)
-	case opcode == 0x96:
-		return subFromMemHL(state), nil
-	// SUB r
-	case opcode >= 0x90 && opcode <= 0x95:
-		return sub(state, indexToRegister[lowerNibble]), nil
-	// SUB n
-	case opcode == 0xD6:
-		return sub8BitImm(state), nil
-	// SBC A,A
-	case opcode == 0x9F:
-		return sbc(state, regA), nil
-	// SBC A,(HL)
-	case opcode == 0x9E:
-		return sbcFromMemHL(state), nil
-	// SBC A,d8
-	case opcode == 0xDE:
-		return sbc8BitImm(state), nil
-	// SBC r
-	case opcode >= 0x98 && opcode <= 0x9D:
-		regIndex := opcode - 0x98
-		return sbc(state, indexToRegister[regIndex]), nil
-	// AND A
-	case opcode == 0xA7:
-		return and(state, regA), nil
-	// AND (HL)
-	case opcode == 0xA6:
-		return andFromMemHL(state), nil
-	// AND r
-	case opcode >= 0xA0 && opcode <= 0xA5:
-		return and(state, indexToRegister[lowerNibble]), nil
-	// AND n
-	case opcode == 0xE6:
-		return and8BitImm(state), nil
-	// OR A
-	case opcode == 0xB7:
-		return or(state, regA), nil
-	// OR (HL)
-	case opcode == 0xB6:
-		return orFromMemHL(state), nil
-	// OR r
-	case opcode >= 0xB0 && opcode <= 0xB5:
-		return or(state, indexToRegister[lowerNibble]), nil
-	// OR n
-	case opcode == 0xF6:
-		return or8BitImm(state), nil
-	// XOR A
-	case opcode == 0xAF:
-		return xor(state, regA), nil
-	// XOR (HL)
-	case opcode == 0xAE:
-		return xorFromMemHL(state), nil
-	// XOR r
-	case opcode >= 0xA8 && opcode <= 0xAD:
-		regIndex := lowerNibble - 0x08
-		return xor(state, indexToRegister[regIndex]), nil
-	// XOR n
-	case opcode == 0xEE:
-		return xor8BitImm(state), nil
-	// CP A
-	case opcode == 0xBF:
-		return cp(regA)(state), nil
-	// CP (HL)
-	case opcode == 0xBE:
-		return cpFromMemHL(state), nil
-	// CP n
-	case opcode == 0xFE:
-		return cp8BitImm(state), nil
-	// CP r
-	case opcode >= 0xB8 && opcode <= 0xBD:
-		regIndex := lowerNibble - 0x08
-		return cp(indexToRegister[regIndex])(state), nil
-	// INC (HL)
-	case opcode == 0x34:
-		return incMemHL(state), nil
-	// INC A
-	case opcode == 0x3C:
-		return inc8Bit(regA)(state), nil
-	// INC r
-	case upperNibble <= 0x02 && (lowerNibble == 0x04 || lowerNibble == 0x0C):
-		regIndex := upperNibble * 2
-		if lowerNibble == 0x0C {
-			regIndex++
-		}
-
-		return inc8Bit(indexToRegister[regIndex])(state), nil
-	// INC ss
-	case upperNibble <= 0x03 && lowerNibble == 0x03:
-		return inc16Bit(indexTo16BitRegister[upperNibble])(state), nil
-	// DEC (HL)
-	case opcode == 0x35:
-		return decMemHL(state), nil
-	// DEC A
-	case opcode == 0x3D:
-		return dec8Bit(regA)(state), nil
-	// DEC r
-	case upperNibble <= 0x02 && (lowerNibble == 0x05 || lowerNibble == 0x0D):
-		regIndex := upperNibble * 2
-		if lowerNibble == 0x0D {
-			regIndex++
-		}
-
-		return dec8Bit(indexToRegister[regIndex])(state), nil
-	// DEC ss
-	case upperNibble <= 0x03 && lowerNibble == 0x0B:
-		return dec16Bit(indexTo16BitRegister[upperNibble])(state), nil
-	// POP ss
-	case upperNibble >= 0x0C && upperNibble <= 0x0E && lowerNibble == 0x01:
-		regIndex := upperNibble - 0x0C
-		return pop(indexTo16BitRegister[regIndex])(state), nil
-	// POP AF
-	case opcode == 0xF1:
-		return pop(regAF)(state), nil
-	// PUSH ss
-	case upperNibble >= 0x0C && upperNibble <= 0x0E && lowerNibble == 0x05:
-		regIndex := upperNibble - 0x0C
-		return push(indexTo16BitRegister[regIndex])(state), nil
-	// PUSH AF
-	case opcode == 0xF5:
-		return push(regAF)(state), nil
-	// RST address
-	case upperNibble >= 0x0C && (lowerNibble == 0x07 || lowerNibble == 0x0F):
-		restartIndex := (upperNibble - 0x0C) * 2
-		if lowerNibble == 0x0F {
-			restartIndex++
-		}
-
-		return rst(indexToRestartAddress[restartIndex])(state), nil
-	// CPL
-	case opcode == 0x2F:
-		return cpl(state), nil
-	// CCF
-	case opcode == 0x3F:
-		return ccf(state), nil
-	// SCF
-	case opcode == 0x37:
-		return scf(state), nil
-	// DAA
-	case opcode == 0x27:
-		return daa(state), nil
-	default:
+	instr := opcodeMapper[opcode]
+	if instr == nil {
 		return 0, fmt.Errorf("unknown opcode %#x", opcode)
 	}
+	return instr(state), nil
 }
 
 // runCBOpcode runs the operation that maps to the given opcode, assuming that
 // it is CB-prefixed.
-func runCBOpcode(state *State, opcode uint8) (cycles int, err error) {
+func runCBOpcode(state *State, opcode uint8) int {
 	// Splits the 8-bit opcode into two nibbles
 	lowerNibble, upperNibble := split(opcode)
 
@@ -528,82 +297,82 @@ func runCBOpcode(state *State, opcode uint8) (cycles int, err error) {
 	switch {
 	// RLC r
 	case opcode <= 0x05:
-		return rlc(indexToRegister[opcode])(state), nil
+		return rlc(indexToRegister[opcode])(state)
 	// RLC (HL)
 	case opcode == 0x06:
-		return rlcMemHL(state), nil
+		return rlcMemHL(state)
 	// RLC A
 	case opcode == 0x07:
-		return rlc(regA)(state), nil
+		return rlc(regA)(state)
 	// RRC r
 	case opcode >= 0x08 && opcode <= 0x0D:
 		regIndex := opcode - 0x08
-		return rrc(indexToRegister[regIndex])(state), nil
+		return rrc(indexToRegister[regIndex])(state)
 	// RRC (HL)
 	case opcode == 0x0E:
-		return rrcMemHL(state), nil
+		return rrcMemHL(state)
 	// RRC A
 	case opcode == 0x0F:
-		return rrc(regA)(state), nil
+		return rrc(regA)(state)
 	// RL r
 	case opcode >= 0x10 && opcode <= 0x15:
 		regIndex := opcode - 0x10
-		return rl(indexToRegister[regIndex])(state), nil
+		return rl(indexToRegister[regIndex])(state)
 	// RL (HL)
 	case opcode == 0x16:
-		return rlMemHL(state), nil
+		return rlMemHL(state)
 	// RL A
 	case opcode == 0x17:
-		return rl(regA)(state), nil
+		return rl(regA)(state)
 	// RR A
 	case opcode == 0x1F:
-		return rr(regA)(state), nil
+		return rr(regA)(state)
 	// RR (HL)
 	case opcode == 0x1E:
-		return rrMemHL(state), nil
+		return rrMemHL(state)
 	// RR r
 	case opcode >= 0x18 && opcode <= 0x1D:
 		regIndex := opcode - 0x18
-		return rr(indexToRegister[regIndex])(state), nil
+		return rr(indexToRegister[regIndex])(state)
 	// SLA r
 	case opcode >= 0x20 && opcode <= 0x25:
 		regIndex := opcode - 0x20
-		return sla(indexToRegister[regIndex])(state), nil
+		return sla(indexToRegister[regIndex])(state)
 	// SLA (HL)
 	case opcode == 0x26:
-		return slaMemHL(state), nil
+		return slaMemHL(state)
 	// SLA A
 	case opcode == 0x27:
-		return sla(regA)(state), nil
+		return sla(regA)(state)
 	// SRA r
 	case opcode >= 0x28 && opcode <= 0x2D:
 		regIndex := opcode - 0x28
-		return sra(indexToRegister[regIndex])(state), nil
+		return sra(indexToRegister[regIndex])(state)
 	// SRA (HL)
 	case opcode == 0x2E:
-		return sraMemHL(state), nil
+		return sraMemHL(state)
 	// SRA A
 	case opcode == 0x2F:
-		return sra(regA)(state), nil
+		return sra(regA)(state)
 	// SWAP r
 	case opcode >= 0x30 && opcode <= 0x35:
-		return swap(indexToRegister[lowerNibble])(state), nil
+		return swap(indexToRegister[lowerNibble])(state)
 	// SWAP (HL)
 	case opcode == 0x36:
-		return swapMemHL(state), nil
+		return swapMemHL(state)
 	// SWAP A
 	case opcode == 0x37:
-		return swap(regA)(state), nil
+		return swap(regA)(state)
 	// SRL a
 	case opcode == 0x3F:
-		return srl(regA)(state), nil
+		return srl(regA)(state)
 	// SRL (HL)
 	case opcode == 0x3E:
-		return srlMemHL(state), nil
+		return srlMemHL(state)
 	// SRL r
 	case opcode >= 0x38 && opcode <= 0x3D:
 		regIndex := opcode - 0x38
-		return srl(indexToRegister[regIndex])(state), nil
+		return srl(indexToRegister[regIndex])(state)
 	// BIT b,A
 	case upperNibble >= 0x04 && upperNibble <= 0x07 &&
 		(lowerNibble == 0x07 || lowerNibble == 0x0F):
@@ -612,7 +381,7 @@ func runCBOpcode(state *State, opcode uint8) (cycles int, err error) {
 			bitNum++
 		}
 
-		return bit(bitNum, regA)(state), nil
+		return bit(bitNum, regA)(state)
 	// BIT b,(HL)
 	case upperNibble >= 0x04 && upperNibble <= 0x07 &&
 		(lowerNibble == 0x06 || lowerNibble == 0x0E):
@@ -621,7 +390,7 @@ func runCBOpcode(state *State, opcode uint8) (cycles int, err error) {
 			bitNum++
 		}
 
-		return bitMemHL(bitNum)(state), nil
+		return bitMemHL(bitNum)(state)
 	// BIT b,r
 	case upperNibble >= 0x04 && upperNibble <= 0x07 &&
 		((lowerNibble >= 0x00 && lowerNibble <= 0x5) ||
@@ -635,7 +404,7 @@ func runCBOpcode(state *State, opcode uint8) (cycles int, err error) {
 		if lowerNibble >= 0x08 {
 			bitNum++
 		}
-		return bit(bitNum, indexToRegister[regIndex])(state), nil
+		return bit(bitNum, indexToRegister[regIndex])(state)
 	// RES b,A
 	case upperNibble >= 0x08 && upperNibble <= 0x0B &&
 		(lowerNibble == 0x07 || lowerNibble == 0x0F):
@@ -644,7 +413,7 @@ func runCBOpcode(state *State, opcode uint8) (cycles int, err error) {
 			bit++
 		}
 
-		return res(bit, regA)(state), nil
+		return res(bit, regA)(state)
 	// RES b,(HL)
 	case upperNibble >= 0x08 && upperNibble <= 0x0B &&
 		(lowerNibble == 0x06 || lowerNibble == 0x0E):
@@ -653,7 +422,7 @@ func runCBOpcode(state *State, opcode uint8) (cycles int, err error) {
 			bitNum++
 		}
 
-		return resMemHL(bitNum)(state), nil
+		return resMemHL(bitNum)(state)
 	// RES b,r
 	case upperNibble >= 0x08 && upperNibble <= 0x0B &&
 		((lowerNibble >= 0x00 && lowerNibble <= 0x5) ||
@@ -667,7 +436,7 @@ func runCBOpcode(state *State, opcode uint8) (cycles int, err error) {
 		if lowerNibble >= 0x08 {
 			bit++
 		}
-		return res(bit, indexToRegister[regIndex])(state), nil
+		return res(bit, indexToRegister[regIndex])(state)
 	// SET b,A
 	case upperNibble >= 0x0C && upperNibble <= 0x0F &&
 		(lowerNibble == 0x07 || lowerNibble == 0x0F):
@@ -676,7 +445,7 @@ func runCBOpcode(state *State, opcode uint8) (cycles int, err error) {
 			bit++
 		}
 
-		return set(bit, regA)(state), nil
+		return set(bit, regA)(state)
 	// SET b,(HL)
 	case upperNibble >= 0x0C && upperNibble <= 0x0F &&
 		(lowerNibble == 0x06 || lowerNibble == 0x0E):
@@ -685,7 +454,7 @@ func runCBOpcode(state *State, opcode uint8) (cycles int, err error) {
 			bitNum++
 		}
 
-		return setMemHL(bitNum)(state), nil
+		return setMemHL(bitNum)(state)
 	// SET b,r
 	case upperNibble >= 0x0C && upperNibble <= 0x0F &&
 		((lowerNibble >= 0x00 && lowerNibble <= 0x5) ||
@@ -699,15 +468,16 @@ func runCBOpcode(state *State, opcode uint8) (cycles int, err error) {
 		if lowerNibble >= 0x08 {
 			bit++
 		}
-		return set(bit, indexToRegister[regIndex])(state), nil
+		return set(bit, indexToRegister[regIndex])(state)
 	default:
-		return 0, fmt.Errorf("unknown CB-prefixed opcode %#x", opcode)
+		// TODO(velovix): Handle this error properly
+		panic(fmt.Sprintf("unknown CB opcode %v", opcode))
 	}
 }
 
 // indexToRegister maps an index value to an 8-bit register. This helps reduce
 // repetition for opcode sections that do the same thing on different
-// registers, since the Gameboy is consistent about this ordering.
+// registers, since the Game Boy is consistent about this ordering.
 var indexToRegister = map[uint8]registerType{
 	0: regB,
 	1: regC,
@@ -715,29 +485,6 @@ var indexToRegister = map[uint8]registerType{
 	3: regE,
 	4: regH,
 	5: regL,
-}
-
-// indexTo16BitRegister maps an index value to a 16-bit register. This serves
-// the same purpose as indexToRegister, but for 16-bit registers.
-var indexTo16BitRegister = map[uint8]registerType{
-	0: regBC,
-	1: regDE,
-	2: regHL,
-	3: regSP,
-}
-
-// indexToRestartAddress maps an index value to a place in memory. These values
-// are specific to the RST instruction. This helps reduce repetition when
-// mapping the different flavors of that instruction from their opcodes.
-var indexToRestartAddress = map[uint8]uint16{
-	0: 0x0000,
-	1: 0x0008,
-	2: 0x0010,
-	3: 0x0018,
-	4: 0x0020,
-	5: 0x0028,
-	6: 0x0030,
-	7: 0x0038,
 }
 
 // getConditionalStr creates a string representation of a conditional flag
@@ -757,4 +504,11 @@ func getConditionalStr(flagMask uint8, isSet bool) string {
 	}
 
 	return conditional
+}
+
+// cbOpcodeDispatcher pops the next opcode from the program counter and
+// dispatches the corresponding CB instruction.
+func cbOpcodeDispatcher(state *State) int {
+	cbOpcode := state.incrementPC()
+	return runCBOpcode(state, cbOpcode)
 }
