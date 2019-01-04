@@ -271,6 +271,265 @@ var opcodeMapper = []instruction{
 	0xFF: rst(0x38),
 }
 
+var cbOpcodeMapper = []instruction{
+	0x00: rlc(regB),
+	0x01: rlc(regC),
+	0x02: rlc(regD),
+	0x03: rlc(regE),
+	0x04: rlc(regH),
+	0x05: rlc(regL),
+	0x06: rlcMemHL,
+	0x07: rlc(regA),
+	0x08: rrc(regB),
+	0x09: rrc(regC),
+	0x0A: rrc(regD),
+	0x0B: rrc(regE),
+	0x0C: rrc(regH),
+	0x0D: rrc(regL),
+	0x0E: rrcMemHL,
+	0x0F: rrc(regA),
+	0x10: rl(regB),
+	0x11: rl(regC),
+	0x12: rl(regD),
+	0x13: rl(regE),
+	0x14: rl(regH),
+	0x15: rl(regL),
+	0x16: rlMemHL,
+	0x17: rl(regA),
+	0x18: rr(regB),
+	0x19: rr(regC),
+	0x1A: rr(regD),
+	0x1B: rr(regE),
+	0x1C: rr(regH),
+	0x1D: rr(regL),
+	0x1E: rrMemHL,
+	0x1F: rr(regA),
+	0x20: sla(regB),
+	0x21: sla(regC),
+	0x22: sla(regD),
+	0x23: sla(regE),
+	0x24: sla(regH),
+	0x25: sla(regL),
+	0x26: slaMemHL,
+	0x27: sla(regA),
+	0x28: sra(regB),
+	0x29: sra(regC),
+	0x2A: sra(regD),
+	0x2B: sra(regE),
+	0x2C: sra(regH),
+	0x2D: sra(regL),
+	0x2E: sraMemHL,
+	0x2F: sra(regA),
+	0x30: swap(regB),
+	0x31: swap(regC),
+	0x32: swap(regD),
+	0x33: swap(regE),
+	0x34: swap(regH),
+	0x35: swap(regL),
+	0x36: swapMemHL,
+	0x37: swap(regA),
+	0x38: srl(regB),
+	0x39: srl(regC),
+	0x3A: srl(regD),
+	0x3B: srl(regE),
+	0x3C: srl(regH),
+	0x3D: srl(regL),
+	0x3E: srlMemHL,
+	0x3F: srl(regA),
+	0x40: bit(0, regB),
+	0x41: bit(0, regC),
+	0x42: bit(0, regD),
+	0x43: bit(0, regE),
+	0x44: bit(0, regH),
+	0x45: bit(0, regL),
+	0x46: bitMemHL(0),
+	0x47: bit(0, regA),
+	0x48: bit(1, regB),
+	0x49: bit(1, regC),
+	0x4A: bit(1, regD),
+	0x4B: bit(1, regE),
+	0x4C: bit(1, regH),
+	0x4D: bit(1, regL),
+	0x4E: bitMemHL(1),
+	0x4F: bit(1, regA),
+	0x50: bit(2, regB),
+	0x51: bit(2, regC),
+	0x52: bit(2, regD),
+	0x53: bit(2, regE),
+	0x54: bit(2, regH),
+	0x55: bit(2, regL),
+	0x56: bitMemHL(2),
+	0x57: bit(2, regA),
+	0x58: bit(3, regB),
+	0x59: bit(3, regC),
+	0x5A: bit(3, regD),
+	0x5B: bit(3, regE),
+	0x5C: bit(3, regH),
+	0x5D: bit(3, regL),
+	0x5E: bitMemHL(3),
+	0x5F: bit(3, regA),
+	0x60: bit(4, regB),
+	0x61: bit(4, regC),
+	0x62: bit(4, regD),
+	0x63: bit(4, regE),
+	0x64: bit(4, regH),
+	0x65: bit(4, regL),
+	0x66: bitMemHL(4),
+	0x67: bit(4, regA),
+	0x68: bit(5, regB),
+	0x69: bit(5, regC),
+	0x6A: bit(5, regD),
+	0x6B: bit(5, regE),
+	0x6C: bit(5, regH),
+	0x6D: bit(5, regL),
+	0x6E: bitMemHL(5),
+	0x6F: bit(5, regA),
+	0x70: bit(6, regB),
+	0x71: bit(6, regC),
+	0x72: bit(6, regD),
+	0x73: bit(6, regE),
+	0x74: bit(6, regH),
+	0x75: bit(6, regL),
+	0x76: bitMemHL(6),
+	0x77: bit(6, regA),
+	0x78: bit(7, regB),
+	0x79: bit(7, regC),
+	0x7A: bit(7, regD),
+	0x7B: bit(7, regE),
+	0x7C: bit(7, regH),
+	0x7D: bit(7, regL),
+	0x7E: bitMemHL(7),
+	0x7F: bit(7, regA),
+	0x80: res(0, regB),
+	0x81: res(0, regC),
+	0x82: res(0, regD),
+	0x83: res(0, regE),
+	0x84: res(0, regH),
+	0x85: res(0, regL),
+	0x86: resMemHL(0),
+	0x87: res(0, regA),
+	0x88: res(1, regB),
+	0x89: res(1, regC),
+	0x8A: res(1, regD),
+	0x8B: res(1, regE),
+	0x8C: res(1, regH),
+	0x8D: res(1, regL),
+	0x8E: resMemHL(1),
+	0x8F: res(1, regA),
+	0x90: res(2, regB),
+	0x91: res(2, regC),
+	0x92: res(2, regD),
+	0x93: res(2, regE),
+	0x94: res(2, regH),
+	0x95: res(2, regL),
+	0x96: resMemHL(2),
+	0x97: res(2, regA),
+	0x98: res(3, regB),
+	0x99: res(3, regC),
+	0x9A: res(3, regD),
+	0x9B: res(3, regE),
+	0x9C: res(3, regH),
+	0x9D: res(3, regL),
+	0x9E: resMemHL(3),
+	0x9F: res(3, regA),
+	0xA0: res(4, regB),
+	0xA1: res(4, regC),
+	0xA2: res(4, regD),
+	0xA3: res(4, regE),
+	0xA4: res(4, regH),
+	0xA5: res(4, regL),
+	0xA6: resMemHL(4),
+	0xA7: res(4, regA),
+	0xA8: res(5, regB),
+	0xA9: res(5, regC),
+	0xAA: res(5, regD),
+	0xAB: res(5, regE),
+	0xAC: res(5, regH),
+	0xAD: res(5, regL),
+	0xAE: resMemHL(5),
+	0xAF: res(5, regA),
+	0xB0: res(6, regB),
+	0xB1: res(6, regC),
+	0xB2: res(6, regD),
+	0xB3: res(6, regE),
+	0xB4: res(6, regH),
+	0xB5: res(6, regL),
+	0xB6: resMemHL(6),
+	0xB7: res(6, regA),
+	0xB8: res(7, regB),
+	0xB9: res(7, regC),
+	0xBA: res(7, regD),
+	0xBB: res(7, regE),
+	0xBC: res(7, regH),
+	0xBD: res(7, regL),
+	0xBE: resMemHL(7),
+	0xBF: res(7, regA),
+	0xC0: set(0, regB),
+	0xC1: set(0, regC),
+	0xC2: set(0, regD),
+	0xC3: set(0, regE),
+	0xC4: set(0, regH),
+	0xC5: set(0, regL),
+	0xC6: setMemHL(0),
+	0xC7: set(0, regA),
+	0xC8: set(1, regB),
+	0xC9: set(1, regC),
+	0xCA: set(1, regD),
+	0xCB: set(1, regE),
+	0xCC: set(1, regH),
+	0xCD: set(1, regL),
+	0xCE: setMemHL(1),
+	0xCF: set(1, regA),
+	0xD0: set(2, regB),
+	0xD1: set(2, regC),
+	0xD2: set(2, regD),
+	0xD3: set(2, regE),
+	0xD4: set(2, regH),
+	0xD5: set(2, regL),
+	0xD6: setMemHL(2),
+	0xD7: set(2, regA),
+	0xD8: set(3, regB),
+	0xD9: set(3, regC),
+	0xDA: set(3, regD),
+	0xDB: set(3, regE),
+	0xDC: set(3, regH),
+	0xDD: set(3, regL),
+	0xDE: setMemHL(3),
+	0xDF: set(3, regA),
+	0xE0: set(4, regB),
+	0xE1: set(4, regC),
+	0xE2: set(4, regD),
+	0xE3: set(4, regE),
+	0xE4: set(4, regH),
+	0xE5: set(4, regL),
+	0xE6: setMemHL(4),
+	0xE7: set(4, regA),
+	0xE8: set(5, regB),
+	0xE9: set(5, regC),
+	0xEA: set(5, regD),
+	0xEB: set(5, regE),
+	0xEC: set(5, regH),
+	0xED: set(5, regL),
+	0xEE: setMemHL(5),
+	0xEF: set(5, regA),
+	0xF0: set(6, regB),
+	0xF1: set(6, regC),
+	0xF2: set(6, regD),
+	0xF3: set(6, regE),
+	0xF4: set(6, regH),
+	0xF5: set(6, regL),
+	0xF6: setMemHL(6),
+	0xF7: set(6, regA),
+	0xF8: set(7, regB),
+	0xF9: set(7, regC),
+	0xFA: set(7, regD),
+	0xFB: set(7, regE),
+	0xFC: set(7, regH),
+	0xFD: set(7, regL),
+	0xFE: setMemHL(7),
+	0xFF: set(7, regA),
+}
+
 // runOpcode runs the operation that maps to the given opcode.
 func runOpcode(state *State, opcode uint8) (cycles int, err error) {
 	if printInstructions {
@@ -284,207 +543,13 @@ func runOpcode(state *State, opcode uint8) (cycles int, err error) {
 	return instr(state), nil
 }
 
-// runCBOpcode runs the operation that maps to the given opcode, assuming that
-// it is CB-prefixed.
-func runCBOpcode(state *State, opcode uint8) int {
-	// Splits the 8-bit opcode into two nibbles
-	lowerNibble, upperNibble := split(opcode)
+// cbOpcodeDispatcher pops the next opcode from the program counter and
+// dispatches the corresponding CB instruction.
+func cbOpcodeDispatcher(state *State) int {
+	cbOpcode := state.incrementPC()
 
-	if printInstructions {
-		fmt.Printf("%#x: ", opcode)
-	}
-
-	switch {
-	// RLC r
-	case opcode <= 0x05:
-		return rlc(indexToRegister[opcode])(state)
-	// RLC (HL)
-	case opcode == 0x06:
-		return rlcMemHL(state)
-	// RLC A
-	case opcode == 0x07:
-		return rlc(regA)(state)
-	// RRC r
-	case opcode >= 0x08 && opcode <= 0x0D:
-		regIndex := opcode - 0x08
-		return rrc(indexToRegister[regIndex])(state)
-	// RRC (HL)
-	case opcode == 0x0E:
-		return rrcMemHL(state)
-	// RRC A
-	case opcode == 0x0F:
-		return rrc(regA)(state)
-	// RL r
-	case opcode >= 0x10 && opcode <= 0x15:
-		regIndex := opcode - 0x10
-		return rl(indexToRegister[regIndex])(state)
-	// RL (HL)
-	case opcode == 0x16:
-		return rlMemHL(state)
-	// RL A
-	case opcode == 0x17:
-		return rl(regA)(state)
-	// RR A
-	case opcode == 0x1F:
-		return rr(regA)(state)
-	// RR (HL)
-	case opcode == 0x1E:
-		return rrMemHL(state)
-	// RR r
-	case opcode >= 0x18 && opcode <= 0x1D:
-		regIndex := opcode - 0x18
-		return rr(indexToRegister[regIndex])(state)
-	// SLA r
-	case opcode >= 0x20 && opcode <= 0x25:
-		regIndex := opcode - 0x20
-		return sla(indexToRegister[regIndex])(state)
-	// SLA (HL)
-	case opcode == 0x26:
-		return slaMemHL(state)
-	// SLA A
-	case opcode == 0x27:
-		return sla(regA)(state)
-	// SRA r
-	case opcode >= 0x28 && opcode <= 0x2D:
-		regIndex := opcode - 0x28
-		return sra(indexToRegister[regIndex])(state)
-	// SRA (HL)
-	case opcode == 0x2E:
-		return sraMemHL(state)
-	// SRA A
-	case opcode == 0x2F:
-		return sra(regA)(state)
-	// SWAP r
-	case opcode >= 0x30 && opcode <= 0x35:
-		return swap(indexToRegister[lowerNibble])(state)
-	// SWAP (HL)
-	case opcode == 0x36:
-		return swapMemHL(state)
-	// SWAP A
-	case opcode == 0x37:
-		return swap(regA)(state)
-	// SRL a
-	case opcode == 0x3F:
-		return srl(regA)(state)
-	// SRL (HL)
-	case opcode == 0x3E:
-		return srlMemHL(state)
-	// SRL r
-	case opcode >= 0x38 && opcode <= 0x3D:
-		regIndex := opcode - 0x38
-		return srl(indexToRegister[regIndex])(state)
-	// BIT b,A
-	case upperNibble >= 0x04 && upperNibble <= 0x07 &&
-		(lowerNibble == 0x07 || lowerNibble == 0x0F):
-		bitNum := (upperNibble - 0x04) * 2
-		if lowerNibble == 0x0F {
-			bitNum++
-		}
-
-		return bit(bitNum, regA)(state)
-	// BIT b,(HL)
-	case upperNibble >= 0x04 && upperNibble <= 0x07 &&
-		(lowerNibble == 0x06 || lowerNibble == 0x0E):
-		bitNum := (upperNibble - 0x04) * 2
-		if lowerNibble == 0x0E {
-			bitNum++
-		}
-
-		return bitMemHL(bitNum)(state)
-	// BIT b,r
-	case upperNibble >= 0x04 && upperNibble <= 0x07 &&
-		((lowerNibble >= 0x00 && lowerNibble <= 0x5) ||
-			(lowerNibble >= 0x07 && lowerNibble <= 0x0D)):
-		regIndex := lowerNibble
-		if lowerNibble >= 0x08 {
-			regIndex -= 0x08
-		}
-
-		bitNum := (upperNibble - 0x04) * 2
-		if lowerNibble >= 0x08 {
-			bitNum++
-		}
-		return bit(bitNum, indexToRegister[regIndex])(state)
-	// RES b,A
-	case upperNibble >= 0x08 && upperNibble <= 0x0B &&
-		(lowerNibble == 0x07 || lowerNibble == 0x0F):
-		bit := (upperNibble - 0x08) * 2
-		if lowerNibble == 0x0F {
-			bit++
-		}
-
-		return res(bit, regA)(state)
-	// RES b,(HL)
-	case upperNibble >= 0x08 && upperNibble <= 0x0B &&
-		(lowerNibble == 0x06 || lowerNibble == 0x0E):
-		bitNum := (upperNibble - 0x08) * 2
-		if lowerNibble == 0x0E {
-			bitNum++
-		}
-
-		return resMemHL(bitNum)(state)
-	// RES b,r
-	case upperNibble >= 0x08 && upperNibble <= 0x0B &&
-		((lowerNibble >= 0x00 && lowerNibble <= 0x5) ||
-			(lowerNibble >= 0x07 && lowerNibble <= 0x0D)):
-		regIndex := lowerNibble
-		if lowerNibble >= 0x08 {
-			regIndex -= 0x08
-		}
-
-		bit := (upperNibble - 0x08) * 2
-		if lowerNibble >= 0x08 {
-			bit++
-		}
-		return res(bit, indexToRegister[regIndex])(state)
-	// SET b,A
-	case upperNibble >= 0x0C && upperNibble <= 0x0F &&
-		(lowerNibble == 0x07 || lowerNibble == 0x0F):
-		bit := (upperNibble - 0x0C) * 2
-		if lowerNibble == 0x0F {
-			bit++
-		}
-
-		return set(bit, regA)(state)
-	// SET b,(HL)
-	case upperNibble >= 0x0C && upperNibble <= 0x0F &&
-		(lowerNibble == 0x06 || lowerNibble == 0x0E):
-		bitNum := (upperNibble - 0x0C) * 2
-		if lowerNibble == 0x0E {
-			bitNum++
-		}
-
-		return setMemHL(bitNum)(state)
-	// SET b,r
-	case upperNibble >= 0x0C && upperNibble <= 0x0F &&
-		((lowerNibble >= 0x00 && lowerNibble <= 0x5) ||
-			(lowerNibble >= 0x07 && lowerNibble <= 0x0D)):
-		regIndex := lowerNibble
-		if lowerNibble >= 0x08 {
-			regIndex -= 0x08
-		}
-
-		bit := (upperNibble - 0x0C) * 2
-		if lowerNibble >= 0x08 {
-			bit++
-		}
-		return set(bit, indexToRegister[regIndex])(state)
-	default:
-		// TODO(velovix): Handle this error properly
-		panic(fmt.Sprintf("unknown CB opcode %v", opcode))
-	}
-}
-
-// indexToRegister maps an index value to an 8-bit register. This helps reduce
-// repetition for opcode sections that do the same thing on different
-// registers, since the Game Boy is consistent about this ordering.
-var indexToRegister = map[uint8]registerType{
-	0: regB,
-	1: regC,
-	2: regD,
-	3: regE,
-	4: regH,
-	5: regL,
+	instr := cbOpcodeMapper[cbOpcode]
+	return instr(state)
 }
 
 // getConditionalStr creates a string representation of a conditional flag
@@ -504,11 +569,4 @@ func getConditionalStr(flagMask uint8, isSet bool) string {
 	}
 
 	return conditional
-}
-
-// cbOpcodeDispatcher pops the next opcode from the program counter and
-// dispatches the corresponding CB instruction.
-func cbOpcodeDispatcher(state *State) int {
-	cbOpcode := state.incrementPC()
-	return runCBOpcode(state, cbOpcode)
 }
