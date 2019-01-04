@@ -7,8 +7,6 @@ import (
 const (
 	// The Game Boy processor clock speed
 	cpuClockRate = 4194304
-	// dividerClockRate is the rate at which the divider timer increments.
-	dividerClockRate = 16384
 
 	// The time that it takes in hardware to perform one cycle.
 	timePerClock = time.Nanosecond * 238
@@ -17,15 +15,12 @@ const (
 // timers keeps track of all timers in the Gameboy, including the TIMA.
 type timers struct {
 	// A clock that increments every clock cycle
-	cpuClock int
+	cpuClock uint16
 
-	// A clock that also increments every clock cycle, but its 8 most
-	// significant bits are saved to the divider register.
-	divider uint16
-	tima    uint8
-
-	sinceLastDividerIncrement int
-	sinceLastTIMAIncrement    int
+	tima uint8
+	// The last value of the CPU clock bit. Used to detect falling edges in the
+	// system clock, which trigger a TIMA increment.
+	timaDelay uint8
 
 	state *State
 }
@@ -53,44 +48,53 @@ func (t *timers) tick(amount int) {
 
 	for i := 0; i < amount; i++ {
 		t.cpuClock++
-		if t.cpuClock >= cpuClockRate {
-			t.cpuClock = 0
+
+		var timaBit uint8
+		switch timaRate {
+		case 4096:
+			timaBit = uint8((t.cpuClock >> 9) & 0x1)
+		case 16384:
+			timaBit = uint8((t.cpuClock >> 7) & 0x1)
+		case 65536:
+			timaBit = uint8((t.cpuClock >> 5) & 0x1)
+		case 262144:
+			timaBit = uint8((t.cpuClock >> 3) & 0x1)
 		}
 
-		t.divider++
+		var timaBitAndEnabled uint8
+		if timaBit == 1 && timaRunning {
+			timaBitAndEnabled = 1
+		}
 
-		t.sinceLastTIMAIncrement++
-		if timaRunning {
-			if t.sinceLastTIMAIncrement >= cpuClockRate/timaRate {
-				t.tima++
+		t.timaDelay = timaBitAndEnabled
+		timaShouldIncrement := timaBitAndEnabled != 1 && t.timaDelay == 1
 
-				if t.tima == 0 {
-					// Start back up at the specified modulo value
-					t.tima = t.state.mmu.at(tmaAddr)
+		if timaShouldIncrement {
+			t.tima++
+			if t.tima == 0 {
+				// Start back up at the specified modulo value
+				t.tima = t.state.mmu.at(tmaAddr)
 
-					timaInterruptEnabled := t.state.mmu.at(ieAddr)&0x04 == 0x04
-					if t.state.interruptsEnabled && timaInterruptEnabled {
-						// Flag a TIMA overflow interrupt
-						t.state.mmu.setNoNotify(ifAddr, t.state.mmu.at(ifAddr)|0x04)
-					}
+				timaInterruptEnabled := t.state.mmu.at(ieAddr)&0x04 == 0x04
+				if t.state.interruptsEnabled && timaInterruptEnabled {
+					// Flag a TIMA overflow interrupt
+					t.state.mmu.setNoNotify(ifAddr, t.state.mmu.at(ifAddr)|0x04)
 				}
-
-				t.sinceLastTIMAIncrement = 0
 			}
 		}
 	}
 
 	// Update the timers in memory
-	t.state.mmu.setNoNotify(dividerAddr, uint8(t.divider>>8))
+	// The divider register is simply the 8 most significant bits of the CPU
+	// clock
+	t.state.mmu.setNoNotify(dividerAddr, uint8(t.cpuClock>>8))
 	t.state.mmu.setNoNotify(timaAddr, t.tima)
 }
 
 // onDividerWrite is called when the divider register is written to. This
 // triggers the divider timer to reset to zero.
 func (t *timers) onDividerWrite(addr uint16, writeVal uint8) uint8 {
-	// TODO(velovix): I'm pretty sure this isn't quite the right behavior
-	//t.tima = 0
-	t.divider = 0
+	t.cpuClock = 0
 	return 0
 }
 
