@@ -18,7 +18,7 @@ type timers struct {
 	cpuClock uint16
 
 	tima uint8
-	// The last value of the CPU clock bit. Used to detect falling edges in the
+	// The last value of a CPU clock bit. Used to detect falling edges in the
 	// system clock, which trigger a TIMA increment.
 	timaDelay uint8
 
@@ -43,31 +43,38 @@ func newTimers(state *State) *timers {
 // tick increments the timers given the amount of cycles that have passed since
 // the last call to tick. Flags interrupts as needed.
 func (t *timers) tick(amount int) {
+	// Parse the TAC bits for TIMA configuration information
 	tac := t.state.mmu.at(tacAddr)
-	timaRate, timaRunning := parseTAC(tac)
+	timaRunning := tac&0x4 == 0x4
+	timaRateBits := tac & 0x3
 
 	for i := 0; i < amount; i++ {
 		t.cpuClock++
 
+		// Pull the bit of interest from the CPU clock
 		var timaBit uint8
-		switch timaRate {
-		case 4096:
+		switch timaRateBits {
+		case 0x0:
+			// TIMA configured at 4096 Hz
 			timaBit = uint8((t.cpuClock >> 9) & 0x1)
-		case 16384:
+		case 0x3:
+			// TIMA configured at 16384 Hz
 			timaBit = uint8((t.cpuClock >> 7) & 0x1)
-		case 65536:
+		case 0x2:
+			// TIMA configured at 65536 Hz
 			timaBit = uint8((t.cpuClock >> 5) & 0x1)
-		case 262144:
+		case 0x1:
+			// TIMA configured at 262144 Hz
 			timaBit = uint8((t.cpuClock >> 3) & 0x1)
 		}
 
+		// Detect a falling edge on this bit and increment the TIMA if one is
+		// detected
 		var timaBitAndEnabled uint8
 		if timaBit == 1 && timaRunning {
 			timaBitAndEnabled = 1
 		}
-
 		timaShouldIncrement := timaBitAndEnabled != 1 && t.timaDelay == 1
-
 		if timaShouldIncrement {
 			t.tima++
 			if t.tima == 0 {
@@ -81,7 +88,6 @@ func (t *timers) tick(amount int) {
 				}
 			}
 		}
-
 		t.timaDelay = timaBitAndEnabled
 	}
 
@@ -107,24 +113,4 @@ func (t *timers) onTACWrite(addr uint16, writeVal uint8) uint8 {
 
 	// All unused bits are high
 	return 0xF8 | writeVal
-}
-
-// parseTAC takes in a control byte and returns the configuration it supplies.
-// The rate refers to the rate at which the TIMA should run. The running value
-// refers to whether or not the TIMA should run in the first place.
-func parseTAC(tac uint8) (rate int, running bool) {
-	speedBits := tac & 0x3
-	switch speedBits {
-	case 0x0:
-		rate = 4096
-	case 0x1:
-		rate = 262144
-	case 0x2:
-		rate = 65536
-	case 0x3:
-		rate = 16384
-	}
-
-	runningBit := tac & 0x4
-	return rate, runningBit == 0x4
 }
