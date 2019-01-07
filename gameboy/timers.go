@@ -17,7 +17,6 @@ type timers struct {
 	// A clock that increments every clock cycle
 	cpuClock uint16
 
-	tima uint8
 	// The last value of a CPU clock bit. Used to detect falling edges in the
 	// system clock, which trigger a TIMA increment.
 	timaDelay uint8
@@ -48,6 +47,9 @@ func (t *timers) tick(amount int) {
 	timaRunning := tac&0x4 == 0x4
 	timaRateBits := tac & 0x3
 
+	// Load the current TIMA value
+	tima := t.state.mmu.at(timaAddr)
+
 	for i := 0; i < amount; i++ {
 		t.cpuClock++
 
@@ -76,10 +78,10 @@ func (t *timers) tick(amount int) {
 		}
 		timaShouldIncrement := timaBitAndEnabled != 1 && t.timaDelay == 1
 		if timaShouldIncrement {
-			t.tima++
-			if t.tima == 0 {
+			tima++
+			if tima == 0 {
 				// Start back up at the specified modulo value
-				t.tima = t.state.mmu.at(tmaAddr)
+				tima = t.state.mmu.at(tmaAddr)
 
 				timaInterruptEnabled := t.state.mmu.at(ieAddr)&0x04 == 0x04
 				if t.state.interruptsEnabled && timaInterruptEnabled {
@@ -95,7 +97,7 @@ func (t *timers) tick(amount int) {
 	// The divider register is simply the 8 most significant bits of the CPU
 	// clock
 	t.state.mmu.setNoNotify(dividerAddr, uint8(t.cpuClock>>8))
-	t.state.mmu.setNoNotify(timaAddr, t.tima)
+	t.state.mmu.setNoNotify(timaAddr, tima)
 }
 
 // onDividerWrite is called when the divider register is written to. This
