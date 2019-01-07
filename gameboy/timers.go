@@ -66,7 +66,6 @@ func (t *timers) tick(amount int) {
 			timaBitAndEnabled = 1
 		}
 
-		t.timaDelay = timaBitAndEnabled
 		timaShouldIncrement := timaBitAndEnabled != 1 && t.timaDelay == 1
 
 		if timaShouldIncrement {
@@ -82,6 +81,8 @@ func (t *timers) tick(amount int) {
 				}
 			}
 		}
+
+		t.timaDelay = timaBitAndEnabled
 	}
 
 	// Update the timers in memory
