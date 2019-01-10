@@ -213,23 +213,6 @@ func (m *mmu) subscribeTo(addr uint16, onWrite onWriteFunc) {
 	}
 }
 
-func (m *mmu) dump() []uint8 {
-	var data []uint8
-
-	// Silence invalid read warnings and debugger
-	oldPrintInstructions := printInstructions
-	printInstructions = false
-	m.db = nil
-
-	for i := 0; i <= lastAddr; i++ {
-		data = append(data, m.at(uint16(i)))
-	}
-
-	printInstructions = oldPrintInstructions
-
-	return data
-}
-
 // onDMAWrite triggers when the special DMA address is written to. This
 // triggers a DMA transfer, where data is copied into OAM RAM.
 func (m *mmu) onDMAWrite(addr uint16, val uint8) uint8 {
