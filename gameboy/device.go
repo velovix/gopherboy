@@ -6,12 +6,15 @@ import (
 )
 
 type Device struct {
-	state           *State
-	header          romHeader
-	debugger        *debugger
-	timers          *timers
-	videoController *videoController
-	joypad          *joypad
+	state            *State
+	header           romHeader
+	debugger         *debugger
+	timers           *timers
+	videoController  *videoController
+	joypad           *joypad
+	serial           *serial
+	interruptManager *interruptManager
+	soundController  *soundController
 }
 
 type DebugConfiguration struct {
@@ -67,9 +70,15 @@ func NewDevice(
 
 	device.videoController = newVideoController(
 		device.state, device.timers, video)
-	device.videoController.unlimitedFPS = false
+	device.videoController.unlimitedFPS = true
 
 	device.joypad = newJoypad(device.state, input)
+
+	device.serial = newSerial(device.state)
+
+	device.interruptManager = newInterruptManager(device.state, device.timers)
+
+	device.soundController = newSoundController(device.state)
 
 	return &device, nil
 }
@@ -88,6 +97,8 @@ func (device *Device) Start(onExit chan bool) error {
 		default:
 		}
 
+		device.interruptManager.check()
+
 		device.joypad.tick()
 		if device.state.stopped {
 			// We're in stop mode, don't do anything
@@ -95,7 +106,7 @@ func (device *Device) Start(onExit chan bool) error {
 			continue
 		}
 
-		if device.state.waitingForInterrupts {
+		if device.state.halted {
 			// Spin our wheels running NOPs until an interrupt happens
 			opTime = 4
 		} else {
@@ -122,51 +133,6 @@ func (device *Device) Start(onExit chan bool) error {
 		device.state.mmu.tick(opTime)
 		device.videoController.tick(opTime)
 
-		// Check if any interrupts need to be processed
-		if device.state.interruptsEnabled && device.state.mmu.at(ifAddr) != 0 {
-			var target uint16
-
-			interruptEnable := device.state.mmu.at(ieAddr)
-			interruptFlag := device.state.mmu.at(ifAddr)
-
-			// Check each bit of the interrupt flag to see if an interrupt
-			// happened, and each bit of the interrupt enable flag to check if
-			// we should process it. Then, reset the interrupt flag.
-			if interruptEnable&interruptFlag&0x01 == 0x01 {
-				// VBlank interrupt
-				target = vblankInterruptTarget
-				interruptFlag &= ^uint8(0x01)
-			} else if interruptEnable&interruptFlag&0x02 == 0x02 {
-				// LCDC interrupt
-				target = lcdcInterruptTarget
-				interruptFlag &= ^uint8(0x02)
-			} else if interruptEnable&interruptFlag&0x04 == 0x04 {
-				// TIMA overflow interrupt
-				target = timaOverflowInterruptTarget
-				interruptFlag &= ^uint8(0x04)
-			} else if interruptEnable&interruptFlag&0x08 == 0x08 {
-				// Serial interrupt
-				target = serialInterruptTarget
-				interruptFlag &= ^uint8(0x08)
-			} else if interruptEnable&interruptFlag&0x10 == 0x10 {
-				// P10-P13 interrupt
-				target = p1Thru4InterruptTarget
-				interruptFlag &= ^uint8(0x10)
-			}
-
-			device.state.mmu.setNoNotify(ifAddr, interruptFlag)
-
-			if target != 0 {
-				// Disable all other interrupts
-				device.state.interruptsEnabled = false
-				device.state.waitingForInterrupts = false
-				// Push the current program counter to the stack for later use
-				device.state.pushToStack16(device.state.regs16[regPC].get())
-				// Jump to the target
-				device.state.regs16[regPC].set(target)
-			}
-		}
-
 		// Process any delayed requests to toggle the master interrupt switch.
 		// These are created by the EI and DI instructions.
 		if device.state.enableInterruptsTimer > 0 {
@@ -184,3 +150,12 @@ func (device *Device) Start(onExit chan bool) error {
 
 	}
 }
+
+const (
+	// interruptDispatchCycles is the number of CPU clock cycles consumed while an
+	// interrupt is being dispatched.
+	interruptDispatchCycles = 20
+	// unhaltCycles is the number of CPU clock cycles consumed while taking the CPU
+	// out of halt mode.
+	unhaltCycles = 4
+)

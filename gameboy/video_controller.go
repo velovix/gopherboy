@@ -47,6 +47,8 @@ const (
 	verticalBlankStep
 )
 
+// videoController emulates the Game Boy's video hardware. It produces frames
+// that may be displayed on screen.
 type videoController struct {
 	driver VideoDriver
 
@@ -101,6 +103,8 @@ func newVideoController(state *State, timers *timers, driver VideoDriver) *video
 	vc.lastSecond = time.Now()
 
 	vc.oams = make([]oam, 40)
+
+	vc.state.mmu.subscribeTo(statAddr, vc.onSTATWrite)
 
 	return &vc
 }
@@ -266,6 +270,14 @@ func (vc *videoController) drawScanLine(line uint8) {
 		vc.currFrame[pixelStart+2] = pixelColor.b
 		vc.currFrame[pixelStart+3] = pixelColor.a
 	}
+}
+
+// onStatWrite is called when the STAT register is written to.
+func (vc *videoController) onSTATWrite(addr uint16, val uint8) uint8 {
+	// TODO(velovix): Consider only reloading this register when this method is
+	// called as a performance optimization
+	// The 7th bit of the register is unused
+	return val | 0x80
 }
 
 // coordInWindow returns true if the given coordinates are in the window's

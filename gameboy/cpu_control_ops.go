@@ -35,7 +35,7 @@ func ei(state *State) int {
 
 // halt stops running instructions until an interrupt is triggered.
 func halt(state *State) int {
-	state.waitingForInterrupts = true
+	state.halted = true
 
 	if printInstructions {
 		fmt.Printf("HALT\n")

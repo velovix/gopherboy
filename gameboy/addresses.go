@@ -18,6 +18,9 @@ const (
 	// ifAddr points to the interrupt flags, whose value indicates whether or
 	// not an interrupt is happening.
 	//
+	// Bit 7: Unused, always 1
+	// Bit 6: Unused, always 1
+	// Bit 5: Unused, always 1
 	// Bit 4: P10-P13 high-to-low interrupts. Happens when a button is pressed.
 	// Bit 3: Serial I/O transfer interrupts
 	// Bit 2: TIMA overflow interrupts. Happens when the 8-bit configurable
@@ -32,6 +35,7 @@ const (
 	// nr10Addr points to the "Sound Mode 1 Sweep" register. This controls the
 	// frequency sweep effect of the pulse A sound channel.
 	//
+	// Bit 7: Unused, always 1
 	// Bits 6-4: Controls the length of the frequency sweep. The length is
 	//           n/128Hz, where N is the value written here.
 	// Bit 3: If 0, the frequency increases. If 1, the frequency decreases.
@@ -56,6 +60,23 @@ const (
 	//         up.
 	// Bits 2-0: TODO(velovix): What is this?
 	nr12Addr = 0xFF12
+	// nr32Addr points to the Sound Mode 3 Select Output Level Memory Register.
+	// This register controls output settings for the third voice.
+	//
+	// TODO(velovix): Learn more about this
+	// Bits 6-5: Select output level
+	//   00: Mute the voice
+	//   01: Produce wave pattern data as-is
+	//   10: Produce wave pattern data shifted once to the right
+	//   11: Produce wave pattern data shifted twice to the right
+	nr32Addr = 0xFF1C
+
+	// nr30Addr is the Sound Mode 3 On/Off Memory Register. It turns on and off
+	// the third voice.
+	//
+	// Bit 7: If 1, the voice is turned on.
+	// Bits 6-0: Unused, always 1
+	nr30Addr = 0xFF1A
 
 	// scrollYAddr points to the "Scroll Y" memory register. This controls the
 	// position of the top left of the background.
@@ -126,7 +147,7 @@ const (
 	// statAddr points to the STAT memory register. This register is used to
 	// check the status of the LCD and to configure LCD-related interrupts.
 	//
-	// Bit 7: Unused, always 1 (read-only)
+	// Bit 7: Unused, always 1
 	// Bit 6: If 1, an interrupt will be triggered when the LY register equals
 	//        the LYC register
 	// Bit 5: If 1, the LCDC interrupt will be triggered when the video
@@ -172,8 +193,8 @@ const (
 	// p1Addr points to the Joypad Memory Register, which is used to query
 	// button/joypad input.
 	//
-	// Bit 7: Unused
-	// Bit 6: Unused
+	// Bit 7: Unused, always 1
+	// Bit 6: Unused, always 1
 	// Bit 5: If set to 0, bits 3-0 will provide the status of the buttons (A,
 	//        B, Select, Start)
 	// Bit 4: If set to 0, bits 3-0 will provide the status of the d-pad (Up,
@@ -187,6 +208,21 @@ const (
 	// Bit 0: Represents the state of the right button on the d-pad or the A
 	//        button, depending on the values of bits 4 and 3. 0=pressed.
 	p1Addr = 0xFF00
+
+	// sbAddr points to the Serial Transfer Data Memory Register, which is a
+	// place where 8 bits of serial data is read from or written to.
+	sbAddr = 0xFF01
+
+	// scAddr points to the SIO Control Memory Register, which allows for
+	// serial communication control.
+	// TODO(velovix): Fill this out more as I learn more about Game Boy serial.
+	//
+	// Bit 7: If set to 1, a transfer will be initiated
+	// Bit 6-1: Unused, always 1
+	// Bit 0: Shift clock TODO(velovix): What is this?
+	//        0: External clock
+	//        1: Internal clock
+	scAddr = 0xFF02
 
 	// These variables points to the OBP0 and OPB1 memory registers, which
 	// control the two available sprite palettes. These registers maps dot data

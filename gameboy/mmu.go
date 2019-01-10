@@ -51,6 +51,12 @@ type mmu struct {
 	db *debugger
 }
 
+// mbc describes a memory bank controller.
+type mbc interface {
+	set(addr uint16, val uint8)
+	at(addr uint16) uint8
+}
+
 type onWriteFunc func(addr uint16, val uint8) uint8
 
 func newMMU(bootROM []byte, cartridgeData []uint8, mbc mbc) *mmu {
@@ -81,6 +87,7 @@ func newMMU(bootROM []byte, cartridgeData []uint8, mbc mbc) *mmu {
 	return m
 }
 
+// at returns the value in the given address.
 func (m *mmu) at(addr uint16) uint8 {
 	if m.db != nil {
 		m.db.memReadHook(addr)
@@ -88,6 +95,7 @@ func (m *mmu) at(addr uint16) uint8 {
 
 	switch {
 	case inBootROMArea(addr):
+		// Either the boot ROM if it's enabled, or the first part of bank 0 ROM
 		if m.bootROMEnabled {
 			return m.bootROM[addr-bootROMAddr]
 		} else {
@@ -147,6 +155,21 @@ func (m *mmu) tick(opTime int) {
 	}
 }
 
+// set requests the MMU to set the value at the given address to the given
+// value. This method notifies any subscribed devices about this write, meaning
+// that side effects may occur.
+func (m *mmu) set(addr uint16, val uint8) {
+	// Notify any subscribers of this event
+	if onWrite, ok := m.subscribers[addr]; ok {
+		val = onWrite(addr, val)
+	}
+
+	m.setNoNotify(addr, val)
+}
+
+// setNoNotify requests the MMU to set the value at the given address to the
+// given value. Subscribed devices are not notified. This is useful for devices
+// that might incorrectly trigger themselves when writing to a place in memory.
 func (m *mmu) setNoNotify(addr uint16, val uint8) {
 	if m.db != nil {
 		m.db.memWriteHook(addr)
@@ -180,15 +203,8 @@ func (m *mmu) setNoNotify(addr uint16, val uint8) {
 	}
 }
 
-func (m *mmu) set(addr uint16, val uint8) {
-	// Notify any subscribers of this event
-	if onWrite, ok := m.subscribers[addr]; ok {
-		val = onWrite(addr, val)
-	}
-
-	m.setNoNotify(addr, val)
-}
-
+// subscribeTo sets up the given function to be called when a value is written
+// to the given address.
 func (m *mmu) subscribeTo(addr uint16, onWrite onWriteFunc) {
 	if _, ok := m.subscribers[addr]; ok {
 		panic(fmt.Sprintf("attempt to have multiple subscribers to one address %#x", addr))
@@ -233,16 +249,10 @@ func (m *mmu) onDMAWrite(addr uint16, val uint8) uint8 {
 	return val
 }
 
-// onBootROMDisableWrite triggers when a write to the boot ROM disable register
-// is written to. It disables the boot ROM.
+// onBootROMDisableWrite triggers when the boot ROM disable register is written
+// to. It disables the boot ROM.
 func (m *mmu) onBootROMDisableWrite(addr uint16, val uint8) uint8 {
 	fmt.Println("Disabled boot ROM")
 	m.bootROMEnabled = false
 	return val
-}
-
-// mbc describes a memory bank controller.
-type mbc interface {
-	set(addr uint16, val uint8)
-	at(addr uint16) uint8
 }

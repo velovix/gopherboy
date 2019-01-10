@@ -84,10 +84,8 @@ func (j *joypad) onP1Write(addr uint16, writeVal uint8) uint8 {
 			j.driver.State(ButtonSelect),
 			j.driver.State(ButtonB),
 			j.driver.State(ButtonA))
-	} else {
-		// No selection, provide nothing
-		newP1 = 0
 	}
+	// Otherwise, provide nothing
 
 	return newP1
 }

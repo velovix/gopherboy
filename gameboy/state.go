@@ -19,9 +19,9 @@ type State struct {
 	// The master interrupt switch. If this is false, no interrupts will be
 	// processed.
 	interruptsEnabled bool
-	// If true, the processor will not run instructions until an interrupt
-	// occurs.
-	waitingForInterrupts bool
+	// If true, the CPU is halted and no instructions will be run until an
+	// interrupt occurs, which will set this value to false.
+	halted bool
 	// If true, the Game Boy is in "stop mode". This means that the CPU is
 	// halted and the screen is turned white. This mode is exited when a button
 	// is pressed.

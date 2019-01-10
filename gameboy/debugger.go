@@ -25,8 +25,7 @@ type debugger struct {
 func (db *debugger) pcHook(pc uint16) {
 	if db.breakOnPC != nil && pc == *db.breakOnPC {
 		fmt.Printf("PC BREAK: %#04x\n", pc)
-		db.printState()
-		db.readCommand()
+		db.stepping = true
 	}
 }
 
