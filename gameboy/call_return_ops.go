@@ -16,10 +16,10 @@ func call(state *State) int {
 	return 24
 }
 
-// call creates an instruction that loads a 16-bit address, pushes the address
-// of the next instruction onto the stack, and jumps to the loaded address if
-// the given flag is at the expected setting.
-func callIfFlag(flagMask uint8, isSet bool) instruction {
+// makeCALLIfFlag creates an instruction that loads a 16-bit address, pushes
+// the address of the next instruction onto the stack, and jumps to the loaded
+// address if the given flag is at the expected setting.
+func makeCALLIfFlag(flagMask uint8, isSet bool) instruction {
 	return func(state *State) int {
 		flagState := state.regs8[regF].get()&flagMask == flagMask
 		address := combine16(state.incrementPC(), state.incrementPC())
@@ -51,9 +51,9 @@ func ret(state *State) int {
 	return 16
 }
 
-// retIfFlag creates an instruction that pops a 16-bit address from the stack
-// and jumps to it, but only if the given flag is at the expected value.
-func retIfFlag(flagMask uint8, isSet bool) instruction {
+// makeRETIfFlag creates an instruction that pops a 16-bit address from the
+// stack and jumps to it, but only if the given flag is at the expected value.
+func makeRETIfFlag(flagMask uint8, isSet bool) instruction {
 	return func(state *State) int {
 		flagState := state.regs8[regF].get()&flagMask == flagMask
 
@@ -88,9 +88,9 @@ func reti(state *State) int {
 	return 16
 }
 
-// rst creates an instruction that pushes the current program counter to the
-// stack and jumps to the given address.
-func rst(address uint16) instruction {
+// makeRST creates an instruction that pushes the current program counter to
+// the stack and jumps to the given address.
+func makeRST(address uint16) instruction {
 	return func(state *State) int {
 		state.pushToStack16(state.regs16[regPC].get())
 

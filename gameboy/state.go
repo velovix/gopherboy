@@ -154,11 +154,6 @@ func (state *State) pushToStack16(val uint16) {
 	state.pushToStack(lower)
 }
 
-// relativeJump moves the program counter by the given signed value.
-func (state *State) relativeJump(offset int) {
-	state.regs16[regPC].set(uint16(int(state.regs16[regPC].get()) + offset))
-}
-
 // getZeroFlag returns the state of the zero bit in the flag register.
 func (state *State) getZeroFlag() bool {
 	mask := uint8(0x80)

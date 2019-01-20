@@ -14,9 +14,8 @@ type mmu struct {
 	// bootROM refers to the first 256 bytes of ROM, which is where the Game
 	// Boy boot sequence is stored.
 	bootROM []uint8
-	// bank0ROM refers to the first 16 KB of ROM, which is always assigned to
-	// bank 0.
-	bank0ROM []uint8
+	// ram is the built-in RAM on the device.
+	ram []uint8
 	// videoRAM is where sprite and tile data is stored for the video
 	// controller to access.
 	videoRAM []uint8
@@ -66,6 +65,7 @@ func newMMU(bootROM []byte, cartridgeData []uint8, mbc mbc) *mmu {
 
 	m := &mmu{
 		bootROM:        bootROM,
+		ram:            make([]uint8, ramMirrorAddr-ramAddr),
 		bootROMEnabled: true,
 		videoRAM:       make([]uint8, bankedRAMAddr-videoRAMAddr),
 		oamRAM:         make([]uint8, invalidArea2Addr-oamRAMAddr),
@@ -73,12 +73,6 @@ func newMMU(bootROM []byte, cartridgeData []uint8, mbc mbc) *mmu {
 		hram:           make([]uint8, lastAddr-hramAddr+1),
 		subscribers:    make(map[uint16]onWriteFunc),
 		mbc:            mbc,
-	}
-
-	// Put cartridge data into bank 0
-	m.bank0ROM = make([]uint8, bankedROMAddr)
-	for i := 0; i < len(m.bank0ROM); i++ {
-		m.bank0ROM[i] = cartridgeData[i]
 	}
 
 	m.subscribeTo(bootROMDisableAddr, m.onBootROMDisableWrite)
@@ -93,22 +87,29 @@ func (m *mmu) at(addr uint16) uint8 {
 		m.db.memReadHook(addr)
 	}
 
+	// Unmapped areas of memory always read 0xFF
+	if isUnmappedAddress(addr) {
+		return 0xFF
+	}
+
 	switch {
 	case inBootROMArea(addr):
-		// Either the boot ROM if it's enabled, or the first part of bank 0 ROM
+		// Either the boot ROM if it's enabled, or a ROM access
 		if m.bootROMEnabled {
 			return m.bootROM[addr-bootROMAddr]
 		} else {
-			return m.bank0ROM[addr-bank0ROMAddr]
+			return m.mbc.at(addr)
 		}
 	case inBank0ROMArea(addr):
-		return m.bank0ROM[addr-bank0ROMAddr]
+		return m.mbc.at(addr)
 	case inBankedROMArea(addr):
 		// Some additional ROM bank, controlled by the MBC
 		return m.mbc.at(addr)
 	case inVideoRAMArea(addr):
 		return m.videoRAM[addr-videoRAMAddr]
-	case inRAMArea(addr) || inBankedRAMArea(addr):
+	case inRAMArea(addr):
+		return m.ram[addr-ramAddr]
+	case inBankedRAMArea(addr):
 		// The MBC handles RAM banking and availability
 		return m.mbc.at(addr)
 	case inRAMMirrorArea(addr):
@@ -139,7 +140,7 @@ func (m *mmu) tick(opTime int) {
 		if m.dmaActive {
 			// Work on a DMA transfer
 			lower, _ := split16(m.dmaCursor)
-			if lower < 0x9F {
+			if lower <= 0x9F {
 				// Transfer a byte
 				m.setNoNotify(oamRAMAddr+uint16(lower), m.at(m.dmaCursor))
 
@@ -159,6 +160,11 @@ func (m *mmu) tick(opTime int) {
 // value. This method notifies any subscribed devices about this write, meaning
 // that side effects may occur.
 func (m *mmu) set(addr uint16, val uint8) {
+	// Unmapped addresses cannot be written to
+	if isUnmappedAddress(addr) {
+		return
+	}
+
 	// Notify any subscribers of this event
 	if onWrite, ok := m.subscribers[addr]; ok {
 		val = onWrite(addr, val)
@@ -181,7 +187,9 @@ func (m *mmu) setNoNotify(addr uint16, val uint8) {
 		m.mbc.set(addr, val)
 	case inVideoRAMArea(addr):
 		m.videoRAM[addr-videoRAMAddr] = val
-	case inRAMArea(addr) || inBankedRAMArea(addr):
+	case inRAMArea(addr):
+		m.ram[addr-ramAddr] = val
+	case inBankedRAMArea(addr):
 		// The MBC handles RAM banking and availability
 		m.mbc.set(addr, val)
 	case inRAMMirrorArea(addr):
@@ -216,18 +224,15 @@ func (m *mmu) subscribeTo(addr uint16, onWrite onWriteFunc) {
 // onDMAWrite triggers when the special DMA address is written to. This
 // triggers a DMA transfer, where data is copied into OAM RAM.
 func (m *mmu) onDMAWrite(addr uint16, val uint8) uint8 {
-	if m.dmaActive {
-		// A DMA transfer is already active!
-		// TODO(velovix): What is the hardware's behavior here?
-		panic(fmt.Sprintf("DMA transfer request to %#x when "+
-			"a transfer is already active", val))
+	// Nothing happens if a DMA transfer is already happening
+	if !m.dmaActive {
+		// TODO(velovix): Lock all memory except HRAM?
+		// Start a DMA transfer
+		m.dmaActive = true
+		// Use the value as the higher byte in the source address
+		m.dmaCursor = uint16(val) << 8
+		m.dmaCycleCount = 0
 	}
-	// TODO(velovix): Lock all memory except HRAM?
-	// Start a DMA transfer
-	m.dmaActive = true
-	// Use the value as the higher byte in the source address
-	m.dmaCursor = uint16(val) << 8
-	m.dmaCycleCount = 0
 
 	return val
 }
@@ -235,7 +240,79 @@ func (m *mmu) onDMAWrite(addr uint16, val uint8) uint8 {
 // onBootROMDisableWrite triggers when the boot ROM disable register is written
 // to. It disables the boot ROM.
 func (m *mmu) onBootROMDisableWrite(addr uint16, val uint8) uint8 {
-	fmt.Println("Disabled boot ROM")
-	m.bootROMEnabled = false
-	return val
+	if m.bootROMEnabled {
+		fmt.Println("Disabled boot ROM")
+		m.bootROMEnabled = false
+	}
+
+	// This register always reads 0xFF
+	return 0xFF
+}
+
+// unusedCGBRegisters are all registers that are used on the CGB but unused on the DMG
+var unusedCGBRegisters = []uint16{
+	key1Addr,
+	vbkAddr,
+	hdma1Addr,
+	hdma2Addr,
+	hdma3Addr,
+	hdma4Addr,
+	hdma5Addr,
+	rpAddr,
+	bcpsAddr,
+	bcpdAddr,
+	ocpsAddr,
+	ocpdAddr,
+	svbkAddr,
+	pcm12Ch2Addr,
+	pcm34Ch4Addr,
+}
+
+// isUnmappedAddress returns true if the given address is in an unmapped range
+// of memory. These areas cannot be written to and always read 0xFF.
+func isUnmappedAddress(addr uint16) bool {
+	if addr == 0xFF03 {
+		return true
+	}
+	if addr >= 0xFF08 && addr <= 0xFF0E {
+		return true
+	}
+	if addr == 0xFF15 {
+		return true
+	}
+	if addr == 0xFF1F {
+		return true
+	}
+	if addr >= 0xFF27 && addr <= 0xFF2F {
+		return true
+	}
+	if addr == 0xFF4C {
+		return true
+	}
+	if addr == 0xFF4E {
+		return true
+	}
+	if addr >= 0xFF57 && addr <= 0xFF67 {
+		return true
+	}
+	if addr >= 0xFF6C && addr <= 0xFF6F {
+		return true
+	}
+	if addr == 0xFF71 {
+		return true
+	}
+	if addr >= 0xFF72 && addr <= 0xFF75 {
+		return true
+	}
+	if addr >= 0xFF78 && addr <= 0xFF7F {
+		return true
+	}
+
+	for _, cgbReg := range unusedCGBRegisters {
+		if addr == cgbReg {
+			return true
+		}
+	}
+
+	return false
 }

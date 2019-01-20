@@ -123,9 +123,10 @@ func rra(state *State) int {
 	return 4
 }
 
-// srl creates an instruction that shifts the contents of the given register to
-// the right. Bit 0 is shifted to the carry register. Bit 7 is set to 0.
-func srl(reg registerType) instruction {
+// makeSRL creates an instruction that shifts the contents of the given
+// register to the right. Bit 0 is shifted to the carry register. Bit 7 is set
+// to 0.
+func makeSRL(reg registerType) instruction {
 	return func(state *State) int {
 		regVal := state.regs8[reg].get()
 
@@ -169,11 +170,11 @@ func srlMemHL(state *State) int {
 	return 16
 }
 
-// rr creates an instruction that rotates the contents of the given register
-// right by one, but uses the carry flag as a "bit -1" of sorts during this
-// operation. This means we're essentially rotating "(register << 1) | carry
-// flag".
-func rr(reg registerType) instruction {
+// makeRR creates an instruction that rotates the contents of the given
+// register right by one, but uses the carry flag as a "bit -1" of sorts during
+// this operation. This means we're essentially rotating "(register << 1) |
+// carry flag".
+func makeRR(reg registerType) instruction {
 	return func(state *State) int {
 		oldVal := state.regs8[reg].get()
 		// Get the current least significant bit, which will be put in the carry
@@ -253,11 +254,11 @@ func rrMemHL(state *State) int {
 	return 16
 }
 
-// rlc creates an instruction that bit rotates the given register left by one,
-// which is equivalent to a left bit shift where the most significant bit is
-// carried over to the least significant bit. This bit is also stored in the
+// makeRLC creates an instruction that bit rotates the given register left by
+// one, which is equivalent to a left bit shift where the most significant bit
+// is carried over to the least significant bit. This bit is also stored in the
 // carry flag.
-func rlc(reg registerType) instruction {
+func makeRLC(reg registerType) instruction {
 	return func(state *State) int {
 		rotated := bits.RotateLeft8(state.regs8[reg].get(), 1)
 		state.regs8[reg].set(rotated)
@@ -299,11 +300,11 @@ func rlcMemHL(state *State) int {
 	return 16
 }
 
-// rrc creates an instruction that bit rotates the given register right by one,
-// which is equivalent to a right bit shift where the least significant bit is
-// carried over to the most significant bit. This bit is also stored in the
-// carry flag.
-func rrc(reg registerType) instruction {
+// makeRRC creates an instruction that bit rotates the given register right by
+// one, which is equivalent to a right bit shift where the least significant
+// bit is carried over to the most significant bit. This bit is also stored in
+// the carry flag.
+func makeRRC(reg registerType) instruction {
 	return func(state *State) int {
 		carryBit := state.regs8[reg].get() & 0x01
 		state.setCarryFlag(carryBit == 1)
@@ -346,10 +347,10 @@ func rrcMemHL(state *State) int {
 	return 16
 }
 
-// rl creates an instruction that rotates the given register value left by one,
-// but uses the carry flag as a "bit 8" of sorts during this operation. This
-// means that we're essentially rotating "(carry flag << 1) | register A".
-func rl(reg registerType) instruction {
+// makeRL creates an instruction that rotates the given register value left by
+// one, but uses the carry flag as a "bit 8" of sorts during this operation.
+// This means that we're essentially rotating "(carry flag << 1) | register A".
+func makeRL(reg registerType) instruction {
 	return func(state *State) int {
 		oldVal := state.regs8[reg].get()
 		// Get the current most significant bit, which will be put in the carry
@@ -429,9 +430,10 @@ func rlMemHL(state *State) int {
 	return 16
 }
 
-// sla creates an instruction that shifts the contents of the given register to
-// the left. Bit 7 is shifted to the carry register. Bit 0 is set to 0.
-func sla(reg registerType) instruction {
+// makeSLA creates an instruction that shifts the contents of the given
+// register to the left. Bit 7 is shifted to the carry register. Bit 0 is set
+// to 0.
+func makeSLA(reg registerType) instruction {
 	return func(state *State) int {
 		regVal := state.regs8[reg].get()
 
@@ -474,9 +476,10 @@ func slaMemHL(state *State) int {
 	return 16
 }
 
-// sra creates an instruction that shifts the contents of the given register to
-// the right. Bit 0 is shifted to the carry register. Bit 7 is left unchanged.
-func sra(reg registerType) instruction {
+// makeSRA creates an instruction that shifts the contents of the given
+// register to the right. Bit 0 is shifted to the carry register. Bit 7 is left
+// unchanged.
+func makeSRA(reg registerType) instruction {
 	return func(state *State) int {
 		regVal := state.regs8[reg].get()
 

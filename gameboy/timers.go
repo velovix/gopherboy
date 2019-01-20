@@ -21,6 +21,16 @@ type timers struct {
 	// system clock, which trigger a TIMA increment.
 	timaDelay uint8
 
+	// A countdown from when the TIMA originally overflowed to when the
+	// interrupt should happen and when the TIMA should be set to the TMA
+	// value. This is used to emulate the delayed TIMA interrupt behavior.
+	timaInterruptCountdown int
+	// When this value is greater than 0, the process of transferring the TMA
+	// value into the TIMA is happening. During this time, the TIMA is
+	// protected from writes and any updates to the TMA are immediately
+	// reflected in the TIMA.
+	tmaToTIMATransferCountdown int
+
 	state *State
 }
 
@@ -29,6 +39,8 @@ func newTimers(state *State) *timers {
 
 	t.state.mmu.subscribeTo(dividerAddr, t.onDividerWrite)
 	t.state.mmu.subscribeTo(tacAddr, t.onTACWrite)
+	t.state.mmu.subscribeTo(timaAddr, t.onTIMAWrite)
+	t.state.mmu.subscribeTo(tmaAddr, t.onTMAWrite)
 
 	// The CPU runs 2 NOPs before the boot ROM starts. Fake these NOPs by
 	// incrementing the timer.
@@ -70,6 +82,30 @@ func (t *timers) tick(amount int) {
 			timaBit = uint8((t.cpuClock >> 3) & 0x1)
 		}
 
+		// Count down the TIMA protection
+		if t.tmaToTIMATransferCountdown > 0 {
+			t.tmaToTIMATransferCountdown--
+		}
+
+		// Check the countdown to see if it's time to process a delayed TIMA
+		// interrupt
+		if t.timaInterruptCountdown > 0 {
+			t.timaInterruptCountdown--
+			if t.timaInterruptCountdown == 0 {
+				// Start back up at the specified modulo value
+				tima = t.state.mmu.at(tmaAddr)
+
+				timaInterruptEnabled := t.state.mmu.at(ieAddr)&0x04 == 0x04
+				if t.state.interruptsEnabled && timaInterruptEnabled {
+					// Flag a TIMA overflow interrupt
+					t.state.mmu.setNoNotify(ifAddr, t.state.mmu.at(ifAddr)|0x04)
+				}
+
+				// The TMA to TIMA transfer process has been initiated
+				t.tmaToTIMATransferCountdown = 4
+			}
+		}
+
 		// Detect a falling edge on this bit and increment the TIMA if one is
 		// detected
 		var timaBitAndEnabled uint8
@@ -79,15 +115,11 @@ func (t *timers) tick(amount int) {
 		timaShouldIncrement := timaBitAndEnabled != 1 && t.timaDelay == 1
 		if timaShouldIncrement {
 			tima++
-			if tima == 0 {
-				// Start back up at the specified modulo value
-				tima = t.state.mmu.at(tmaAddr)
 
-				timaInterruptEnabled := t.state.mmu.at(ieAddr)&0x04 == 0x04
-				if t.state.interruptsEnabled && timaInterruptEnabled {
-					// Flag a TIMA overflow interrupt
-					t.state.mmu.setNoNotify(ifAddr, t.state.mmu.at(ifAddr)|0x04)
-				}
+			if tima == 0 {
+				// There is a 4-cycle delay between the TIMA overflow and the
+				// interrupt and reset to TMA
+				t.timaInterruptCountdown = 4
 			}
 		}
 		t.timaDelay = timaBitAndEnabled
@@ -115,4 +147,30 @@ func (t *timers) onTACWrite(addr uint16, writeVal uint8) uint8 {
 
 	// All unused bits are high
 	return 0xF8 | writeVal
+}
+
+// onTIMAWrite is called when the TIMA register is written to. This protects
+// the TIMA from being written to if it was recently updated to the TMA
+// register's value.
+func (t *timers) onTIMAWrite(addr uint16, writeVal uint8) uint8 {
+	if t.tmaToTIMATransferCountdown > 0 {
+		// The TIMA is protected from writes
+		tima := t.state.mmu.at(timaAddr)
+		return tima
+	}
+	return writeVal
+}
+
+// onTMAWrite is called when the TMA register is written to. This emulates a
+// special behavior with the TMA->TIMA loading process. If instructions write
+// to this address while the TMA->TIMA transfer is happening, the TIMA will
+// take on this new value.
+func (t *timers) onTMAWrite(addr uint16, writeVal uint8) uint8 {
+	if t.tmaToTIMATransferCountdown > 0 {
+		// During this time where the TIMA is being set to the TAC, any changes
+		// to the TAC will also be reflected in the TIMA
+		t.state.mmu.setNoNotify(timaAddr, writeVal)
+	}
+
+	return writeVal
 }

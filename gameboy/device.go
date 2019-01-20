@@ -36,15 +36,20 @@ func NewDevice(
 	var device Device
 
 	device.header = loadROMHeader(cartridgeData)
+	fmt.Printf("%+v\n", device.header)
 
 	// Create a memory bank controller for this ROM
 	var mbc mbc
 	switch device.header.cartridgeType {
 	case 0x00:
 		// ROM ONLY
-		mbc = newROMOnlyMBC(cartridgeData)
+		mbc = newROMOnlyMBC(device.header, cartridgeData)
 	case 0x01:
 		// MBC1
+		mbc = newMBC1(device.header, cartridgeData)
+	case 0x03:
+		// MBC1+RAM+BATTERY
+		// TODO(velovix): Add battery support
 		mbc = newMBC1(device.header, cartridgeData)
 	case 0x13:
 		// MBC3+RAM+BATTERY
@@ -70,7 +75,7 @@ func NewDevice(
 
 	device.videoController = newVideoController(
 		device.state, device.timers, video)
-	device.videoController.unlimitedFPS = true
+	device.videoController.unlimitedFPS = false
 
 	device.joypad = newJoypad(device.state, input)
 

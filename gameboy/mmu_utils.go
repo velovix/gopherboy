@@ -12,46 +12,37 @@ func makeROMBanks(romSizeType uint8, cartridgeData []uint8) map[int][]uint8 {
 	switch romSizeType {
 	case 0x00:
 		// A single ROM bank, no switching going on
-		romBankCount = 1
+		romBankCount = 2
 	case 0x01:
 		// Four ROM banks, 16 KB in size
-		romBankCount = 3
+		romBankCount = 4
 	case 0x02:
 		// Eight ROM banks, 16 KB in size
-		romBankCount = 7
+		romBankCount = 8
 	case 0x03:
 		// Sixteen ROM banks, 16 KB in size
-		romBankCount = 15
+		romBankCount = 16
 	case 0x04:
 		// Thirty-two ROM banks, 16 KB in size
-		romBankCount = 31
+		romBankCount = 32
 	case 0x05:
 		// Sixty-four ROM banks, 16 KB in size
-		romBankCount = 63
+		romBankCount = 64
 	case 0x06:
 		// 128 ROM banks, 16 KB in size
-		romBankCount = 127
+		romBankCount = 128
 	case 0x07:
 		// 256 ROM banks, 16 KB in size
-		romBankCount = 255
+		romBankCount = 256
 	case 0x08:
 		// 512 ROM banks, 16 KB in size
-		romBankCount = 511
-	case 0x52:
-		// 72 ROM banks, 16 KB in size
-		romBankCount = 71
-	case 0x53:
-		// 80 ROM banks, 16 KB in size
-		romBankCount = 79
-	case 0x54:
-		// 96 ROM banks, 16 KB in size
-		romBankCount = 95
+		romBankCount = 512
 	default:
 		panic(fmt.Sprintf("Unsupported ROM size type %v", romSizeType))
 	}
 
 	// Create the ROM banks
-	for i := 1; i <= romBankCount; i++ {
+	for i := 0; i < romBankCount; i++ {
 		romBanks[i] = make([]uint8, 0x4000)
 	}
 
@@ -66,37 +57,34 @@ func makeROMBanks(romSizeType uint8, cartridgeData []uint8) map[int][]uint8 {
 	return romBanks
 }
 
-// makeRAMBanks creates the necessary amount of RAM banks as specified by the
-// given RAM size type, then returns it as a map whose key is a RAM bank number
-// and whose value is the corresponding RAM bank.
+// makeRAMBanks creates the necessary amount of external RAM banks as specified
+// by the given RAM size type, then returns it as a map whose key is a RAM bank
+// number and whose value is the corresponding RAM bank.
 func makeRAMBanks(ramSizeType uint8) (ramBanks map[int][]uint8) {
-	// Every MBC has a RAM bank 0
-	ramBanks = map[int][]uint8{
-		0: make([]uint8, 0x2000),
-	}
+	ramBanks = make(map[int][]uint8)
 
 	switch ramSizeType {
 	case 0x00:
 		// No bank
 	case 0x01:
 		// One 2 KB bank
-		ramBanks[1] = make([]uint8, 2000)
+		ramBanks[0] = make([]uint8, 2000)
 	case 0x02:
 		// One 8 KB bank
-		ramBanks[1] = make([]uint8, 0x2000)
+		ramBanks[0] = make([]uint8, 0x2000)
 	case 0x03:
 		// Four 8 KB banks
-		for i := 1; i <= 4; i++ {
+		for i := 0; i < 4; i++ {
 			ramBanks[i] = make([]uint8, 0x2000)
 		}
 	case 0x04:
 		// Sixteen 8 KB banks
-		for i := 1; i <= 16; i++ {
+		for i := 0; i < 16; i++ {
 			ramBanks[i] = make([]uint8, 0x2000)
 		}
 	case 0x05:
 		// Eight 8 KB banks
-		for i := 1; i <= 8; i++ {
+		for i := 0; i < 8; i++ {
 			ramBanks[i] = make([]uint8, 0x2000)
 		}
 	default:

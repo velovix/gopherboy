@@ -2,9 +2,9 @@ package gameboy
 
 import "fmt"
 
-// add creates an instruction that adds the value of reg, an 8-bit register,
-// into register A.
-func add(reg registerType) instruction {
+// makeADD creates an instruction that adds the value of reg, an 8-bit
+// register, into register A.
+func makeADD(reg registerType) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -45,9 +45,9 @@ func addFromMemHL(state *State) int {
 	return 8
 }
 
-// addToHL creates an instruction that adds the value of the given 16-bit
+// makeADDToHL creates an instruction that adds the value of the given 16-bit
 // register into register HL.
-func addToHL(reg registerType) instruction {
+func makeADDToHL(reg registerType) instruction {
 	return func(state *State) int {
 		hlVal := state.regs16[regHL].get()
 		regVal := state.regs16[reg].get()
@@ -113,11 +113,11 @@ func addToSP(state *State) int {
 	return 16
 }
 
-// adc creates an instruction that adds the value of the given register and the
-// carry bit to register A, storing the results in register A.
+// makeADC creates an instruction that adds the value of the given register and
+// the carry bit to register A, storing the results in register A.
 //
 // regA = regA + reg + carry bit
-func adc(reg registerType) instruction {
+func makeADC(reg registerType) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -196,9 +196,9 @@ func adc8BitImm(state *State) int {
 	return 8
 }
 
-// sub creates an instruction that subtracts the value of reg, an 8-bit
+// makeSUB creates an instruction that subtracts the value of reg, an 8-bit
 // register, from register A.
-func sub(reg registerType) instruction {
+func makeSUB(reg registerType) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -264,11 +264,12 @@ func sub8BitImm(state *State) int {
 	return 8
 }
 
-// sbc creates an instruction that subtracts the value of the given register
-// and the carry bit from register A, storing the results in register A.
+// makeSBC creates an instruction that subtracts the value of the given
+// register and the carry bit from register A, storing the results in register
+// A.
 //
 // regA = regA - reg - carry bit
-func sbc(reg registerType) instruction {
+func makeSBC(reg registerType) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -348,9 +349,9 @@ func sbc8BitImm(state *State) int {
 	return 8
 }
 
-// and creates an instruction that performs a bitwise & on the given register
-// and register A, storing the result in register A.
-func and(reg registerType) instruction {
+// makeAND creates an instruction that performs a bitwise & on the given
+// register and register A, storing the result in register A.
+func makeAND(reg registerType) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -407,9 +408,9 @@ func and8BitImm(state *State) int {
 	return 8
 }
 
-// or creates an instruction that performs a bitwise | on the given register
-// and register A, storing the result in register A.
-func or(reg registerType) instruction {
+// makeOR creates an instruction that performs a bitwise | on the given
+// register and register A, storing the result in register A.
+func makeOR(reg registerType) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -466,9 +467,9 @@ func or8BitImm(state *State) int {
 	return 8
 }
 
-// xor creates an instruction that performs a bitwise ^ on register A and the
-// given register, storing the result in register A.
-func xor(reg registerType) instruction {
+// makeXOR creates an instruction that performs a bitwise ^ on register A and
+// the given register, storing the result in register A.
+func makeXOR(reg registerType) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -525,9 +526,9 @@ func xor8BitImm(state *State) int {
 	return 8
 }
 
-// inc8Bit creates an instruction that increments the given 8-bit register by
-// 1.
-func inc8Bit(reg registerType) instruction {
+// makeINC8Bit creates an instruction that increments the given 8-bit register
+// by 1.
+func makeINC8Bit(reg registerType) instruction {
 	return func(state *State) int {
 		oldVal := state.regs8[reg].get()
 		newVal := state.regs8[reg].set(oldVal + 1)
@@ -545,9 +546,9 @@ func inc8Bit(reg registerType) instruction {
 	}
 }
 
-// inc16Bit creates an instruction that increments the given 16-bit register by
-// 1.
-func inc16Bit(reg registerType) instruction {
+// makeINC16Bit creates an instruction that increments the given 16-bit
+// register by 1.
+func makeINC16Bit(reg registerType) instruction {
 	return func(state *State) int {
 		oldVal := state.regs16[reg].get()
 
@@ -582,9 +583,9 @@ func incMemHL(state *State) int {
 	return 12
 }
 
-// dec8Bit creates an instruction that decrements the given 8-bit register by
-// 1.
-func dec8Bit(reg registerType) instruction {
+// makeDEC8Bit creates an instruction that decrements the given 8-bit register
+// by 1.
+func makeDEC8Bit(reg registerType) instruction {
 	return func(state *State) int {
 		oldVal := state.regs8[reg].get()
 
@@ -601,9 +602,9 @@ func dec8Bit(reg registerType) instruction {
 	}
 }
 
-// dec16Bit creates an instruction that decrements the given 16-bit register by
-// 1.
-func dec16Bit(reg registerType) instruction {
+// makeDEC16Bit creates an instruction that decrements the given 16-bit
+// register by 1.
+func makeDEC16Bit(reg registerType) instruction {
 	return func(state *State) int {
 		state.regs16[reg].set(state.regs16[reg].get() - 1)
 
@@ -635,10 +636,10 @@ func decMemHL(state *State) int {
 	return 12
 }
 
-// cp creates an instruction that compares the value in register A with the
+// makeCP creates an instruction that compares the value in register A with the
 // value of the given register and sets flags accordingly. The semantics are
 // the same as the SUB operator, but the result value is not saved.
-func cp(reg registerType) instruction {
+func makeCP(reg registerType) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()

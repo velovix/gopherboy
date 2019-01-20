@@ -71,12 +71,37 @@ const (
 	//   11: Produce wave pattern data shifted twice to the right
 	nr32Addr = 0xFF1C
 
-	// nr30Addr is the Sound Mode 3 On/Off Memory Register. It turns on and off
-	// the third voice.
+	// nr30Addr points to the Sound Mode 3 On/Off Memory Register. It turns on
+	// and off the third voice.
 	//
 	// Bit 7: If 1, the voice is turned on.
 	// Bits 6-0: Unused, always 1
 	nr30Addr = 0xFF1A
+
+	// nr41Addr points to the Sound Mode 4 Sound Length Memory Register. It
+	// controls the length that the fourth voice plays for.
+	// TODO(velovix): Is this accurate?
+	//
+	// Bits 7-6: Unused, always 1
+	// Bits 5-0: Controls sound length. If this value is t1, then the sound
+	//           will play for (64-t1)*(1/256) seconds.
+	nr41Addr = 0xFF20
+
+	// nr44Addr points to the Sound Mode 4 Counter/Consecutive Initial Memory
+	// Register.
+	// TODO(velovix): I don't understand this at all
+	nr44Addr = 0xFF23
+
+	// nr52Addr points to the Sound On/Off Memory Register. It's a set of
+	// on/off indicators for each voice and all sound.
+	//
+	// Bit 7: All sound on/off switch. 1 if on.
+	// Bits 6-4: Unused, always 1
+	// Bit 3: Sound 4 on/off switch. 1 if on. Read-only.
+	// Bit 2: Sound 3 on/off switch. 1 if on. Read-only.
+	// Bit 1: Sound 2 on/off switch. 1 if on. Read-only.
+	// Bit 0: Sound 1 on/off switch. 1 if on. Read-only.
+	nr52Addr = 0xFF26
 
 	// scrollYAddr points to the "Scroll Y" memory register. This controls the
 	// position of the top left of the background.
@@ -96,6 +121,15 @@ const (
 	// windowPosXAddr points to the "Window Position X" memory register. This
 	// controls the position of the window in the X direction.
 	windowPosXAddr = 0xFF4B
+
+	// key1Addr has something to do with switching to double-speed mode on the
+	// CGB. Since this is a DMG emulator for the time being, this is unused.
+	key1Addr = 0xFF4D
+
+	// vbkAddr is a VRAM bank register. It's a CGB thing that this emulator
+	// doesn't have to worry about yet
+	vbkAddr = 0xFF4F
+
 	// lcdcAddr points to the LCDC memory register, which controls various
 	// aspects of how a frame is drawn.
 	//
@@ -170,6 +204,34 @@ const (
 	// bootROMDisableAddr is the address that, when written to, disables the
 	// boot ROM. The boot ROM itself writes to this when it is finished.
 	bootROMDisableAddr = 0xFF50
+
+	// These addresses have something to do with a "new" DMA transfer mode
+	// introduced in the CGB. We don't have to worry about this since this is a
+	// DMG emulator.
+	hdma1Addr = 0xFF51
+	hdma2Addr = 0xFF52
+	hdma3Addr = 0xFF53
+	hdma4Addr = 0xFF54
+	hdma5Addr = 0xFF55
+
+	// svbkAddr is a WRAM bank controller thing for the CGB. Unused on the DMG.
+	svbkAddr = 0xFF70
+
+	// rpAddr is some register for controlling infrared communications. Only
+	// the CGB has infrared so this goes unused on the DMG.
+	rpAddr = 0xFF56
+
+	// These addresses have something to do with the CGB color palette. They go
+	// unused on the DMG.
+	bcpsAddr = 0xFF68
+	bcpdAddr = 0xFF69
+	ocpsAddr = 0xFF6A
+	ocpdAddr = 0xFF6B
+
+	// These addresses probably have something to do with sound on the CGB.
+	// They're unused on the DMG.
+	pcm12Ch2Addr = 0xFF76
+	pcm34Ch4Addr = 0xFF77
 
 	// videoRAMStart is the address where video RAM starts in memory.
 	videoRAMStart = 0x8000

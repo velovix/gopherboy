@@ -16,6 +16,9 @@ func newSoundController(state *State) *soundController {
 	sc.state.mmu.subscribeTo(nr10Addr, sc.onNR10Write)
 	sc.state.mmu.subscribeTo(nr30Addr, sc.onNR30Write)
 	sc.state.mmu.subscribeTo(nr32Addr, sc.onNR32Write)
+	sc.state.mmu.subscribeTo(nr41Addr, sc.onNR41Write)
+	sc.state.mmu.subscribeTo(nr44Addr, sc.onNR44Write)
+	sc.state.mmu.subscribeTo(nr52Addr, sc.onNR52Write)
 
 	return sc
 }
@@ -41,4 +44,24 @@ func (sc *soundController) onNR30Write(addr uint16, val uint8) uint8 {
 func (sc *soundController) onNR32Write(addr uint16, val uint8) uint8 {
 	// Bits 7 and bits 4-0 are unused and always 1
 	return val | 0x9F
+}
+
+// onNR41Write is called when the Sound Mode 4 Sound Length register is written
+// to.
+func (sc *soundController) onNR41Write(addr uint16, val uint8) uint8 {
+	// Bits 7 and 6 are unused and always 1
+	return val | 0xC0
+}
+
+// onNR44Write is called when the Sound Mode 4 Counter/Consecutive Initial
+// register is written to.
+func (sc *soundController) onNR44Write(addr uint16, val uint8) uint8 {
+	// Bits 5-0 are unused and always 1
+	return val | 0x3F
+}
+
+// onNR52Write is called when the Sound On/Off register is written to.
+func (sc *soundController) onNR52Write(addr uint16, val uint8) uint8 {
+	// Bits 6-4 are unused and always 1
+	return val | 0x70
 }

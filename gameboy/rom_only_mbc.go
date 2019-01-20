@@ -6,21 +6,13 @@ import "fmt"
 // memory bank controller at all since there's no switching. This MBC provides
 // a single 16K ROM bank.
 type romOnlyMBC struct {
-	// romBank1 is the one and only ROM bank provided by this basic controller.
-	romBank1 []uint8
-	// ramBank0 is the built-in Game Boy RAM.
-	ramBank0 []uint8
+	// romBanks are the two available ROM banks in this basic controller.
+	romBanks map[int][]uint8
 }
 
-func newROMOnlyMBC(cartridgeData []uint8) *romOnlyMBC {
+func newROMOnlyMBC(header romHeader, cartridgeData []uint8) *romOnlyMBC {
 	m := &romOnlyMBC{
-		romBank1: make([]uint8, 0x4000),
-		ramBank0: make([]uint8, 0x2000),
-	}
-
-	// Load bank 1 cartridge data
-	for i := bankedROMAddr; i < videoRAMAddr; i++ {
-		m.romBank1[i-bankedROMAddr] = cartridgeData[i]
+		romBanks: makeROMBanks(header.romSizeType, cartridgeData),
 	}
 
 	return m
@@ -29,10 +21,10 @@ func newROMOnlyMBC(cartridgeData []uint8) *romOnlyMBC {
 // at provides access to the bank 1 ROM.
 func (m *romOnlyMBC) at(addr uint16) uint8 {
 	switch {
-	case inRAMArea(addr):
-		return m.ramBank0[addr-ramAddr]
+	case inBank0ROMArea(addr):
+		return m.romBanks[0][addr-bank0ROMAddr]
 	case inBankedROMArea(addr):
-		return m.romBank1[addr-bankedROMAddr]
+		return m.romBanks[1][addr-bankedROMAddr]
 	case inBankedRAMArea(addr):
 		if printInstructions {
 			fmt.Printf("Warning: Read from banked RAM section at address %#x, "+
@@ -55,8 +47,6 @@ func (m *romOnlyMBC) set(addr uint16, val uint8) {
 			fmt.Printf("Warning: Ignoring write to ROM space "+
 				"at %#x with ROM-only MBC\n", addr)
 		}
-	case inRAMArea(addr):
-		m.ramBank0[addr-ramAddr] = val
 	case inBankedRAMArea(addr):
 		if printInstructions {
 			fmt.Printf("Warning: Ignoring write to banked RAM space "+

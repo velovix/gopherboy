@@ -12,10 +12,16 @@ type mbc1 struct {
 	// number. These extra RAM banks are supplied by the cartridge.
 	ramBanks map[int][]uint8
 
-	// The currently selected ROM bank.
-	currROMBank uint8
-	// The currently selected RAM bank.
-	currRAMBank uint8
+	// bankReg1 is set by writing to 0x2000-0x3FFF. It is a 5-bit value. It is
+	// used to specify the lower 5 bits of the desired ROM bank.
+	bankReg1 uint8
+	// bankReg2 is set by writing to 0x6000-0x7FFF. It is a 2-bit value. In
+	// bank selection mode 0, it is used to specify the upper 2 bits of the
+	// desired ROM bank in 0x4000-0x7FFF. In bank selection mode 1, it is used
+	// to specify the upper 2 bits of the desired ROM bank in 0x0000-0x3FFF and
+	// the lower 2 bits of the desired RAM bank.
+	bankReg2 uint8
+
 	// True if RAM turned on.
 	ramEnabled bool
 	// Controls how any bits written to 0x4000-0x6000 are interpreted. If this
@@ -32,10 +38,9 @@ func newMBC1(header romHeader, cartridgeData []uint8) *mbc1 {
 	m.romBanks = makeROMBanks(header.romSizeType, cartridgeData)
 	m.ramBanks = makeRAMBanks(header.ramSizeType)
 
-	// TODO(velovix): Should 1 be the default ROM bank?
-	m.currROMBank = 1
-	// TODO(velovix): Should 0 be the default RAM bank?
-	m.currRAMBank = 0
+	// The default bank values
+	m.bankReg1 = 0x1
+	m.bankReg2 = 0x0
 
 	return &m
 }
@@ -43,19 +48,51 @@ func newMBC1(header romHeader, cartridgeData []uint8) *mbc1 {
 // at provides access to the MBC1 banked ROM and RAM.
 func (m *mbc1) at(addr uint16) uint8 {
 	switch {
+	case inBank0ROMArea(addr):
+		switch m.bankSelectionMode {
+		case 0:
+			// This area is always bank 0 in this mode
+			return m.romBanks[0][addr]
+		case 1:
+			// The bank here is specified by the value written to
+			// 0x4000-0x5FFF, shifted 5 bits over.
+			bank := int(m.bankReg2 << 5)
+			// If an out-of-bounds ROM bank is selected, the value will "wrap
+			// around"
+			bank %= len(m.romBanks)
+			return m.romBanks[bank][addr]
+		default:
+			panic(fmt.Sprintf("invalid bank selection mode %#x", m.bankSelectionMode))
+		}
 	case inBankedROMArea(addr):
-		return m.romBanks[int(m.currROMBank)][addr-bankedROMAddr]
-	case inRAMArea(addr):
-		return m.ramBanks[0][addr-ramAddr]
+		// The current bank is calculated by combining bank registers 1 and 2
+		bank := int(m.bankReg1 | (m.bankReg2 << 5))
+		// If an out-of-bounds ROM bank is selected, the value will "wrap
+		// around"
+		bank %= len(m.romBanks)
+
+		return m.romBanks[bank][addr-bankedROMAddr]
 	case inBankedRAMArea(addr):
-		if _, ok := m.ramBanks[int(m.currRAMBank)]; !ok {
-			if printInstructions {
-				fmt.Printf("Warning: Invalid read from nonexistent "+
-					"RAM bank %v at address %#x\n", m.currRAMBank, addr)
+		if m.ramEnabled && len(m.ramBanks) > 0 {
+			switch m.bankSelectionMode {
+			case 0:
+				// In this mode, bank 0 is always used
+				return m.ramBanks[0][addr-bankedRAMAddr]
+			case 1:
+				// The current bank is equal to the value of bank register 2
+				bank := int(m.bankReg2)
+				// If an out-of-bounds RAM bank is selected, the value will "wrap
+				// around"
+				bank %= len(m.ramBanks)
+
+				return m.ramBanks[bank][addr-bankedRAMAddr]
+			default:
+				panic(fmt.Sprintf("invalid bank selection mode %v", m.bankSelectionMode))
 			}
+		} else {
+			// The default value for disabled RAM
 			return 0xFF
 		}
-		return m.ramBanks[int(m.currRAMBank)][addr-bankedRAMAddr]
 	default:
 		panic(fmt.Sprintf("MBC1 is unable to handle reads to address %#x", addr))
 	}
@@ -76,40 +113,25 @@ func (m *mbc1) set(addr uint16, val uint8) {
 		// 0x0A is the magic number to turn this device on
 		m.ramEnabled = lower == 0x0A
 	} else if addr < 0x4000 {
-		// ROM Bank 01-7F "register"
-		// The area is used to specify the lower 5 bits of the desired ROM bank
-		// number, which the MBC will switch to.
-		// This "register" is only 5 bits in size, get those 5 bits
-		bank := val & 0x1F
-		if bank == 0x0 {
-			// A special case where ROM bank 0 is interpreted as bank 1, since
-			// bank 0 is always available
-			bank = 1
-		} else if bank == 0x20 || bank == 0x40 || bank == 0x60 {
-			// A special case where ROM banks 0x20, 0x40, and 0x60 don't exist
-			// and instead map to the bank directly after them
-			bank++
-		}
+		// ROM Bank 01-7F register
+		// This area controls the value of what I call "bank register 1". For
+		// more information on what this does, see the field's documentation on
+		// the mbc1 type.
+		m.bankReg1 = val & 0x1F
 
-		// Replace the first 5 bits of the current ROM bank with these
-		m.currROMBank &= 0xE0
-		m.currROMBank |= bank
+		// This register cannot have 0x0 written to it. A write of 0x0 will be
+		// interpreted as 0x1. This means that banks 0x0, 0x20, 0x40, and 0x60
+		// are inaccessible
+		if m.bankReg1 == 0x00 {
+			m.bankReg1 = 0x01
+		}
 	} else if addr < 0x6000 {
 		// RAM Bank Number or Upper Bits of ROM Bank Number "register"
-		// This area is used to specify the upper 2 bits of the desired ROM
-		// bank number OR the only 2 bits used to specify the desired RAM bank
-		// number. The desired behavior can be selected using the ROM/RAM Mode
-		// Select "register", specified below.
+		// This area controls the value of what I call "bank register 2". For
+		// more information on what this does, see the field's documentation on
+		// the mbc1 type.
 		// This "register" is only 2 bits in size, get those 2 bits
-		bank := val & 0x03
-		if m.bankSelectionMode == 1 {
-			fmt.Println("Switching to RAM bank", bank)
-			panic("... but this isn't supported")
-		} else {
-			// Set bits 5 and 6 of the current ROM bank
-			m.currROMBank &= 0x9F
-			m.currROMBank |= bank << 5
-		}
+		m.bankReg2 = val & 0x03
 	} else if addr < 0x8000 {
 		// The ROM/RAM Mode Select "register"
 		// This changes which mode the RAM Bank Number or Upper Bits of ROM
@@ -120,10 +142,21 @@ func (m *mbc1) set(addr uint16, val uint8) {
 		m.ramBanks[0][addr-ramAddr] = val
 	} else if addr >= bankedRAMAddr && addr < ramAddr {
 		// Banked RAM
-		if m.ramEnabled {
-			m.ramBanks[int(m.currRAMBank)][addr-bankedRAMAddr] = val
-		} else {
-			panic("Attempt to write to banked RAM when RAM is disabled")
+		if len(m.ramBanks) > 0 && m.ramEnabled {
+			switch m.bankSelectionMode {
+			case 0:
+				// In this mode, bank 0 is always used
+				m.ramBanks[0][addr-bankedRAMAddr] = val
+			case 1:
+				// The current RAM bank is controlled by bank register 2
+				bank := int(m.bankReg2)
+				// If an out-of-bounds RAM bank is selected, the value will "wrap
+				// around"
+				bank %= len(m.ramBanks)
+				m.ramBanks[bank][addr-bankedRAMAddr] = val
+			default:
+				panic(fmt.Sprintf("invalid bank selection mode %v", m.bankSelectionMode))
+			}
 		}
 	} else {
 		panic(fmt.Sprintf("It isn't the MBC1's job to handle writes to address %#x", addr))

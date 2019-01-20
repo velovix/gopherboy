@@ -2,9 +2,9 @@ package gameboy
 
 import "fmt"
 
-// res creates an instruction that sets the specified bit of the given register
-// to zero.
-func res(bitNum uint8, reg registerType) instruction {
+// makeRES creates an instruction that sets the specified bit of the given
+// register to zero.
+func makeRES(bitNum uint8, reg registerType) instruction {
 	return func(state *State) int {
 		regVal := state.regs8[reg].get()
 
@@ -17,9 +17,9 @@ func res(bitNum uint8, reg registerType) instruction {
 	}
 }
 
-// resMemHL creates an instruction that sets the specified bit of the value at
-// the address specified by register HL to zero.
-func resMemHL(bitNum uint8) instruction {
+// makeRESMemHL creates an instruction that sets the specified bit of the value
+// at the address specified by register HL to zero.
+func makeRESMemHL(bitNum uint8) instruction {
 	return func(state *State) int {
 		hlVal := state.regs16[regHL].get()
 		memVal := state.mmu.at(hlVal)
@@ -34,9 +34,9 @@ func resMemHL(bitNum uint8) instruction {
 	}
 }
 
-// bit creates an instruction that checks the given bit of the given register
-// value.
-func bit(bitNum uint8, reg registerType) instruction {
+// makeBIT creates an instruction that checks the given bit of the given
+// register value.
+func makeBIT(bitNum uint8, reg registerType) instruction {
 	return func(state *State) int {
 		regVal := state.regs8[reg].get()
 
@@ -53,9 +53,9 @@ func bit(bitNum uint8, reg registerType) instruction {
 	}
 }
 
-// bitMemHL creates an instruction that checks the given bit of the value at
-// the address specified by register HL.
-func bitMemHL(bitNum uint8) instruction {
+// makeBITMemHL creates an instruction that checks the given bit of the value
+// at the address specified by register HL.
+func makeBITMemHL(bitNum uint8) instruction {
 	return func(state *State) int {
 		hlVal := state.regs16[regHL].get()
 		memVal := state.mmu.at(hlVal)
@@ -73,9 +73,9 @@ func bitMemHL(bitNum uint8) instruction {
 	}
 }
 
-// swap creates an instruction that swaps the upper and lower nibbles of the
-// given register.
-func swap(reg registerType) instruction {
+// makeSWAP creates an instruction that swaps the upper and lower nibbles of
+// the given register.
+func makeSWAP(reg registerType) instruction {
 	return func(state *State) int {
 		regVal := state.regs8[reg].get()
 
@@ -117,9 +117,9 @@ func swapMemHL(state *State) int {
 	return 16
 }
 
-// set creates an instruction that sets the specified bit of the given register
-// to one.
-func set(bitNum uint8, reg registerType) instruction {
+// makeSET creates an instruction that sets the specified bit of the given
+// register to one.
+func makeSET(bitNum uint8, reg registerType) instruction {
 	return func(state *State) int {
 		regVal := state.regs8[reg].get()
 
@@ -132,9 +132,9 @@ func set(bitNum uint8, reg registerType) instruction {
 	}
 }
 
-// setMemHL creates an instruction that sets the specified bit of the value at
-// the address specified by register HL to one.
-func setMemHL(bitNum uint8) instruction {
+// makeSETMemHL creates an instruction that sets the specified bit of the value
+// at the address specified by register HL to one.
+func makeSETMemHL(bitNum uint8) instruction {
 	return func(state *State) int {
 		hlVal := state.regs16[regHL].get()
 		memVal := state.mmu.at(hlVal)
