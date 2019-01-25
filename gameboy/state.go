@@ -12,10 +12,6 @@ type State struct {
 	// timer decrements to 0, interrupts are enabled. This is used to emulate
 	// the EI instruction's delayed effects.
 	enableInterruptsTimer int
-	// If this value is >0, it is decremented after every operation. When this
-	// timer decrements to 0, interrupts are disabled. This is used to emulate
-	// the DI instruction's delayed effects.
-	disableInterruptsTimer int
 	// The master interrupt switch. If this is false, no interrupts will be
 	// processed.
 	interruptsEnabled bool

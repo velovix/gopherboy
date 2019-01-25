@@ -146,13 +146,6 @@ func (device *Device) Start(onExit chan bool) error {
 				device.state.interruptsEnabled = true
 			}
 		}
-		if device.state.disableInterruptsTimer > 0 {
-			device.state.disableInterruptsTimer--
-			if device.state.disableInterruptsTimer == 0 {
-				device.state.interruptsEnabled = false
-			}
-		}
-
 	}
 }
 

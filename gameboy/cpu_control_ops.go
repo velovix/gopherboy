@@ -11,9 +11,11 @@ func nop(state *State) int {
 }
 
 // di sets the master interrupt flag to false, disabling all interrupt
-// handling, but not until the instruction after DI has been executed.
+// handling.
 func di(state *State) int {
-	state.disableInterruptsTimer = 2
+	state.interruptsEnabled = false
+	// Cancel a delayed interrupt enable request if any
+	state.enableInterruptsTimer = 0
 
 	if printInstructions {
 		fmt.Printf("DI\n")
