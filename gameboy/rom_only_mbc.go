@@ -34,7 +34,7 @@ func (m *romOnlyMBC) at(addr uint16) uint8 {
 		return 0xFF
 	default:
 		panic(fmt.Sprintf("The ROM-only MBC should not have been "+
-			"notified of a write to address %#x\n", addr))
+			"notified of a read to address %#x\n", addr))
 	}
 }
 

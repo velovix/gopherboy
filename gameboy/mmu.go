@@ -113,9 +113,8 @@ func (m *mmu) at(addr uint16) uint8 {
 		// The MBC handles RAM banking and availability
 		return m.mbc.at(addr)
 	case inRAMMirrorArea(addr):
-		// A bank 0 RAM mirror, forwarded to the MBC by masking it as a regular
-		// bank 0 RAM access
-		return m.mbc.at(addr - (ramMirrorAddr - ramAddr))
+		// A bank 0 RAM mirror
+		return m.ram[addr-ramMirrorAddr]
 	case inOAMArea(addr):
 		return m.oamRAM[addr-oamRAMAddr]
 	case inInvalidArea(addr):
@@ -193,9 +192,8 @@ func (m *mmu) setNoNotify(addr uint16, val uint8) {
 		// The MBC handles RAM banking and availability
 		m.mbc.set(addr, val)
 	case inRAMMirrorArea(addr):
-		// An area that mirrors built-in RAM. Forward it to the MBC disguised
-		// as a regular write
-		m.mbc.set(addr-(ramMirrorAddr-ramAddr), val)
+		// An area that mirrors built-in RAM
+		m.ram[addr-ramMirrorAddr] = val
 	case inOAMArea(addr):
 		m.oamRAM[addr-oamRAMAddr] = val
 	case inInvalidArea(addr):
