@@ -5,12 +5,11 @@ import "fmt"
 // mbc1 implements an MBC1 memory bank controller. An MBC1 can support up to
 // 125 16K ROM banks, up to 4 8K RAM banks, and potentially a battery backup.
 type mbc1 struct {
-	// romBanks contains cartridge ROM banks from 1 to X, where X is the number
-	// of ROM banks in the cartridge.
-	romBanks map[int][]uint8
-	// ramBanks is a map of all RAM banks, where the key is the RAM bank
-	// number. These extra RAM banks are supplied by the cartridge.
-	ramBanks map[int][]uint8
+	// romBanks contains cartridge ROM banks, indexed by their bank number.
+	romBanks [][]uint8
+	// ramBanks contains all extra RAM banks, indexed by their bank number.
+	// These extra RAM banks are supplied by the cartridge.
+	ramBanks [][]uint8
 
 	// bankReg1 is set by writing to 0x2000-0x3FFF. It is a 5-bit value. It is
 	// used to specify the lower 5 bits of the desired ROM bank.

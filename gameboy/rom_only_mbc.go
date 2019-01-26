@@ -7,7 +7,7 @@ import "fmt"
 // a single 16K ROM bank.
 type romOnlyMBC struct {
 	// romBanks are the two available ROM banks in this basic controller.
-	romBanks map[int][]uint8
+	romBanks [][]uint8
 }
 
 func newROMOnlyMBC(header romHeader, cartridgeData []uint8) *romOnlyMBC {

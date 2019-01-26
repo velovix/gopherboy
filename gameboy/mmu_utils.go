@@ -5,9 +5,8 @@ import "fmt"
 // makeROMBanks creates the necessary amount of ROM banks as specified by the
 // given ROM size type, then returns it as a map whose key is a ROM bank number
 // and whose value is the corresponding ROM bank.
-func makeROMBanks(romSizeType uint8, cartridgeData []uint8) map[int][]uint8 {
+func makeROMBanks(romSizeType uint8, cartridgeData []uint8) [][]uint8 {
 	var romBankCount int
-	romBanks := make(map[int][]uint8)
 
 	switch romSizeType {
 	case 0x00:
@@ -41,6 +40,8 @@ func makeROMBanks(romSizeType uint8, cartridgeData []uint8) map[int][]uint8 {
 		panic(fmt.Sprintf("Unsupported ROM size type %v", romSizeType))
 	}
 
+	romBanks := make([][]uint8, romBankCount)
+
 	// Create the ROM banks
 	for i := 0; i < romBankCount; i++ {
 		romBanks[i] = make([]uint8, 0x4000)
@@ -60,32 +61,30 @@ func makeROMBanks(romSizeType uint8, cartridgeData []uint8) map[int][]uint8 {
 // makeRAMBanks creates the necessary amount of external RAM banks as specified
 // by the given RAM size type, then returns it as a map whose key is a RAM bank
 // number and whose value is the corresponding RAM bank.
-func makeRAMBanks(ramSizeType uint8) (ramBanks map[int][]uint8) {
-	ramBanks = make(map[int][]uint8)
-
+func makeRAMBanks(ramSizeType uint8) (ramBanks [][]uint8) {
 	switch ramSizeType {
 	case 0x00:
 		// No bank
 	case 0x01:
 		// One 2 KB bank
-		ramBanks[0] = make([]uint8, 2000)
+		ramBanks = append(ramBanks, make([]uint8, 2000))
 	case 0x02:
 		// One 8 KB bank
-		ramBanks[0] = make([]uint8, 0x2000)
+		ramBanks = append(ramBanks, make([]uint8, 0x2000))
 	case 0x03:
 		// Four 8 KB banks
 		for i := 0; i < 4; i++ {
-			ramBanks[i] = make([]uint8, 0x2000)
+			ramBanks = append(ramBanks, make([]uint8, 0x2000))
 		}
 	case 0x04:
 		// Sixteen 8 KB banks
 		for i := 0; i < 16; i++ {
-			ramBanks[i] = make([]uint8, 0x2000)
+			ramBanks = append(ramBanks, make([]uint8, 0x2000))
 		}
 	case 0x05:
 		// Eight 8 KB banks
 		for i := 0; i < 8; i++ {
-			ramBanks[i] = make([]uint8, 0x2000)
+			ramBanks = append(ramBanks, make([]uint8, 0x2000))
 		}
 	default:
 		panic(fmt.Sprintf("Unknown RAM size type %v", ramSizeType))

@@ -6,12 +6,11 @@ import "fmt"
 // 128 16K ROM banks, up to up to 8 8K RAM banks, potentially a real time
 // clock (RTC), and potentially a battery backup.
 type mbc3 struct {
-	// romBanks contains cartridge ROM banks from 1 to X, where X is the number
-	// of ROM banks in the cartridge.
-	romBanks map[int][]uint8
-	// ramBanks is a map of all RAM banks, where the key is the RAM bank
-	// number. These extra RAM banks are supplied by the cartridge.
-	ramBanks map[int][]uint8
+	// romBanks contains cartridge ROM banks, indexed by their bank number.
+	romBanks [][]uint8
+	// ramBanks contains all extra RAM banks, indexed by their bank number.
+	// These extra RAM banks are supplied by the cartridge.
+	ramBanks [][]uint8
 
 	// True if this MBC has a real time clock in it.
 	hasRTC bool
@@ -50,20 +49,31 @@ func newMBC3(header romHeader, cartridgeData []uint8, hasRTC bool) *mbc3 {
 // at provides access to the MBC3 banked ROM, banked RAM, and real time clock.
 func (m *mbc3) at(addr uint16) uint8 {
 	switch {
+	case inBank0ROMArea(addr):
+		return m.romBanks[0][addr]
 	case inBankedROMArea(addr):
-		return m.romBanks[int(m.currROMBank)][addr-bankedROMAddr]
-	case inRAMArea(addr):
-		return m.ramBanks[0][addr-ramAddr]
+		bank := m.currROMBank
+		if bank == 0 {
+			// Bank 0 is not directly selectable, map to bank 1 instead
+			bank = 1
+		}
+		// If an out-of-bounds ROM bank is selected, the value will "wrap
+		// around"
+		bank %= uint8(len(m.romBanks))
+		return m.romBanks[bank][addr-bankedROMAddr]
 	case inBankedRAMArea(addr):
 		// Banked RAM or Real Time Clock register area
-		if _, ok := m.ramBanks[int(m.currRAMBank)]; !ok {
-			if printInstructions {
-				fmt.Printf("Warning: Invalid read from nonexistent "+
-					"RAM bank %v at address %#x\n", m.currRAMBank, addr)
-			}
+		if m.ramAndRTCEnabled && len(m.ramBanks) > 0 {
+			bank := m.currRAMBank
+			// If an out-of-bounds RAM bank is selected, the value will "wrap
+			// around"
+			bank %= uint8(len(m.ramBanks))
+
+			return m.ramBanks[bank][addr-bankedRAMAddr]
+		} else {
+			// The default value for disabled or unavailable RAM
 			return 0xFF
 		}
-		return m.ramBanks[int(m.currRAMBank)][addr-bankedRAMAddr]
 	default:
 		panic(fmt.Sprintf("MBC3 is unable to handle reads to address %#x", addr))
 	}
@@ -91,14 +101,14 @@ func (m *mbc3) set(addr uint16, val uint8) {
 		// ROM Bank Number "register"
 		// This area is used to specify all 7 bits of the desired ROM bank
 		// number, which the MBC will switch to.
+
 		// This "register" is only 7 bits in size, get those 7 bits
 		bank := val & 0x7F
-		if bank == 0x0 {
-			// A special case where ROM bank 0 is interpreted as bank 1, since
-			// bank 0 is always available
-			bank = 1
+		// This register cannot have 0x0 written to it. A write of 0x0 will be
+		// interpreted as 0x1. This means that bank 0x0 is not inaccessible
+		if bank == 0x00 {
+			bank = 0x01
 		}
-
 		m.currROMBank = bank
 	} else if addr < 0x6000 {
 		// RAM Bank Number or RTC Register Select
@@ -121,11 +131,9 @@ func (m *mbc3) set(addr uint16, val uint8) {
 		// unchanged.
 		m.rtcLatched = val == 0x01
 		fmt.Println("Warning: Attempt to latch the RTC register, but RTC is not supported")
-	} else if inRAMArea(addr) {
-		m.ramBanks[0][addr-ramAddr] = val
 	} else if inBankedRAMArea(addr) {
 		if m.ramAndRTCEnabled {
-			m.ramBanks[int(m.currRAMBank)][addr-bankedRAMAddr] = val
+			m.ramBanks[m.currRAMBank][addr-bankedRAMAddr] = val
 		} else {
 			fmt.Printf("Attempt to write to banked RAM when RAM is disabled: At address %#x\n", addr)
 		}
