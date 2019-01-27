@@ -94,7 +94,7 @@ func NewDevice(
 	device.timers = newTimers(device.state)
 
 	device.videoController = newVideoController(
-		device.state, device.timers, video)
+		device.state, video)
 	device.videoController.unlimitedFPS = false
 
 	device.joypad = newJoypad(device.state, input)

@@ -2,6 +2,7 @@ package gameboy
 
 import (
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -35,6 +36,14 @@ const (
 
 	// targetFPS is the FPS of the Game Boy screen.
 	targetFPS = 60
+
+	// maxSpritesPerScanline is the maximum amount of sprites that can share a
+	// row. Any more sprites will not be drawn.
+	maxSpritesPerScanline = 10
+
+	// maxOAMEntries is the maximum amount of OAM entries that can fit in OAM
+	// memory.
+	maxOAMEntries = 40
 )
 
 type drawStep int
@@ -79,8 +88,7 @@ type videoController struct {
 	// Raw frame data in 8-bit RGBA format.
 	currFrame []uint8
 
-	timers *timers
-	state  *State
+	state *State
 
 	// Used for finding FPS
 	lastSecond time.Time
@@ -92,17 +100,16 @@ type videoController struct {
 	unlimitedFPS bool
 }
 
-func newVideoController(state *State, timers *timers, driver VideoDriver) *videoController {
+func newVideoController(state *State, driver VideoDriver) *videoController {
 	var vc videoController
 
 	vc.driver = driver
 
 	vc.state = state
-	vc.timers = timers
 
 	vc.lastSecond = time.Now()
 
-	vc.spritesOnScanLine = make([]oam, 10)
+	vc.spritesOnScanLine = make([]oam, maxSpritesPerScanline)
 
 	vc.state.mmu.subscribeTo(statAddr, vc.onSTATWrite)
 
@@ -210,25 +217,29 @@ func (vc *videoController) drawScanLine(line uint8) {
 		bgDotCode := vc.bgDotCode(x, line)
 
 		var pixelColor color
-		oamEntry, hasSprite := vc.spriteAt(x)
-		if hasSprite && vc.lcdc.spritesOn {
-			// If the sprite has priority 1 and the background dot data is
-			// other than zero, the background will be shown "over" the sprite
-			if oamEntry.priority && bgDotCode != 0 {
-				pixelColor = vc.bgPalette[bgDotCode]
-			} else {
-				// Get the color at this specific place on the sprite
-				xOffset := x + spriteWidth - oamEntry.xPos
-				yOffset := line + spriteTallHeight - oamEntry.yPos
+		pixelDrawn := false
 
-				if oamEntry.xFlip {
+		if vc.lcdc.spritesOn {
+			// Look for a sprite to draw at this position
+			for _, sprite := range vc.spritesAt(x) {
+				// If the sprite has priority 1 and the background dot data is
+				// other than zero, that part of the sprite will not be drawn
+				// and the background will be seen instead, assuming it is
+				// enabled.
+				if sprite.priority && bgDotCode != 0 {
+					continue
+				}
+
+				// Get the color at this specific place on the sprite
+				xOffset := x + spriteWidth - sprite.xPos
+				yOffset := line + spriteTallHeight - sprite.yPos
+
+				if sprite.xFlip {
 					// Flip the sprite horizontally
 					xOffset = (spriteWidth - 1) - xOffset
 				}
-				if oamEntry.yFlip {
+				if sprite.yFlip {
 					// Flip the sprite vertically
-					// TODO(velovix): This will have to be readdressed when
-					// tall sprite support is added
 					switch vc.lcdc.spriteSize {
 					case spriteSize8x8:
 						yOffset = (spriteShortHeight - 1) - yOffset
@@ -238,29 +249,39 @@ func (vc *videoController) drawScanLine(line uint8) {
 				}
 
 				spriteDotCode := vc.dotCodeInSprite(
-					oamEntry.spriteNumber, int(xOffset), int(yOffset))
+					sprite.spriteNumber, int(xOffset), int(yOffset))
 
-				if spriteDotCode == 0 {
-					// As a special case, if the dot code is zero the sprite is
-					// always transparent, regardless of the palette
-					pixelColor = vc.bgPalette[bgDotCode]
-				} else {
+				// The dot code zero in sprites represents transparency
+				if spriteDotCode != 0 {
 					// Use the selected sprite palette
-					if oamEntry.paletteNumber == 0 {
+					pixelDrawn = true
+					if sprite.paletteNumber == 0 {
 						pixelColor = vc.spritePalette0[spriteDotCode]
-					} else if oamEntry.paletteNumber == 1 {
+					} else if sprite.paletteNumber == 1 {
 						pixelColor = vc.spritePalette1[spriteDotCode]
 					} else {
 						panic(fmt.Sprintf("unknown sprite palette value %v",
-							oamEntry.paletteNumber))
+							sprite.paletteNumber))
 					}
+
+					// We've already found our sprite to draw. Lower priority
+					// sprites at this position will not be drawn.
+					break
 				}
 			}
-		} else if vc.lcdc.windowBGOn && vc.lcdc.windowOn && vc.coordInWindow(x, line) {
+		}
+
+		// Draw the window if a sprite hasn't already been drawn
+		if !pixelDrawn && vc.lcdc.windowBGOn && vc.lcdc.windowOn && vc.coordInWindow(x, line) {
 			dotCode := vc.windowDotCode(x, line)
 			pixelColor = vc.bgPalette[dotCode]
-		} else if vc.lcdc.windowBGOn {
+			pixelDrawn = true
+		}
+
+		// Draw the background if a sprite or window hasn't already been drawn
+		if !pixelDrawn && vc.lcdc.windowBGOn {
 			pixelColor = vc.bgPalette[bgDotCode]
+			pixelDrawn = true
 		}
 
 		// Add this pixel to the in-progress frame
@@ -289,11 +310,12 @@ func (vc *videoController) coordInWindow(x, y uint8) bool {
 	return x >= vc.windowX-7 && y >= vc.windowY
 }
 
-// spriteAt returns the sprite that is at the given X value. Sprites are loaded
-// on a per-scan-line basis, so there's no need to check if sprites are at the
-// current y position. If none exist at this position, an empty OAM and an ok
-// value of false will be returned.
-func (vc *videoController) spriteAt(x uint8) (entry oam, ok bool) {
+// spritesAt returns all sprites that are at the given X value, sorted by their
+// drawing priority.  Sprites are loaded on a per-scan-line basis, so there's
+// no need to check if sprites are at the current Y position.
+func (vc *videoController) spritesAt(x uint8) []oam {
+	var sprites []oam
+
 	for i := 0; i < vc.spriteCount; i++ {
 		spriteX := vc.spritesOnScanLine[i].xPos
 
@@ -301,11 +323,11 @@ func (vc *videoController) spriteAt(x uint8) (entry oam, ok bool) {
 		// point. Remember that a sprite's X and Y position is relative to the
 		// bottom right of the sprite.
 		if x < spriteX && int(x) >= int(spriteX)-spriteWidth {
-			return vc.spritesOnScanLine[i], true
+			sprites = append(sprites, vc.spritesOnScanLine[i])
 		}
 	}
 
-	return oam{}, false
+	return sprites
 }
 
 // bgDotCode returns the dot code in the background layer at the given screen
@@ -558,6 +580,8 @@ func (vc *videoController) loadLCDC() lcdcConfig {
 //            the sprite will use object palette 0.
 //     Bits 3-0: Unused
 type oam struct {
+	// The memory address where this OAM entry was retrieved from
+	address       uint16
 	yPos          uint8
 	xPos          uint8
 	spriteNumber  uint8
@@ -568,11 +592,13 @@ type oam struct {
 }
 
 // loadSpritesOnScanLine loads all OAM entries from memory that are visible on
-// the given scan line.
+// the given scan line. These OAM entries are ordered by their priority,
+// meaning that the first OAM entry that is at a given position should be drawn
+// over all others at that position.
 func (vc *videoController) loadSpritesOnScanLine(scanLine uint8) {
 	vc.spriteCount = 0
 
-	for i := 0; i < 40; i++ {
+	for i := 0; i < maxOAMEntries; i++ {
 		entryStart := uint16(oamRAMAddr + (i * oamBytes))
 		xPos := vc.state.mmu.at(entryStart + 1)
 		if xPos == 0 {
@@ -595,8 +621,9 @@ func (vc *videoController) loadSpritesOnScanLine(scanLine uint8) {
 		}
 
 		newOAM := oam{
-			yPos:         vc.state.mmu.at(entryStart),
-			xPos:         vc.state.mmu.at(entryStart + 1),
+			address:      entryStart,
+			yPos:         yPos,
+			xPos:         xPos,
 			spriteNumber: vc.state.mmu.at(entryStart + 2),
 		}
 
@@ -614,12 +641,28 @@ func (vc *videoController) loadSpritesOnScanLine(scanLine uint8) {
 		vc.spritesOnScanLine[vc.spriteCount] = newOAM
 		vc.spriteCount++
 
-		if vc.spriteCount == 10 {
+		if vc.spriteCount == maxSpritesPerScanline {
 			// We've reached the maximum allowed sprites for this scan line. No
 			// more can be drawn
 			break
 		}
 	}
+
+	// Sort sprites based on their drawing priority. Sprites with lower X
+	// positions are drawn on top of sprites with higher X positions. If two
+	// sprites are in the same X position, then the sprite with lower address
+	// in OAM memory wins.
+	sort.Slice(vc.spritesOnScanLine[:vc.spriteCount],
+		// Return true if i has a higher priority than j.
+		func(i, j int) bool {
+			if vc.spritesOnScanLine[i].xPos == vc.spritesOnScanLine[j].xPos {
+				return vc.spritesOnScanLine[i].address < vc.spritesOnScanLine[j].address
+			} else if vc.spritesOnScanLine[i].xPos > vc.spritesOnScanLine[j].xPos {
+				return false
+			} else {
+				return true
+			}
+		})
 }
 
 const (
