@@ -55,12 +55,12 @@ type videoController struct {
 	frameTick      int
 	drawnScanLines int
 	lcdc           lcdcConfig
-	// All OAM entries. Used to control sprites on-screen.
-	oams []oam
-	// oamCount is the number of OAM entries in the oams slice. This is
-	// necessary because the oams list is recycled and not resized between
-	// frames for performance reason.
-	oamCount int
+	// spritesOnScanLine is a list of up to 10 sprites that are on the scan
+	// line that is currently being drawn.
+	spritesOnScanLine []oam
+	// spriteCount is the number of sprites that were found on the current scan
+	// line. This is the number of usable OAM entries in spritesOnScanLine.
+	spriteCount int
 	// scrollX controls the X position of the background.
 	scrollX int8
 	// scrollY controls the Y position of the background.
@@ -102,7 +102,7 @@ func newVideoController(state *State, timers *timers, driver VideoDriver) *video
 
 	vc.lastSecond = time.Now()
 
-	vc.oams = make([]oam, 40)
+	vc.spritesOnScanLine = make([]oam, 10)
 
 	vc.state.mmu.subscribeTo(statAddr, vc.onSTATWrite)
 
@@ -121,7 +121,7 @@ func (vc *videoController) tick(opTime int) {
 			// Get ready for a new frame draw
 			vc.driver.Clear()
 			// Read some frame-wide values
-			vc.scrollY = asSigned(vc.state.mmu.at(scrollYAddr))
+			vc.scrollY = int8(vc.state.mmu.at(scrollYAddr))
 			vc.windowY = vc.state.mmu.at(windowPosYAddr)
 
 			// Make a new frame
@@ -144,12 +144,12 @@ func (vc *videoController) tick(opTime int) {
 				vc.setMode(vcMode2)
 				// TODO(velovix): Lock OAM?
 
-				vc.loadOAM()
+				vc.loadSpritesOnScanLine(uint8(currScanLine))
 
 				// This is the start of this scan line, read some scan line
 				// wide values
 				vc.lcdc = vc.loadLCDC()
-				vc.scrollX = asSigned(vc.state.mmu.at(scrollXAddr))
+				vc.scrollX = int8(vc.state.mmu.at(scrollXAddr))
 				vc.windowX = vc.state.mmu.at(windowPosXAddr)
 			case scanLineOAMClocks:
 				// We're in mode 3, OAM and VRAM transfer mode.
@@ -210,7 +210,7 @@ func (vc *videoController) drawScanLine(line uint8) {
 		bgDotCode := vc.bgDotCode(x, line)
 
 		var pixelColor color
-		oamEntry, hasSprite := vc.spriteAt(x, line)
+		oamEntry, hasSprite := vc.spriteAt(x)
 		if hasSprite && vc.lcdc.spritesOn {
 			// If the sprite has priority 1 and the background dot data is
 			// other than zero, the background will be shown "over" the sprite
@@ -289,24 +289,19 @@ func (vc *videoController) coordInWindow(x, y uint8) bool {
 	return x >= vc.windowX-7 && y >= vc.windowY
 }
 
-// spriteAt returns the sprite that is at the given X and Y value. If none
-// exists, an empty OAM and an ok value of false will be returned.
-func (vc *videoController) spriteAt(x, y uint8) (entry oam, ok bool) {
-	for i := 0; i < vc.oamCount; i++ {
-		var spriteTop uint8
-		switch vc.lcdc.spriteSize {
-		case spriteSize8x8:
-			spriteTop = vc.oams[i].yPos - spriteShortHeight
-		case spriteSize8x16:
-			spriteTop = vc.oams[i].yPos
-		}
+// spriteAt returns the sprite that is at the given X value. Sprites are loaded
+// on a per-scan-line basis, so there's no need to check if sprites are at the
+// current y position. If none exist at this position, an empty OAM and an ok
+// value of false will be returned.
+func (vc *videoController) spriteAt(x uint8) (entry oam, ok bool) {
+	for i := 0; i < vc.spriteCount; i++ {
+		spriteX := vc.spritesOnScanLine[i].xPos
 
 		// Check if the sprite this OAM entry corresponds to is in the given
 		// point. Remember that a sprite's X and Y position is relative to the
 		// bottom right of the sprite.
-		if x < vc.oams[i].xPos && int(x) >= int(vc.oams[i].xPos)-spriteWidth &&
-			y < spriteTop && int(y) >= int(vc.oams[i].yPos)-spriteTallHeight {
-			return vc.oams[i], true
+		if x < spriteX && int(x) >= int(spriteX)-spriteWidth {
+			return vc.spritesOnScanLine[i], true
 		}
 	}
 
@@ -321,13 +316,13 @@ func (vc *videoController) bgDotCode(x, y uint8) uint8 {
 	bgX := int(x) + int(vc.scrollX)
 	if bgX < 0 {
 		bgX += bgWidth
-	} else if bgX > bgWidth {
+	} else if bgX >= bgWidth {
 		bgX -= bgWidth
 	}
 	bgY := int(y) + int(vc.scrollY)
 	if bgY < 0 {
 		bgY += bgHeight
-	} else if bgY > bgHeight {
+	} else if bgY >= bgHeight {
 		bgY -= bgHeight
 	}
 
@@ -572,21 +567,37 @@ type oam struct {
 	paletteNumber uint8
 }
 
-// loadOAM loads all OAM entries from memory.
-func (vc *videoController) loadOAM() {
-	vc.oamCount = 0
+// loadSpritesOnScanLine loads all OAM entries from memory that are visible on
+// the given scan line.
+func (vc *videoController) loadSpritesOnScanLine(scanLine uint8) {
+	vc.spriteCount = 0
 
 	for i := 0; i < 40; i++ {
 		entryStart := uint16(oamRAMAddr + (i * oamBytes))
+		xPos := vc.state.mmu.at(entryStart + 1)
+		if xPos == 0 {
+			// This sprite is not on-screen
+			continue
+		}
+
+		yPos := vc.state.mmu.at(entryStart)
+		var spriteTop uint8
+		switch vc.lcdc.spriteSize {
+		case spriteSize8x8:
+			spriteTop = yPos - spriteShortHeight
+		case spriteSize8x16:
+			spriteTop = yPos
+		}
+
+		if scanLine >= spriteTop || int(scanLine) < int(yPos)-spriteTallHeight {
+			// This sprite is not on this scan line
+			continue
+		}
+
 		newOAM := oam{
 			yPos:         vc.state.mmu.at(entryStart),
 			xPos:         vc.state.mmu.at(entryStart + 1),
 			spriteNumber: vc.state.mmu.at(entryStart + 2),
-		}
-
-		if newOAM.xPos == 0 || newOAM.yPos == 0 {
-			// Skip sprites that are out of frame
-			continue
 		}
 
 		flags := vc.state.mmu.at(entryStart + 3)
@@ -599,8 +610,15 @@ func (vc *videoController) loadOAM() {
 		} else {
 			newOAM.paletteNumber = 0
 		}
-		vc.oams[vc.oamCount] = newOAM
-		vc.oamCount++
+
+		vc.spritesOnScanLine[vc.spriteCount] = newOAM
+		vc.spriteCount++
+
+		if vc.spriteCount == 10 {
+			// We've reached the maximum allowed sprites for this scan line. No
+			// more can be drawn
+			break
+		}
 	}
 }
 

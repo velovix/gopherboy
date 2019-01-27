@@ -6,6 +6,7 @@ cmd/gopherboy_wasm/gopherboy_wasm
 *.asm
 *.o
 *.gb
+*.sav
 *.inc
 roms/
 docs/
