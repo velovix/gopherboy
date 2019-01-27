@@ -56,6 +56,19 @@ type mbc interface {
 	at(addr uint16) uint8
 }
 
+// batteryBackedMBC is a memory bank controller with RAM that is
+// battery-backed, meaning that it can be saved after the device
+// is powered off.
+type batteryBackedMBC interface {
+	mbc
+	// dumpBatteryBackedRAM returns a dump of all RAM that is battery-backed in
+	// the MBC.
+	dumpBatteryBackedRAM() []uint8
+	// loadBatteryBackedRAM loads the given data into all battery-backed RAM in
+	// the MBC.
+	loadBatteryBackedRAM(dump []uint8)
+}
+
 type onWriteFunc func(addr uint16, val uint8) uint8
 
 func newMMU(bootROM []byte, cartridgeData []uint8, mbc mbc) *mmu {

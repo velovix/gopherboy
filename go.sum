@@ -1,4 +1,4 @@
 github.com/pkg/profile v1.2.1 h1:F++O52m40owAmADcojzM+9gyjmMOY/T4oYJkgFDH8RE=
 github.com/pkg/profile v1.2.1/go.mod h1:hJw3o1OdXxsrSjjVksARp5W95eeEaEfptyVZyv6JUPA=
-github.com/veandco/go-sdl2 v0.0.0-20180925095440-75ff82abc4e3 h1:S1dvzp6ZDdmz1M4oRQ6ceLwU6ZDCNvIa20zhJRHyKgE=
-github.com/veandco/go-sdl2 v0.0.0-20180925095440-75ff82abc4e3/go.mod h1:FB+kTpX9YTE+urhYiClnRzpOXbiWgaU3+5F2AB78DPg=
+github.com/veandco/go-sdl2 v0.3.0 h1:IWYkHMp8V3v37NsKjszln8FFnX2+ab0538J371t+rss=
+github.com/veandco/go-sdl2 v0.3.0/go.mod h1:FB+kTpX9YTE+urhYiClnRzpOXbiWgaU3+5F2AB78DPg=

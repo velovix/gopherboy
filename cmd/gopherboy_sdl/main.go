@@ -33,6 +33,8 @@ func main() {
 		"Generates a pprof file if set")
 	unlimitedFPS := flag.Bool("unlimited-fps", false,
 		"If true, frame rate will not be capped. Games will run as quickly as possible.")
+	saveGameDirectory := flag.String("save-game-dir", ".",
+		"The directory to find save games in")
 	_ = unlimitedFPS
 
 	flag.Parse()
@@ -49,6 +51,17 @@ func main() {
 
 	if *scaleFactor <= 0 {
 		fmt.Println("Scale factor must be higher than 0")
+		os.Exit(1)
+	}
+
+	if stat, err := os.Stat(*saveGameDirectory); os.IsNotExist(err) {
+		fmt.Println("The specified save game directory does not exist")
+		os.Exit(1)
+	} else if err != nil {
+		fmt.Println("Error with save game directory:", err)
+		os.Exit(1)
+	} else if !stat.IsDir() {
+		fmt.Println("The specified save game directory is not a directory")
 		os.Exit(1)
 	}
 
@@ -81,6 +94,9 @@ func main() {
 		fmt.Println("Error: While initializing input driver:", err)
 		os.Exit(1)
 	}
+	saveGames := &fileSaveGameDriver{
+		directory: *saveGameDirectory,
+	}
 
 	var dbConfig gameboy.DebugConfiguration
 
@@ -106,7 +122,7 @@ func main() {
 		}
 	}
 
-	device, err := gameboy.NewDevice(bootROMData, cartridgeData, video, input, dbConfig)
+	device, err := gameboy.NewDevice(bootROMData, cartridgeData, video, input, saveGames, dbConfig)
 	if err != nil {
 		fmt.Println("Error: While initializing Game Boy:", err)
 		os.Exit(1)

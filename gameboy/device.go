@@ -15,6 +15,8 @@ type Device struct {
 	serial           *serial
 	interruptManager *interruptManager
 	soundController  *soundController
+
+	saveGames SaveGameDriver
 }
 
 type DebugConfiguration struct {
@@ -31,9 +33,12 @@ func NewDevice(
 	cartridgeData []byte,
 	video VideoDriver,
 	input InputDriver,
+	saveGames SaveGameDriver,
 	dbConfig DebugConfiguration) (*Device, error) {
 
 	var device Device
+
+	device.saveGames = saveGames
 
 	device.header = loadROMHeader(cartridgeData)
 	fmt.Printf("%+v\n", device.header)
@@ -49,11 +54,26 @@ func NewDevice(
 		mbc = newMBC1(device.header, cartridgeData)
 	case 0x03:
 		// MBC1+RAM+BATTERY
-		// TODO(velovix): Add battery support
 		mbc = newMBC1(device.header, cartridgeData)
+		// TODO(velovix): Add battery support
 	case 0x13:
 		// MBC3+RAM+BATTERY
-		mbc = newMBC3(device.header, cartridgeData, false)
+		mbc3 := newMBC3(device.header, cartridgeData, false)
+
+		// Load up a save game if one is available
+		hasSave, err := device.saveGames.Has(device.header.title)
+		if err != nil {
+			return nil, fmt.Errorf("checking for saves: %v", err)
+		}
+		if hasSave {
+			fmt.Println("Loading battery-backed game save...")
+			data, err := device.saveGames.Load(device.header.title)
+			if err != nil {
+				return nil, fmt.Errorf("loading game save: %v", err)
+			}
+			mbc3.loadBatteryBackedRAM(data)
+		}
+		mbc = mbc3
 	default:
 		return nil, fmt.Errorf("unknown cartridge type %#x", device.header.cartridgeType)
 	}
@@ -98,6 +118,15 @@ func (device *Device) Start(onExit chan bool) error {
 		// Check if the main loop should be exited
 		select {
 		case <-onExit:
+			// Save the game, if necessary
+			if mbc, ok := device.state.mmu.mbc.(batteryBackedMBC); ok {
+				fmt.Println("Saving battery-backed game state...")
+				data := mbc.dumpBatteryBackedRAM()
+				err := device.saveGames.Save(device.header.title, data)
+				if err != nil {
+					return fmt.Errorf("saving game: %v", err)
+				}
+			}
 			return nil
 		default:
 		}

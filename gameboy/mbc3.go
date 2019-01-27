@@ -26,7 +26,11 @@ type mbc3 struct {
 	rtcLatched bool
 }
 
-func newMBC3(header romHeader, cartridgeData []uint8, hasRTC bool) *mbc3 {
+func newMBC3(
+	header romHeader,
+	cartridgeData []uint8,
+	hasRTC bool) *mbc3 {
+
 	var m mbc3
 
 	if hasRTC {
@@ -118,7 +122,7 @@ func (m *mbc3) set(addr uint16, val uint8) {
 		if val <= 0x07 {
 			m.currRAMBank = val
 			fmt.Println("Switched to RAM bank", m.currRAMBank)
-		} else if val <= 0x0C {
+		} else if val <= 0x0C && m.hasRTC {
 			panic("Attempt to control the RTC register, but RTC is not supported")
 		} else {
 			panic(fmt.Sprintf("Unexpected value in RAM Bank/RTC Register Select %#x", val))
@@ -129,8 +133,10 @@ func (m *mbc3) set(addr uint16, val uint8) {
 		// until a 0x00 is written. Note that the RTC itself continues to tick
 		// even while this latch is set. Only the in-memory value remains
 		// unchanged.
-		m.rtcLatched = val == 0x01
-		fmt.Println("Warning: Attempt to latch the RTC register, but RTC is not supported")
+		if m.hasRTC {
+			m.rtcLatched = val == 0x01
+			fmt.Println("Warning: Attempt to latch the RTC register, but RTC is not supported")
+		}
 	} else if inBankedRAMArea(addr) {
 		if m.ramAndRTCEnabled {
 			m.ramBanks[m.currRAMBank][addr-bankedRAMAddr] = val
@@ -140,5 +146,29 @@ func (m *mbc3) set(addr uint16, val uint8) {
 	} else {
 		panic(fmt.Sprintf("The MBC3 should not have been notified of a write "+
 			"to address %#x", addr))
+	}
+}
+
+func (m *mbc3) dumpBatteryBackedRAM() []uint8 {
+	var dump []uint8
+
+	for _, bank := range m.ramBanks {
+		for _, val := range bank {
+			dump = append(dump, val)
+		}
+	}
+
+	return dump
+}
+
+func (m *mbc3) loadBatteryBackedRAM(dump []uint8) {
+	for bankNum, bank := range m.ramBanks {
+		for i := range bank {
+			dumpIndex := len(bank)*bankNum + i
+			if i >= len(dump) {
+				panic(fmt.Sprintf("RAM dump is too small for this MBC: %v", i))
+			}
+			bank[i] = dump[dumpIndex]
+		}
 	}
 }
