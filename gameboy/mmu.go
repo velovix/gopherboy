@@ -101,7 +101,7 @@ func (m *mmu) at(addr uint16) uint8 {
 	}
 
 	// Unmapped areas of memory always read 0xFF
-	if isUnmappedAddress(addr) {
+	if isUnmappedAddress[addr] {
 		return 0xFF
 	}
 
@@ -119,7 +119,7 @@ func (m *mmu) at(addr uint16) uint8 {
 		// Some additional ROM bank, controlled by the MBC
 		return m.mbc.at(addr)
 	case inVideoRAMArea(addr):
-		return m.videoRAM[addr-videoRAMAddr]
+		return m.atVideoRAM(addr)
 	case inRAMArea(addr):
 		return m.ram[addr-ramAddr]
 	case inBankedRAMArea(addr):
@@ -129,7 +129,7 @@ func (m *mmu) at(addr uint16) uint8 {
 		// A bank 0 RAM mirror
 		return m.ram[addr-ramMirrorAddr]
 	case inOAMArea(addr):
-		return m.oamRAM[addr-oamRAMAddr]
+		return m.atOAMRAM(addr)
 	case inInvalidArea(addr):
 		// Invalid area, which always returns 0xFF since it's the MMU's default
 		// value
@@ -138,12 +138,40 @@ func (m *mmu) at(addr uint16) uint8 {
 		}
 		return 0xFF
 	case inIOArea(addr):
-		return m.ioRAM[addr-ioAddr]
+		return m.atIORAM(addr)
 	case inHRAMArea(addr):
 		return m.hram[addr-hramAddr]
 	default:
 		panic(fmt.Sprintf("Unexpected memory address %#x", addr))
 	}
+}
+
+// atVideoRAM return the value at the given address, assuming it is in video
+// RAM. This bypasses checks that the regular `at` method does to improve
+// performance, so it should only be used on known good values.
+func (m *mmu) atVideoRAM(addr uint16) uint8 {
+	return m.videoRAM[addr-videoRAMAddr]
+}
+
+// atOAMRAM return the value at the given address, assuming it is in OAM RAM.
+// This bypasses checks that the regular `at` method does to improve
+// performance, so it should only be used on known good values.
+func (m *mmu) atOAMRAM(addr uint16) uint8 {
+	return m.oamRAM[addr-oamRAMAddr]
+}
+
+// atIORAM return the value at the given address, assuming it is in IO RAM.
+// This bypasses checks that the regular `at` method does to improve
+// performance, so it should only be used on known good values.
+func (m *mmu) atIORAM(addr uint16) uint8 {
+	return m.ioRAM[addr-ioAddr]
+}
+
+// atIORAM return the value at the given address, assuming it is in HRAM.  This
+// bypasses checks that the regular `at` method does to improve performance, so
+// it should only be used on known good values.
+func (m *mmu) atHRAM(addr uint16) uint8 {
+	return m.hram[addr-hramAddr]
 }
 
 // tick progresses the MMU by the given number of cycles.
@@ -173,7 +201,7 @@ func (m *mmu) tick(opTime int) {
 // that side effects may occur.
 func (m *mmu) set(addr uint16, val uint8) {
 	// Unmapped addresses cannot be written to
-	if isUnmappedAddress(addr) {
+	if isUnmappedAddress[addr] {
 		return
 	}
 
@@ -214,12 +242,30 @@ func (m *mmu) setNoNotify(addr uint16, val uint8) {
 			fmt.Printf("Warning: Write to invalid area %#x", addr)
 		}
 	case inIOArea(addr):
-		m.ioRAM[addr-ioAddr] = val
+		m.setIORAM(addr, val)
 	case inHRAMArea(addr):
 		m.hram[addr-hramAddr] = val
 	default:
 		panic(fmt.Sprintf("Unexpected memory address %#x", addr))
 	}
+}
+
+// setIORAM sets the value at the given address, assuming it is in IO RAM.
+// This bypasses checks that the regular `set` method does to improve
+// performance, so it should only be used on known good values. It also does
+// not notify subscribers, so it should only be used for sets within the Game
+// Boy hardware, not as a result of instructions.
+func (m *mmu) setIORAM(addr uint16, val uint8) {
+	m.ioRAM[addr-ioAddr] = val
+}
+
+// setHRAM sets the value at the given address, assuming it is in HRAM.  This
+// bypasses checks that the regular `set` method does to improve performance,
+// so it should only be used on known good values. It also does not notify
+// subscribers, so it should only be used for sets within the Game Boy
+// hardware, not as a result of instructions.
+func (m *mmu) setHRAM(addr uint16, val uint8) {
+	m.hram[addr-hramAddr] = val
 }
 
 // subscribeTo sets up the given function to be called when a value is written
@@ -258,72 +304,4 @@ func (m *mmu) onBootROMDisableWrite(addr uint16, val uint8) uint8 {
 
 	// This register always reads 0xFF
 	return 0xFF
-}
-
-// unusedCGBRegisters are all registers that are used on the CGB but unused on the DMG
-var unusedCGBRegisters = []uint16{
-	key1Addr,
-	vbkAddr,
-	hdma1Addr,
-	hdma2Addr,
-	hdma3Addr,
-	hdma4Addr,
-	hdma5Addr,
-	rpAddr,
-	bcpsAddr,
-	bcpdAddr,
-	ocpsAddr,
-	ocpdAddr,
-	svbkAddr,
-	pcm12Ch2Addr,
-	pcm34Ch4Addr,
-}
-
-// isUnmappedAddress returns true if the given address is in an unmapped range
-// of memory. These areas cannot be written to and always read 0xFF.
-func isUnmappedAddress(addr uint16) bool {
-	if addr == 0xFF03 {
-		return true
-	}
-	if addr >= 0xFF08 && addr <= 0xFF0E {
-		return true
-	}
-	if addr == 0xFF15 {
-		return true
-	}
-	if addr == 0xFF1F {
-		return true
-	}
-	if addr >= 0xFF27 && addr <= 0xFF2F {
-		return true
-	}
-	if addr == 0xFF4C {
-		return true
-	}
-	if addr == 0xFF4E {
-		return true
-	}
-	if addr >= 0xFF57 && addr <= 0xFF67 {
-		return true
-	}
-	if addr >= 0xFF6C && addr <= 0xFF6F {
-		return true
-	}
-	if addr == 0xFF71 {
-		return true
-	}
-	if addr >= 0xFF72 && addr <= 0xFF75 {
-		return true
-	}
-	if addr >= 0xFF78 && addr <= 0xFF7F {
-		return true
-	}
-
-	for _, cgbReg := range unusedCGBRegisters {
-		if addr == cgbReg {
-			return true
-		}
-	}
-
-	return false
 }

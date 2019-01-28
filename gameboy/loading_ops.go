@@ -3,7 +3,7 @@ package gameboy
 import "fmt"
 
 // makeLD creates an instruction that loads the value of reg2 into reg1.
-func makeLD(reg1, reg2 registerType) instruction {
+func makeLD(reg1, reg2 registerType8Bit) instruction {
 	return func(state *State) int {
 		state.regs8[reg1].set(state.regs8[reg2].get())
 
@@ -30,7 +30,7 @@ func ldHLToSP(state *State) int {
 
 // makeLDToMem creates an instruction that loads the value of reg2 into the
 // memory address specified by reg1.
-func makeLDToMem(reg1, reg2 registerType) instruction {
+func makeLDToMem(reg1 registerType16Bit, reg2 registerType8Bit) instruction {
 	return func(state *State) int {
 		state.mmu.set(state.regs16[reg1].get(), state.regs8[reg2].get())
 
@@ -43,7 +43,7 @@ func makeLDToMem(reg1, reg2 registerType) instruction {
 
 // makeLDFromMem creates an instruction that loads the value in the memory
 // address specified by reg2 into reg1.
-func makeLDFromMem(reg1, reg2 registerType) instruction {
+func makeLDFromMem(reg1 registerType8Bit, reg2 registerType16Bit) instruction {
 	return func(state *State) int {
 		val := state.mmu.at(state.regs16[reg2].get())
 		state.regs8[reg1].set(val)
@@ -58,7 +58,7 @@ func makeLDFromMem(reg1, reg2 registerType) instruction {
 
 // makeLD8BitImm creates an instruction that loads an 8-bit immediate value
 // into the given register.
-func makeLD8BitImm(reg registerType) instruction {
+func makeLD8BitImm(reg registerType8Bit) instruction {
 	return func(state *State) int {
 		imm := state.incrementPC()
 
@@ -73,7 +73,7 @@ func makeLD8BitImm(reg registerType) instruction {
 
 // makeLD16BitImm creates an instruction that loads a 16-bit immediate value
 // into the specified 16-bit register.
-func makeLD16BitImm(reg registerType) func(*State) int {
+func makeLD16BitImm(reg registerType16Bit) func(*State) int {
 	return func(state *State) int {
 		imm := combine16(state.incrementPC(), state.incrementPC())
 		state.regs16[reg].set(imm)
@@ -281,7 +281,7 @@ func ldhl(state *State) int {
 
 // makePUSH creates an instruction that decrements the stack pointer by 2, then
 // puts the value of the given register at its position.
-func makePUSH(reg registerType) instruction {
+func makePUSH(reg registerType16Bit) instruction {
 	return func(state *State) int {
 		state.pushToStack16(state.regs16[reg].get())
 
@@ -294,7 +294,7 @@ func makePUSH(reg registerType) instruction {
 
 // makePOP creates an instruction that loads the two bytes at the top of the
 // stack in the given register and increments the stack pointer by 2.
-func makePOP(reg registerType) instruction {
+func makePOP(reg registerType16Bit) instruction {
 	return func(state *State) int {
 		state.regs16[reg].set(state.popFromStack16())
 

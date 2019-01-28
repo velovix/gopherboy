@@ -84,24 +84,27 @@ func (reg *registerCombined) size() int {
 	return 16
 }
 
-type registerType string
+type registerType8Bit int
 
 const (
-	_    registerType = ""
-	regA              = "A"
-	regB              = "B"
-	regC              = "C"
-	regD              = "D"
-	regE              = "E"
-	regH              = "H"
-	regL              = "L"
+	regA registerType8Bit = iota
+	regB
+	regC
+	regD
+	regE
+	regH
+	regL
+	regF
+)
 
-	regAF = "AF"
-	regBC = "BC"
-	regDE = "DE"
-	regHL = "HL"
+type registerType16Bit int
 
-	regSP = "SP"
-	regF  = "F"
-	regPC = "PC"
+const (
+	regAF registerType16Bit = iota
+	regBC
+	regDE
+	regHL
+
+	regSP
+	regPC
 )

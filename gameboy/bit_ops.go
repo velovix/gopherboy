@@ -4,7 +4,7 @@ import "fmt"
 
 // makeRES creates an instruction that sets the specified bit of the given
 // register to zero.
-func makeRES(bitNum uint8, reg registerType) instruction {
+func makeRES(bitNum uint8, reg registerType8Bit) instruction {
 	return func(state *State) int {
 		regVal := state.regs8[reg].get()
 
@@ -36,7 +36,7 @@ func makeRESMemHL(bitNum uint8) instruction {
 
 // makeBIT creates an instruction that checks the given bit of the given
 // register value.
-func makeBIT(bitNum uint8, reg registerType) instruction {
+func makeBIT(bitNum uint8, reg registerType8Bit) instruction {
 	return func(state *State) int {
 		regVal := state.regs8[reg].get()
 
@@ -75,7 +75,7 @@ func makeBITMemHL(bitNum uint8) instruction {
 
 // makeSWAP creates an instruction that swaps the upper and lower nibbles of
 // the given register.
-func makeSWAP(reg registerType) instruction {
+func makeSWAP(reg registerType8Bit) instruction {
 	return func(state *State) int {
 		regVal := state.regs8[reg].get()
 
@@ -119,7 +119,7 @@ func swapMemHL(state *State) int {
 
 // makeSET creates an instruction that sets the specified bit of the given
 // register to one.
-func makeSET(bitNum uint8, reg registerType) instruction {
+func makeSET(bitNum uint8, reg registerType8Bit) instruction {
 	return func(state *State) int {
 		regVal := state.regs8[reg].get()
 

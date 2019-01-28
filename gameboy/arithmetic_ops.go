@@ -4,7 +4,7 @@ import "fmt"
 
 // makeADD creates an instruction that adds the value of reg, an 8-bit
 // register, into register A.
-func makeADD(reg registerType) instruction {
+func makeADD(reg registerType8Bit) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -47,7 +47,7 @@ func addFromMemHL(state *State) int {
 
 // makeADDToHL creates an instruction that adds the value of the given 16-bit
 // register into register HL.
-func makeADDToHL(reg registerType) instruction {
+func makeADDToHL(reg registerType16Bit) instruction {
 	return func(state *State) int {
 		hlVal := state.regs16[regHL].get()
 		regVal := state.regs16[reg].get()
@@ -117,7 +117,7 @@ func addToSP(state *State) int {
 // the carry bit to register A, storing the results in register A.
 //
 // regA = regA + reg + carry bit
-func makeADC(reg registerType) instruction {
+func makeADC(reg registerType8Bit) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -198,7 +198,7 @@ func adc8BitImm(state *State) int {
 
 // makeSUB creates an instruction that subtracts the value of reg, an 8-bit
 // register, from register A.
-func makeSUB(reg registerType) instruction {
+func makeSUB(reg registerType8Bit) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -269,7 +269,7 @@ func sub8BitImm(state *State) int {
 // A.
 //
 // regA = regA - reg - carry bit
-func makeSBC(reg registerType) instruction {
+func makeSBC(reg registerType8Bit) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -351,7 +351,7 @@ func sbc8BitImm(state *State) int {
 
 // makeAND creates an instruction that performs a bitwise & on the given
 // register and register A, storing the result in register A.
-func makeAND(reg registerType) instruction {
+func makeAND(reg registerType8Bit) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -410,7 +410,7 @@ func and8BitImm(state *State) int {
 
 // makeOR creates an instruction that performs a bitwise | on the given
 // register and register A, storing the result in register A.
-func makeOR(reg registerType) instruction {
+func makeOR(reg registerType8Bit) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -469,7 +469,7 @@ func or8BitImm(state *State) int {
 
 // makeXOR creates an instruction that performs a bitwise ^ on register A and
 // the given register, storing the result in register A.
-func makeXOR(reg registerType) instruction {
+func makeXOR(reg registerType8Bit) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()
@@ -528,7 +528,7 @@ func xor8BitImm(state *State) int {
 
 // makeINC8Bit creates an instruction that increments the given 8-bit register
 // by 1.
-func makeINC8Bit(reg registerType) instruction {
+func makeINC8Bit(reg registerType8Bit) instruction {
 	return func(state *State) int {
 		oldVal := state.regs8[reg].get()
 		newVal := state.regs8[reg].set(oldVal + 1)
@@ -548,7 +548,7 @@ func makeINC8Bit(reg registerType) instruction {
 
 // makeINC16Bit creates an instruction that increments the given 16-bit
 // register by 1.
-func makeINC16Bit(reg registerType) instruction {
+func makeINC16Bit(reg registerType16Bit) instruction {
 	return func(state *State) int {
 		oldVal := state.regs16[reg].get()
 
@@ -585,7 +585,7 @@ func incMemHL(state *State) int {
 
 // makeDEC8Bit creates an instruction that decrements the given 8-bit register
 // by 1.
-func makeDEC8Bit(reg registerType) instruction {
+func makeDEC8Bit(reg registerType8Bit) instruction {
 	return func(state *State) int {
 		oldVal := state.regs8[reg].get()
 
@@ -604,7 +604,7 @@ func makeDEC8Bit(reg registerType) instruction {
 
 // makeDEC16Bit creates an instruction that decrements the given 16-bit
 // register by 1.
-func makeDEC16Bit(reg registerType) instruction {
+func makeDEC16Bit(reg registerType16Bit) instruction {
 	return func(state *State) int {
 		state.regs16[reg].set(state.regs16[reg].get() - 1)
 
@@ -639,7 +639,7 @@ func decMemHL(state *State) int {
 // makeCP creates an instruction that compares the value in register A with the
 // value of the given register and sets flags accordingly. The semantics are
 // the same as the SUB operator, but the result value is not saved.
-func makeCP(reg registerType) instruction {
+func makeCP(reg registerType8Bit) instruction {
 	return func(state *State) int {
 		aVal := state.regs8[regA].get()
 		regVal := state.regs8[reg].get()

@@ -3,9 +3,9 @@ package gameboy
 // State holds the entire state of the Game Boy.
 type State struct {
 	// A map of 8-bit register names to their corresponding register.
-	regs8 map[registerType]register8
+	regs8 []register8
 	// A map of 16-bit register names to their corresponding register.
-	regs16 map[registerType]register16
+	regs16 []register16
 	// The active memory management unit.
 	mmu *mmu
 	// If this value is >0, it is decremented after every operation. When this
@@ -32,8 +32,8 @@ type State struct {
 // initialized in accordance with the Game Boy's start up sequence.
 func NewState(mmu *mmu) *State {
 	state := &State{
-		regs8:  make(map[registerType]register8),
-		regs16: make(map[registerType]register16),
+		regs8:  make([]register8, 8),  // There are 8 8-bit registers
+		regs16: make([]register16, 6), // There are 6 16-bit registers
 		mmu:    mmu,
 	}
 
@@ -62,38 +62,6 @@ func NewState(mmu *mmu) *State {
 
 	state.regs16[regSP] = &normalRegister16{0}
 	state.regs16[regPC] = &normalRegister16{0}
-
-	// Set registers to their initial value
-	/*state.regs16[regPC].set(0x0000)
-	// Set the stack pointer to a high initial value
-	state.regs16[regSP].set(0xFFFE)
-	// I don't know why these values are set this way
-	state.regs16[regAF].set(0x01B0)
-	state.regs16[regBC].set(0x0013)
-	state.regs16[regDE].set(0x00D8)
-	state.regs16[regHL].set(0x014D)
-
-	// Set memory addresses
-	state.mmu.setNoNotify(timaAddr, 0x00)
-	state.mmu.setNoNotify(tmaAddr, 0x00)
-	state.mmu.setNoNotify(tacAddr, 0x00)
-	state.mmu.setNoNotify(ieAddr, 0x00)
-	state.mmu.setNoNotify(lcdcAddr, 0x91)
-	state.mmu.setNoNotify(scrollYAddr, 0x00)
-	state.mmu.setNoNotify(scrollXAddr, 0x00)
-	state.mmu.setNoNotify(lycAddr, 0x00)
-	state.mmu.setNoNotify(bgpAddr, 0xFC)
-	state.mmu.setNoNotify(opb0Addr, 0xFF)
-	state.mmu.setNoNotify(opb1Addr, 0xFF)
-	state.mmu.setNoNotify(windowPosYAddr, 0x00)
-	state.mmu.setNoNotify(windowPosXAddr, 0x00)
-	state.mmu.setNoNotify(ieAddr, 0x00)
-
-	// Set initial values of timers. On actual hardware, the boot ROM runs
-	// before the game and the timers have a chance to get up to these values.
-	state.mmu.setNoNotify(dividerAddr, 0xAB)*/
-
-	// TODO(velovix): Set even more memory addresses
 
 	state.instructionStart = state.regs16[regPC].get()
 
