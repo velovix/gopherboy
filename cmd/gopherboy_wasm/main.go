@@ -50,7 +50,7 @@ func main() {
 	}
 	eventHandler.subscribers = append(eventHandler.subscribers, input.messages)
 
-	device, err := gameboy.NewDevice(cartridgeData, video, input, gameboy.DebugConfiguration{})
+	device, err := gameboy.NewDevice(gameboy.BootROM(), cartridgeData, video, input, &mockSaveGameDriver{}, gameboy.DebugConfiguration{})
 	if err != nil {
 		fmt.Println("Error: While initializing Game Boy:", err)
 		return
