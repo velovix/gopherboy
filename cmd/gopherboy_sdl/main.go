@@ -44,9 +44,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	var bootROMData []byte
+	var err error
 	if *bootROM == "" {
-		fmt.Println("A boot ROM is required. Please provide one with the --boot-rom flag.")
-		os.Exit(1)
+		bootROMData = gameboy.BootROM()
+	} else {
+		// Load the boot ROM
+		bootROMData, err = ioutil.ReadFile(*bootROM)
+		if err != nil {
+			fmt.Println("Error: While reading boot ROM:", err)
+			os.Exit(1)
+		}
 	}
 
 	if *scaleFactor <= 0 {
@@ -68,13 +76,6 @@ func main() {
 	if *enableProfiling {
 		fmt.Println("Profiling has been enabled")
 		defer profile.Start(profile.NoShutdownHook).Stop()
-	}
-
-	// Load the boot ROM
-	bootROMData, err := ioutil.ReadFile(*bootROM)
-	if err != nil {
-		fmt.Println("Error: While reading boot ROM:", err)
-		os.Exit(1)
 	}
 
 	// Load the ROM file
