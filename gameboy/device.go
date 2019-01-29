@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Device represents the Game Boy hardware.
 type Device struct {
 	state            *State
 	header           romHeader
@@ -43,6 +44,8 @@ func NewDevice(
 	device.header = loadROMHeader(cartridgeData)
 	fmt.Printf("%+v\n", device.header)
 
+	batteryBacked := false
+
 	// Create a memory bank controller for this ROM
 	var mbc mbc
 	switch device.header.cartridgeType {
@@ -58,9 +61,19 @@ func NewDevice(
 		// TODO(velovix): Add battery support
 	case 0x13:
 		// MBC3+RAM+BATTERY
-		mbc3 := newMBC3(device.header, cartridgeData, false)
+		mbc = newMBC3(device.header, cartridgeData, false)
+		batteryBacked = true
+	case 0x1B:
+		// MBC5+RAM+BATTERY
+		mbc = newMBC5(device.header, cartridgeData, false)
+		batteryBacked = true
+	default:
+		return nil, fmt.Errorf("unknown cartridge type %#x", device.header.cartridgeType)
+	}
 
-		// Load up a save game if one is available
+	// Load up a save game if we're using a battery backed cartridge
+	if batteryBacked {
+		batteryMBC := mbc.(batteryBackedMBC)
 		hasSave, err := device.saveGames.Has(device.header.title)
 		if err != nil {
 			return nil, fmt.Errorf("checking for saves: %v", err)
@@ -71,11 +84,8 @@ func NewDevice(
 			if err != nil {
 				return nil, fmt.Errorf("loading game save: %v", err)
 			}
-			mbc3.loadBatteryBackedRAM(data)
+			batteryMBC.loadBatteryBackedRAM(data)
 		}
-		mbc = mbc3
-	default:
-		return nil, fmt.Errorf("unknown cartridge type %#x", device.header.cartridgeType)
 	}
 
 	device.state = NewState(newMMU(bootROM, cartridgeData, mbc))
