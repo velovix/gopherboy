@@ -42,9 +42,7 @@ func newMBC3(
 	m.romBanks = makeROMBanks(header.romSizeType, cartridgeData)
 	m.ramBanks = makeRAMBanks(header.ramSizeType)
 
-	// TODO(velovix): Should 1 be the default ROM bank?
 	m.currROMBank = 1
-	// TODO(velovix): Should 0 be the default RAM bank?
 	m.currRAMBank = 0
 
 	return &m
