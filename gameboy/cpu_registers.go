@@ -15,6 +15,7 @@ type normalRegister8 struct {
 
 func (reg *normalRegister8) set(val uint8) uint8 {
 	reg.val = val
+
 	return reg.get()
 }
 

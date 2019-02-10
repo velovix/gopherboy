@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"unsafe"
 
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/velovix/gopherboy/gameboy"
+	"golang.org/x/xerrors"
 )
 
 // videoDriver provides a video driver interface with SDL as its back end. This
@@ -22,7 +22,7 @@ func newVideoDriver(scaleFactor float64) (*videoDriver, error) {
 
 	err := sdl.Init(sdl.INIT_EVERYTHING)
 	if err != nil {
-		return nil, fmt.Errorf("initializing SDL: %v", err)
+		return nil, xerrors.Errorf("initializing SDL: %v", err)
 	}
 
 	vd.window, err = sdl.CreateWindow(
@@ -32,12 +32,12 @@ func newVideoDriver(scaleFactor float64) (*videoDriver, error) {
 		int32(gameboy.ScreenHeight*scaleFactor),
 		sdl.WINDOW_OPENGL)
 	if err != nil {
-		return nil, fmt.Errorf("initializing window: %v", err)
+		return nil, xerrors.Errorf("initializing window: %v", err)
 	}
 
 	vd.renderer, err = sdl.CreateRenderer(vd.window, -1, sdl.RENDERER_ACCELERATED)
 	if err != nil {
-		return nil, fmt.Errorf("initializing renderer: %v", err)
+		return nil, xerrors.Errorf("initializing renderer: %v", err)
 	}
 
 	vd.renderer.SetDrawColor(255, 255, 255, 255)
@@ -47,46 +47,57 @@ func newVideoDriver(scaleFactor float64) (*videoDriver, error) {
 
 // clear clears the screen in preparation for a new frame.
 func (vd *videoDriver) Clear() {
-	vd.renderer.Clear()
+	doOnMainThread(func() {
+		vd.renderer.Clear()
+	})
 }
 
 // render renders the given RGBA frame data on-screen. This is done by turning
 // it into a texture and copying it onto the renderer.
 func (vd *videoDriver) Render(frameData []uint8) error {
-	surface, err := sdl.CreateRGBSurfaceFrom(
-		unsafe.Pointer(&frameData[0]),
-		gameboy.ScreenWidth,
-		gameboy.ScreenHeight,
-		32,                    // Bits per pixel
-		4*gameboy.ScreenWidth, // Bytes per row
-		0x000000FF,            // Bitmask for R value
-		0x0000FF00,            // Bitmask for G value
-		0x00FF0000,            // Bitmask for B value
-		0xFF000000,            // Bitmask for alpha value
-	)
-	if err != nil {
-		return fmt.Errorf("creating surface: %v", err)
-	}
-	defer surface.Free()
+	var err error
 
-	texture, err := vd.renderer.CreateTextureFromSurface(surface)
-	if err != nil {
-		return fmt.Errorf("converting surface to a texture: %v", err)
-	}
-	defer texture.Destroy()
+	doOnMainThread(func() {
+		surface, err := sdl.CreateRGBSurfaceFrom(
+			unsafe.Pointer(&frameData[0]),
+			gameboy.ScreenWidth,
+			gameboy.ScreenHeight,
+			32,                    // Bits per pixel
+			4*gameboy.ScreenWidth, // Bytes per row
+			0x000000FF,            // Bitmask for R value
+			0x0000FF00,            // Bitmask for G value
+			0x00FF0000,            // Bitmask for B value
+			0xFF000000,            // Bitmask for alpha value
+		)
+		if err != nil {
+			err = xerrors.Errorf("creating surface: %w", err)
+			return
+		}
+		defer surface.Free()
 
-	err = vd.renderer.Copy(texture, nil, nil)
-	if err != nil {
-		return fmt.Errorf("copying frame to screen: %v", err)
-	}
+		texture, err := vd.renderer.CreateTextureFromSurface(surface)
+		if err != nil {
+			err = xerrors.Errorf("converting surface to a texture: %w", err)
+			return
+		}
+		defer texture.Destroy()
 
-	vd.renderer.Present()
+		err = vd.renderer.Copy(texture, nil, nil)
+		if err != nil {
+			err = xerrors.Errorf("copying frame to screen: %w", err)
+			return
+		}
 
-	return nil
+		vd.renderer.Present()
+	})
+
+	return err
 }
 
 // close de-initializes the video driver in preparation for exit.
 func (vd *videoDriver) Close() {
-	vd.renderer.Destroy()
-	vd.window.Destroy()
+	doOnMainThread(func() {
+		vd.renderer.Destroy()
+		vd.window.Destroy()
+	})
 }

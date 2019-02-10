@@ -98,7 +98,6 @@ func (m *mbc3) set(addr uint16, val uint8) {
 		lower, _ := split(val)
 		// 0x0A is the magic number to turn these devices on
 		m.ramAndRTCEnabled = lower == 0x0A
-		fmt.Printf("Write to RAM enable/disable %#x: %#x, %v\n", addr, val, m.ramAndRTCEnabled)
 	} else if addr < 0x4000 {
 		// ROM Bank Number "register"
 		// This area is used to specify all 7 bits of the desired ROM bank
@@ -119,7 +118,6 @@ func (m *mbc3) set(addr uint16, val uint8) {
 		// that corresponding RTC register to the RAM bank address space.
 		if val <= 0x07 {
 			m.currRAMBank = val
-			fmt.Println("Switched to RAM bank", m.currRAMBank)
 		} else if val <= 0x0C && m.hasRTC {
 			panic("Attempt to control the RTC register, but RTC is not supported")
 		} else {

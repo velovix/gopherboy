@@ -2,6 +2,8 @@ package gameboy
 
 import (
 	"fmt"
+
+	"golang.org/x/xerrors"
 )
 
 // TODO(velovix): Document what instructions do to flags
@@ -540,7 +542,7 @@ func runOpcode(state *State, opcode uint8) (cycles int, err error) {
 
 	instr := opcodeMapper[opcode]
 	if instr == nil {
-		return 0, fmt.Errorf("unknown opcode %#x", opcode)
+		return 0, xerrors.Errorf("unknown opcode %#x", opcode)
 	}
 	return instr(state), nil
 }

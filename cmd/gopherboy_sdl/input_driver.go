@@ -48,21 +48,23 @@ func (driver *inputDriver) State(btn gameboy.Button) bool {
 func (driver *inputDriver) Update() bool {
 	buttonPressed := false
 
-	for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
-		switch event := event.(type) {
-		case *sdl.KeyboardEvent:
-			btn := scancodeToButton[event.Keysym.Scancode]
+	doOnMainThread(func() {
+		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
+			switch event := event.(type) {
+			case *sdl.KeyboardEvent:
+				btn := scancodeToButton[event.Keysym.Scancode]
 
-			if _, ok := driver.buttonStates[btn]; ok {
-				if event.State == sdl.PRESSED {
-					buttonPressed = true
-					driver.buttonStates[btn] = true
-				} else {
-					driver.buttonStates[btn] = false
+				if _, ok := driver.buttonStates[btn]; ok {
+					if event.State == sdl.PRESSED {
+						buttonPressed = true
+						driver.buttonStates[btn] = true
+					} else {
+						driver.buttonStates[btn] = false
+					}
 				}
 			}
 		}
-	}
+	})
 
 	return buttonPressed
 }

@@ -161,3 +161,27 @@ func (m *mbc1) set(addr uint16, val uint8) {
 		panic(fmt.Sprintf("It isn't the MBC1's job to handle writes to address %#x", addr))
 	}
 }
+
+func (m *mbc1) dumpBatteryBackedRAM() []uint8 {
+	var dump []uint8
+
+	for _, bank := range m.ramBanks {
+		for _, val := range bank {
+			dump = append(dump, val)
+		}
+	}
+
+	return dump
+}
+
+func (m *mbc1) loadBatteryBackedRAM(dump []uint8) {
+	for bankNum, bank := range m.ramBanks {
+		for i := range bank {
+			dumpIndex := len(bank)*bankNum + i
+			if i >= len(dump) {
+				panic(fmt.Sprintf("RAM dump is too small for this MBC: %v", i))
+			}
+			bank[i] = dump[dumpIndex]
+		}
+	}
+}

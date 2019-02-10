@@ -12,11 +12,27 @@ import (
 	"github.com/velovix/gopherboy/gameboy"
 )
 
-func main() {
-	// Necessary because SDL2 uses OpenGL in the back end, which is not
-	// thread-safe and does not like being moved around
+func init() {
+	// Necessary because SDL2 is not thread-safe and does not like being moved
+	// around
 	runtime.LockOSThread()
+}
 
+// mainThreadFuncs contains functions queued up to run on the main thread.
+var mainThreadFuncs = make(chan func())
+
+// doOnMainThread runs the given function in the main thread and returns when
+// done.
+func doOnMainThread(f func()) {
+	done := make(chan bool, 1)
+	mainThreadFuncs <- func() {
+		f()
+		done <- true
+	}
+	<-done
+}
+
+func main() {
 	bootROM := flag.String("boot-rom", "",
 		"Path to a file containing the Game Boy boot ROM")
 	scaleFactor := flag.Float64("scale", 2,
@@ -129,6 +145,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	_, err = newSoundDriver(device)
+	if err != nil {
+		fmt.Println("Error: While initializing sound driver:", err)
+		os.Exit(1)
+	}
+
 	// Stop main loop on sigint
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
@@ -140,10 +162,23 @@ func main() {
 		}
 	}()
 
-	err = device.Start(onExit)
-	if err != nil {
-		fmt.Println("Error:", err)
-		os.Exit(1)
+	// Start the device
+	go func() {
+		err = device.Start(onExit)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+	}()
+
+	running := true
+	for running {
+		select {
+		case f := <-mainThreadFuncs:
+			f()
+		case <-onExit:
+			running = false
+		}
 	}
 
 	fmt.Println("Buh-bye!")
