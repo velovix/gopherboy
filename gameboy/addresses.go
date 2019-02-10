@@ -35,11 +35,14 @@ const (
 	// nr10Addr points to the "Sound Mode 1 Sweep" register. This controls the
 	// frequency sweep effect of the pulse A sound channel.
 	//
+	// TODO(velovix): A better job at documenting this
+	//
 	// Bit 7: Unused, always 1
 	// Bits 6-4: Controls the length of the frequency sweep. The length is
 	//           n/128Hz, where N is the value written here.
 	// Bit 3: If 0, the frequency increases. If 1, the frequency decreases.
-	// Bits 2-0: The number of sweep shifts to do.
+	// Bits 2-0: The number to shift the last frequency by in order to get the
+	//           next frequency
 	nr10Addr = 0xFF10
 	// nr11Addr points to the "Sound Mode 1 Length and Wave Pattern Duty"
 	// register. This controls the duty cycle of the pulse A square wave and
@@ -55,45 +58,164 @@ const (
 	nr11Addr = 0xFF11
 	// nr12Addr points to the "Sound Mode 1 Envelope" register. This allows for
 	// a volume sweep effect.
+	//
 	// Bits 7-4: The initial volume of the note, with 0 being no sound.
 	// Bits 3: Controls whether the volume sweeps up or down. 0 is down, 1 is
 	//         up.
-	// Bits 2-0: TODO(velovix): What is this?
+	// Bits 2-0: Controls at what rate the volume is changed, from 0-7. If 0,
+	//           the sweep is disabled. When set, the volume sweeps up or down
+	//           one unit every n/64 seconds.
 	nr12Addr = 0xFF12
-	// nr32Addr points to the Sound Mode 3 Select Output Level Memory Register.
-	// This register controls output settings for the third voice.
+	// nr13Addr points to the "Sound Mode 1 Frequency Lo" register. This
+	// register sets the lower 8 bits of pulse A's frequency.
+	nr13Addr = 0xFF13
+	// nr14Addr points to the "Sound Mode 1 Frequency Hi" register. This
+	// register has some bits to start pulse A and the upper three bits of the
+	// frequency selection.
 	//
-	// TODO(velovix): Learn more about this
+	// Bit 7: When set, pulse A restarts
+	// Bit 6: If 1, this voice will be turned off when its duration finishes.
+	//        If 0, it will play indefinitely.
+	// Bits 2-0: The most significant 3 bits of pulse A's frequency
+	nr14Addr = 0xFF14
+
+	// nr21Addr points to the "Sound Mode 2 Length and Wave Pattern Duty"
+	// register. This controls the duty cycle of the pulse B square wave and
+	// the length that the wave should play for.
+	//
+	// Bits 7-6: Wave pattern duty cycle.
+	//   00: 12.5% duty cycle
+	//   01: 25% duty cycle
+	//   10: 50% duty cycle
+	//   11: 75% duty cycle, sounds the same as 25%
+	// Bits 5-0: The duration to play the sound for. The length is
+	//           (64-t)*(1/256) seconds, wehre t is the value at these bits.
+	nr21Addr = 0xFF16
+
+	// nr22Addr points to the "Sound Mode 2 Envelope" register. This allows for
+	// a volume sweep effect.
+	//
+	// Bits 7-4: The initial volume of the note, with 0 being no sound.
+	// Bits 3: Controls whether the volume sweeps up or down. 0 is down, 1 is
+	//         up.
+	// Bits 2-0: Controls at what rate the volume is changed, from 0-7. If 0,
+	//           the sweep is disabled. When set, the volume sweeps up or down
+	//           one unit every n/64 seconds.
+	nr22Addr = 0xFF17
+
+	// nr13Addr points to the "Sound Mode 2 Frequency Lo" register. This
+	// register sets the lower 8 bits of pulse B's frequency.
+	nr23Addr = 0xFF18
+
+	// nr24Addr points to the "Sound Mode 2 Frequency Hi" register. This
+	// register has some bits to start pulse B and the upper three bits of the
+	// frequency selection.
+	//
+	// Bit 7: When set, pulse B restarts
+	// Bit 6: If 1, this voice will be turned off when its duration finishes.
+	//        If 0, it will play indefinitely.
+	// Bits 2-0: The most significant 3 bits of the pulse B's frequency
+	nr24Addr = 0xFF19
+
+	// nr30Addr points to the Sound Mode 3 On/Off Memory Register. It turns on
+	// and off the wave channel.
+	//
+	// Bit 7: If 1, the wave channel is turned on.
+	// Bits 6-0: Unused, always 1
+	nr30Addr = 0xFF1A
+
+	// nr31Addr is the "Sound Mode 3 Length" register. This register sets the
+	// length at which the note will be played.
+	//
+	// Length in seconds = (256-nr31)*(1/2)
+	nr31Addr = 0xFF1B
+
+	// nr32Addr points to the Sound Mode 3 Select Output Level Memory Register.
+	// This register controls what is effectively the volume of the wave voice.
+	// The wave voice's volume is decreased by shifting the wave value right by
+	// the specified amount.
+	//
 	// Bits 6-5: Select output level
-	//   00: Mute the voice
+	//   00: Shift 4 bits, effectively muting the wave voice
 	//   01: Produce wave pattern data as-is
 	//   10: Produce wave pattern data shifted once to the right
 	//   11: Produce wave pattern data shifted twice to the right
 	nr32Addr = 0xFF1C
 
-	// nr30Addr points to the Sound Mode 3 On/Off Memory Register. It turns on
-	// and off the third voice.
+	// nr33Addr points to the "Sound Mode 3 Frequency Lo" register. This
+	// register sets the lower 8 bits of the wave channel's frequency.
+	nr33Addr = 0xFF1D
+
+	// nr34Addr points to the "Sound Mode 3 Frequency Hi" register. This
+	// register has some bits to start the wave channel and the upper three
+	// bits of the frequency selection.
 	//
-	// Bit 7: If 1, the voice is turned on.
-	// Bits 6-0: Unused, always 1
-	nr30Addr = 0xFF1A
+	// Bit 7: When set, the wave channel restarts
+	// Bit 6: If 1, this voice will be turned off when its duration finishes.
+	//        If 0, it will play indefinitely.
+	// Bits 2-0: The most significant 3 bits of the wave channel's frequency
+	nr34Addr = 0xFF1E
 
 	// nr41Addr points to the Sound Mode 4 Sound Length Memory Register. It
-	// controls the length that the fourth voice plays for.
-	// TODO(velovix): Is this accurate?
+	// controls the length that the noise channel plays for.
 	//
 	// Bits 7-6: Unused, always 1
 	// Bits 5-0: Controls sound length. If this value is t1, then the sound
 	//           will play for (64-t1)*(1/256) seconds.
 	nr41Addr = 0xFF20
 
+	// nr42Addr points to the Sound Mode 4 Envelope Register. It controls the
+	// volume sweep for the noise voice.
+	//
+	// Bits 7-4: The initial volume of the note, with 0 being no sound.
+	// Bit 3: Controls whether the volume sweeps up or down. 0 is down, 1 is
+	//        up.
+	// Bits 2-0: Controls at what rate the volume is changed, from 0-7. If 0,
+	//           the sweep is disabled. When set, the volume sweeps up or down
+	//           one unit every n/64 seconds.
+	nr42Addr = 0xFF21
+
+	// nr43Addr points to the Sound Mode 4 Polynomial Register. It controls
+	// various aspects of how the random noise is generated.
+	//
+	// The noise generation is done using a linear feedback shift register,
+	// which provides pseudo-random numbers. We will refer to this as the LFSR.
+	//
+	// Bits 7-4: Controls the frequency that the LFSR is shifted at. Values
+	//           0b1110 and 0b1111 are invalid. TODO(velovix): What happens?
+	//           (dividing ratio) * 1/2^n
+	// Bit 3: Selects the LFSR's size. If 0, it is 15-bit. If 1, it is 7-bit.
+	// Bits 2-0: The dividing ratio of frequencies.
+	//           0: f * 1/2^3 * 2
+	//           n: f * 1/2^3 * 1/n
+	//           Where f=4194304 Hz
+	nr43Addr = 0xFF22
+
 	// nr44Addr points to the Sound Mode 4 Counter/Consecutive Initial Memory
 	// Register.
-	// TODO(velovix): I don't understand this at all
+	//
+	// Bit 7: When set, the noise channel restarts
+	// Bit 6: If 1, this voice will be turned off when its duration finishes.
+	//        If 0, it will play indefinitely.
+	// Bit 5-0: Unused, always 1
 	nr44Addr = 0xFF23
 
+	// nr51Addr points to the Selection of Sound Output Terminal. It's a set of
+	// bits which turn on and off the sound of each voice for the left and
+	// right audio channels. 1 is on, 0 is off.
+	//
+	// Bit 7: Sound mode 4 for left side on/off
+	// Bit 6: Sound mode 3 for left side on/off
+	// Bit 5: Sound mode 2 for left side on/off
+	// Bit 4: Sound mode 1 for left side on/off
+	// Bit 3: Sound mode 4 for right side on/off
+	// Bit 2: Sound mode 3 for right side on/off
+	// Bit 1: Sound mode 2 for right side on/off
+	// Bit 0: Sound mode 1 for right side on/off
+	nr51Addr = 0xFF25
+
 	// nr52Addr points to the Sound On/Off Memory Register. It's a set of
-	// on/off indicators for each voice and all sound.
+	// on/off indicators for each channel and all sound.
 	//
 	// Bit 7: All sound on/off switch. 1 if on.
 	// Bits 6-4: Unused, always 1
@@ -102,6 +224,10 @@ const (
 	// Bit 1: Sound 2 on/off switch. 1 if on. Read-only.
 	// Bit 0: Sound 1 on/off switch. 1 if on. Read-only.
 	nr52Addr = 0xFF26
+
+	// Designates the area in RAM where the custom wave pattern is specified.
+	wavePatternRAMStart = 0xFF30
+	wavePatternRAMEnd   = 0xFF40
 
 	// scrollYAddr points to the "Scroll Y" memory register. This controls the
 	// position of the top left of the background.

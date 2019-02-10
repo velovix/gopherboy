@@ -26,7 +26,7 @@ func newMBC5(
 	header romHeader,
 	cartridgeData []uint8,
 	hasRumble bool) *mbc5 {
-	
+
 	var m mbc5
 
 	m.romBanks = makeROMBanks(header.romSizeType, cartridgeData)
@@ -52,7 +52,7 @@ func (m *mbc5) at(addr uint16) uint8 {
 		bank %= uint16(len(m.romBanks))
 		return m.romBanks[bank][addr-bankedROMAddr]
 	case inBankedRAMArea(addr):
-		if m.ramEnabled && len(m.ramBanks) >0 {
+		if m.ramEnabled && len(m.ramBanks) > 0 {
 			bank := m.currRAMBank
 			// If an out-of-bounds RAM bank is selected, the value will "wrap
 			// around"
@@ -112,7 +112,7 @@ func (m *mbc5) set(addr uint16, val uint8) {
 			// only bits 0-3 are mapped to RAM bank switching, limiting the
 			// maximum number of RAM banks these cartridges can have.
 			m.currRAMBank = val & 0x0F
-			m.rumbling = val & 0x10 == 0x10
+			m.rumbling = val&0x10 == 0x10
 		} else {
 			m.currRAMBank = val
 		}
@@ -122,7 +122,7 @@ func (m *mbc5) set(addr uint16, val uint8) {
 		if m.ramEnabled {
 			m.ramBanks[m.currRAMBank][addr-bankedRAMAddr] = val
 		} else {
-			fmt.Println("Attempt to write to banked RAM when RAM is disabled: At address %#x\n", addr)
+			fmt.Printf("Attempt to write to banked RAM when RAM is disabled: At address %#x\n", addr)
 		}
 	} else {
 		panic(fmt.Sprintf("MBC5 is unable to handle writes to address %#x", addr))

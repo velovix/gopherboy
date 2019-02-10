@@ -1,6 +1,8 @@
 package gameboy
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // jr loads a signed offset value, then jumps to the operation at address PC +
 // offset. In other words, it's a jump relative to the current position.

@@ -3,8 +3,9 @@ package gameboy
 import (
 	"bytes"
 	"encoding/base64"
-	"fmt"
 	"io/ioutil"
+
+	"golang.org/x/xerrors"
 )
 
 // BootROM returns a modified version of the DMG boot ROM with the original
@@ -13,7 +14,7 @@ func BootROM() []byte {
 	decoder := base64.NewDecoder(base64.StdEncoding, bytes.NewBuffer([]byte(bootROM)))
 	data, err := ioutil.ReadAll(decoder)
 	if err != nil {
-		panic(fmt.Errorf("while decoding boot ROM: %v", err))
+		panic(xerrors.Errorf("decoding boot ROM: %w", err))
 	}
 
 	return data
