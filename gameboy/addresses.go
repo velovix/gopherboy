@@ -135,11 +135,13 @@ const (
 	// The wave voice's volume is decreased by shifting the wave value right by
 	// the specified amount.
 	//
+	// Bit 7: Unused, always 1
 	// Bits 6-5: Select output level
 	//   00: Shift 4 bits, effectively muting the wave voice
 	//   01: Produce wave pattern data as-is
 	//   10: Produce wave pattern data shifted once to the right
 	//   11: Produce wave pattern data shifted twice to the right
+	// Bits 4-0: Unused, always 1
 	nr32Addr = 0xFF1C
 
 	// nr33Addr points to the "Sound Mode 3 Frequency Lo" register. This
@@ -199,6 +201,18 @@ const (
 	//        If 0, it will play indefinitely.
 	// Bit 5-0: Unused, always 1
 	nr44Addr = 0xFF23
+
+	// nr50Addr points to the Cartridge Channel Control and Volume Register.
+	// This register controls the volume of the left and right audio channels
+	// for all sound. It also has an obscure purpose for turning on and off
+	// arbitrary sound input from the cartridge. This would be useful if a game
+	// wanted to provide its own sound hardware, but no game ever did this.
+	//
+	// Bit 7: Vin->Left Side Toggle. Unused in practice.
+	// Bits 6-4: Left side volume, 0 being mute and 7 being max
+	// Bit 3: Vin->Right Side Toggle. Unused in practice.
+	// Bits 2-0: Right side volume, 0 being mute and 7 being max
+	nr50Addr = 0xFF24
 
 	// nr51Addr points to the Selection of Sound Output Terminal. It's a set of
 	// bits which turn on and off the sound of each voice for the left and

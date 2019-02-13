@@ -23,11 +23,11 @@ var myDevice *gameboy.Device
 var samples = make(chan float64, totalHz*3)
 
 var (
-	pulseAPhase    = 0.0
-	pulseBPhase    = 0.0
-	wavePhase      = 0.0
-	sinceLastShift = 0
-	lfsr           = uint16(0x38C2)
+	pulseAPhase = 0.0
+	pulseBPhase = 0.0
+	wavePhase   = 0.0
+	shiftCount  = 0.0
+	lfsr        = uint16(0x38C2)
 )
 
 const tau = math.Pi * 2.0
@@ -56,6 +56,14 @@ func SoundCallback(userdata unsafe.Pointer, stream *C.Uint8, length C.int) {
 	pulseAPhaseDelta := tau * float64(myDevice.SoundController.PulseA.Frequency()) / totalHz
 	pulseBPhaseDelta := tau * myDevice.SoundController.PulseB.Frequency() / totalHz
 	wavePhaseDelta := tau * myDevice.SoundController.Wave.Frequency() / totalHz
+
+	if !myDevice.SoundController.Enabled {
+		// Fill the buffer with zeros
+		for i := 0; i < n; i++ {
+			buffer[i] = 0
+		}
+		return
+	}
 
 	for i := 0; i < n; i += 2 {
 		var sampleLeft, sampleRight float64
@@ -98,6 +106,7 @@ func SoundCallback(userdata unsafe.Pointer, stream *C.Uint8, length C.int) {
 			sample := wave(
 				wavePhase,
 				myDevice.SoundController.Wave.Pattern())
+			sample *= myDevice.SoundController.Wave.Volume()
 
 			if myDevice.SoundController.Wave.LeftEnabled {
 				sampleLeft += sample
@@ -108,11 +117,9 @@ func SoundCallback(userdata unsafe.Pointer, stream *C.Uint8, length C.int) {
 		}
 
 		if myDevice.SoundController.Noise.On {
-			sinceLastShift++
-			if myDevice.SoundController.Noise.ShiftFrequency() > totalHz {
-				// Shift as fast as we can
-				sinceLastShift = 0
-			} else if sinceLastShift%int(totalHz/myDevice.SoundController.Noise.ShiftFrequency()) == 0 {
+			shiftCount += myDevice.SoundController.Noise.ShiftFrequency() / totalHz
+
+			for shiftCount >= 1 {
 				lfsr >>= 1
 				xorVal := (lfsr & 0x1) ^ ((lfsr & 0x2) >> 1)
 				lfsr |= xorVal << 14
@@ -120,7 +127,7 @@ func SoundCallback(userdata unsafe.Pointer, stream *C.Uint8, length C.int) {
 				if myDevice.SoundController.Noise.WidthMode() == gameboy.WidthMode7Bit {
 					lfsr |= xorVal << 6
 				}
-				sinceLastShift = 0
+				shiftCount--
 			}
 
 			sample := float64(lfsr&0x1) * myDevice.SoundController.Noise.Volume()
@@ -132,6 +139,9 @@ func SoundCallback(userdata unsafe.Pointer, stream *C.Uint8, length C.int) {
 				sampleRight += sample
 			}
 		}
+
+		sampleLeft *= myDevice.SoundController.LeftVolume()
+		sampleRight *= myDevice.SoundController.RightVolume()
 
 		buffer[i] = C.Uint8(uint8(sampleLeft * 50))
 		buffer[i+1] = C.Uint8(uint8(sampleRight * 50))

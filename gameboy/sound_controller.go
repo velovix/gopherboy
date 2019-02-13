@@ -34,6 +34,12 @@ type SoundController struct {
 	// sequencer.
 	tClock int
 
+	// If false, the whole controller goes to sleep and now sound is emitted
+	Enabled bool
+	// Volume for the left and right audio channels.
+	leftVolume  int
+	rightVolume int
+
 	PulseA *PulseA
 	PulseB *PulseB
 	Wave   *Wave
@@ -230,6 +236,7 @@ type Wave struct {
 	RightEnabled bool
 	LeftEnabled  bool
 
+	volume    int
 	frequency int
 	pattern   []uint8
 
@@ -251,6 +258,10 @@ func (voice *Wave) tick(frameSequencer int) {
 			voice.On = false
 		}
 	}
+}
+
+func (voice *Wave) Volume() float64 {
+	return float64(voice.volume)
 }
 
 func (voice *Wave) Frequency() float64 {
@@ -373,10 +384,23 @@ func newSoundController(state *State) *SoundController {
 	sc.state.mmu.subscribeTo(nr34Addr, sc.onNR34Write)
 	sc.state.mmu.subscribeTo(nr41Addr, sc.onNR41Write)
 	sc.state.mmu.subscribeTo(nr44Addr, sc.onNR44Write)
+	sc.state.mmu.subscribeTo(nr50Addr, sc.onNR50Write)
 	sc.state.mmu.subscribeTo(nr51Addr, sc.onNR51Write)
 	sc.state.mmu.subscribeTo(nr52Addr, sc.onNR52Write)
 
 	return sc
+}
+
+// LeftVolume returns the global volume control of the left channel, from 0 to
+// 1.
+func (sc *SoundController) LeftVolume() float64 {
+	return float64(sc.leftVolume) / 7
+}
+
+// RightVolume returns the global volume control of the right channel, from 0
+// to 1.
+func (sc *SoundController) RightVolume() float64 {
+	return float64(sc.rightVolume) / 7
 }
 
 func (sc *SoundController) tick(cycles int) {
@@ -460,7 +484,7 @@ func (sc *SoundController) onNR24Write(addr uint16, val uint8) uint8 {
 		sc.PulseB.duration = 64 - int(duration)
 		sc.PulseB.useDuration = val&0x40 == 0x40
 
-		// Load dfrequency information
+		// Load frequency information
 		frequency := uint16(sc.state.mmu.at(nr23Addr))
 		frequency |= uint16(val&0x7) << 8
 
@@ -502,6 +526,9 @@ func (sc *SoundController) onNR32Write(addr uint16, val uint8) uint8 {
 func (sc *SoundController) onNR34Write(addr uint16, val uint8) uint8 {
 	if val&0x80 == 0x80 {
 		sc.Wave.On = true
+
+		// Wave volume is one bit in size
+		sc.Wave.volume = int(sc.state.mmu.at(nr30Addr) & 0x80 >> 7)
 
 		// Load duration information
 		duration := sc.state.mmu.at(nr31Addr)
@@ -568,6 +595,15 @@ func (sc *SoundController) onNR44Write(addr uint16, val uint8) uint8 {
 	return val | 0x3F
 }
 
+// onNR50Write is called when the Cartridge Channel Control and Volume Register
+// is written to. This register controls left and right channel audio volume.
+func (sc *SoundController) onNR50Write(addr uint16, val uint8) uint8 {
+	sc.leftVolume = int((val & 0x70) >> 4)
+	sc.rightVolume = int(val & 0x07)
+
+	return val
+}
+
 // onNR51Write is called when the Selection of Sound Output Terminal register
 // is written to. This register enables or disables each voice on either the
 // right or the left audio channel. This allows for stereo sound.
@@ -584,8 +620,15 @@ func (sc *SoundController) onNR51Write(addr uint16, val uint8) uint8 {
 	return val
 }
 
-// onNR52Write is called when the Sound On/Off register is written to.
+// onNR52Write is called when the Sound On/Off register is written to. On
+// write, it can enable or disable the sound.
 func (sc *SoundController) onNR52Write(addr uint16, val uint8) uint8 {
+	sc.Enabled = val&0x80 == 0x80
+
+	// TODO(velovix): Zero out all registers except length and stop receiving
+	// writes
+	// TODO(velovix): Make the "on" values for channels available here
+
 	// Bits 6-4 are unused and always 1
 	return val | 0x70
 }
@@ -595,11 +638,9 @@ func (sc *SoundController) readWaveTable() []uint8 {
 
 	for addr := uint16(wavePatternRAMStart); addr < wavePatternRAMEnd; addr++ {
 		val := sc.state.mmu.at(addr)
-		upper, lower := split(val)
+		lower, upper := split(val)
 		wavePattern = append(wavePattern, upper, lower)
 	}
-
-	fmt.Println(wavePattern)
 
 	return wavePattern
 }
