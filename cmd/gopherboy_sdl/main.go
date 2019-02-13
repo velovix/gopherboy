@@ -154,21 +154,25 @@ func main() {
 	// Stop main loop on sigint
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
-	onExit := make(chan bool)
+	onExitRequest := make(chan bool)
 	go func() {
 		for range sigint {
-			onExit <- true
+			onExitRequest <- true
 			break
 		}
 	}()
 
+	onDeviceExit := make(chan bool)
+
 	// Start the device
 	go func() {
-		err = device.Start(onExit)
+		err = device.Start(onExitRequest)
 		if err != nil {
 			fmt.Println("Error:", err)
 			os.Exit(1)
 		}
+
+		onDeviceExit <- true
 	}()
 
 	running := true
@@ -176,7 +180,7 @@ func main() {
 		select {
 		case f := <-mainThreadFuncs:
 			f()
-		case <-onExit:
+		case <-onDeviceExit:
 			running = false
 		}
 	}
