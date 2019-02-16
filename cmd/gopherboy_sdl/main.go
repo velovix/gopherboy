@@ -101,7 +101,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	video, err := newVideoDriver(*scaleFactor)
+	video, err := newVideoDriver(*scaleFactor, *unlimitedFPS)
 	if err != nil {
 		fmt.Println("Error: While initializing video driver:", err)
 		os.Exit(1)

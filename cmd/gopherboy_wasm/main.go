@@ -58,6 +58,20 @@ func main() {
 
 	onExit := make(chan bool)
 
+	onStopMessage := make(chan message)
+	eventHandler.subscribers = append(eventHandler.subscribers, onStopMessage)
+	go func() {
+		for {
+			msg := <-onStopMessage
+
+			if msg.kind == "Stop" {
+				fmt.Println("Received stop request")
+				onExit <- true
+				break
+			}
+		}
+	}()
+
 	err = device.Start(onExit)
 	if err != nil {
 		fmt.Println("Error:", err)

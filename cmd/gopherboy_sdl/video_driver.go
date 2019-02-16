@@ -1,6 +1,7 @@
 package main
 
 import (
+	"time"
 	"unsafe"
 
 	"github.com/veandco/go-sdl2/sdl"
@@ -8,17 +9,25 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// targetFPS is the FPS of the Game Boy screen.
+const targetFPS = 60
+
 // videoDriver provides a video driver interface with SDL as its back end. This
 // can be used on most platforms as a native application.
 type videoDriver struct {
 	window   *sdl.Window
 	renderer *sdl.Renderer
+
+	unlimitedFPS  bool
+	lastFrameTime time.Time
 }
 
 // newVideoDriver creates a new SDL video driver. The scale factor resizes the
 // window by that value.
-func newVideoDriver(scaleFactor float64) (*videoDriver, error) {
+func newVideoDriver(scaleFactor float64, unlimitedFPS bool) (*videoDriver, error) {
 	var vd videoDriver
+
+	vd.unlimitedFPS = unlimitedFPS
 
 	err := sdl.Init(sdl.INIT_EVERYTHING)
 	if err != nil {
@@ -90,6 +99,13 @@ func (vd *videoDriver) Render(frameData []uint8) error {
 
 		vd.renderer.Present()
 	})
+
+	if !vd.unlimitedFPS {
+		if time.Since(vd.lastFrameTime) < time.Second/targetFPS {
+			time.Sleep((time.Second / targetFPS) - time.Since(vd.lastFrameTime))
+		}
+		vd.lastFrameTime = time.Now()
+	}
 
 	return err
 }

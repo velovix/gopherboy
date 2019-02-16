@@ -1,11 +1,9 @@
 package gameboy
 
-import (
-	"time"
-)
-
-// eventProcessDelay is the time in between joypad event processing.
-const eventProcessDelay = time.Second / 60
+// eventProcessPeriod is the delay between input processes. This doesn't have
+// any meaning to the Game Boy hardware, but limiting the input processing
+// provides better performance.
+const eventProcessPeriod = cpuClockRate / 60
 
 // joypad handles user input events and exposes them to the ROM.
 type joypad struct {
@@ -13,8 +11,8 @@ type joypad struct {
 
 	driver InputDriver
 
-	// The last time joypad events were processed.
-	lastEventProcess time.Time
+	// The number of cycles since the last event processing.
+	lastEventProcess int
 }
 
 // newJoypad creates a new joypad manager object.
@@ -34,11 +32,13 @@ func newJoypad(state *State, driver InputDriver) *joypad {
 // input device and the game's configuration of this register. May also
 // generate a P10-P13 interrupt if a button is pressed and this interrupt is
 // enabled.
-func (j *joypad) tick() {
-	if time.Since(j.lastEventProcess) < eventProcessDelay {
+func (j *joypad) tick(amount int) {
+	j.lastEventProcess += amount
+	if j.lastEventProcess < eventProcessPeriod {
 		return
 	}
-	j.lastEventProcess = time.Now()
+
+	j.lastEventProcess -= eventProcessPeriod
 
 	buttonPressed := j.driver.Update()
 

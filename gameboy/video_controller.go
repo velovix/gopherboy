@@ -34,9 +34,6 @@ const (
 	// enabled.
 	spriteShortHeight = 8
 
-	// targetFPS is the FPS of the Game Boy screen.
-	targetFPS = 60
-
 	// maxSpritesPerScanLine is the maximum amount of sprites that can share a
 	// row. Any more sprites will not be drawn.
 	maxSpritesPerScanLine = 10
@@ -60,6 +57,9 @@ const (
 // that may be displayed on screen.
 type videoController struct {
 	driver VideoDriver
+
+	// If false, the screen is off and no draw operations happen.
+	lcdOn bool
 
 	frameTick      int
 	drawnScanLines int
@@ -94,17 +94,16 @@ type videoController struct {
 	state *State
 
 	// Used for finding FPS
-	lastSecond time.Time
-	frameCnt   int
-
-	// Used to cap FPS
-	lastFrameTime time.Time
-	// If true, frame rate will not be capped.
-	unlimitedFPS bool
+	lastSecond    time.Time
+	frameCnt      int
+	fpsQueryCount int
+	fpsTotal      int
 }
 
 func newVideoController(state *State, driver VideoDriver) *videoController {
 	var vc videoController
+
+	vc.lcdOn = true
 
 	vc.driver = driver
 
@@ -115,14 +114,14 @@ func newVideoController(state *State, driver VideoDriver) *videoController {
 	vc.spritesOnScanLine = make([]oam, maxSpritesPerScanLine)
 
 	vc.state.mmu.subscribeTo(statAddr, vc.onSTATWrite)
+	vc.state.mmu.subscribeTo(lcdcAddr, vc.onLCDCWrite)
 
 	return &vc
 }
 
 // tick progresses the video controller by the given number of cycles.
 func (vc *videoController) tick(opTime int) {
-	// Check if the LCD should be on
-	if !vc.loadLCDC().lcdOn {
+	if !vc.lcdOn {
 		return
 	}
 
@@ -189,23 +188,21 @@ func (vc *videoController) tick(opTime int) {
 
 				vc.driver.Render(vc.currFrame)
 
-				if !vc.unlimitedFPS {
-					if time.Since(vc.lastFrameTime) < time.Second/targetFPS {
-						time.Sleep((time.Second / targetFPS) - time.Since(vc.lastFrameTime))
-					}
-				}
-				vc.lastFrameTime = time.Now()
-
 				vc.frameCnt++
 				if time.Since(vc.lastSecond) >= time.Second {
+					vc.fpsQueryCount++
+					vc.fpsTotal += vc.frameCnt
+
+					fmt.Println("Average FPS:", vc.fpsTotal/vc.fpsQueryCount)
 					fmt.Println("FPS:", vc.frameCnt)
+
 					vc.frameCnt = 0
 					vc.lastSecond = time.Now()
+
 				}
 			}
 		}
 
-		// Should this be before or after operations
 		vc.frameTick++
 		if vc.frameTick == fullFrameClocks {
 			vc.frameTick = 0
@@ -562,6 +559,13 @@ func (vc *videoController) loadLCDC() lcdcConfig {
 	config.windowBGOn = lcdc&0x01 == 0x01
 
 	return config
+}
+
+// onLCDCWrite is called when the LCDC memory register is written to. It acts
+// as a fast path for detecting LCD power toggles.
+func (vc *videoController) onLCDCWrite(addr uint16, val uint8) uint8 {
+	vc.lcdOn = val&0x80 == 0x80
+	return val
 }
 
 // oam represents a single OAM entry. OAM stands for Object Attribute Memory
