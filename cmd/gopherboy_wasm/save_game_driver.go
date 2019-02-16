@@ -14,5 +14,5 @@ func (driver *mockSaveGameDriver) Load(name string) ([]uint8, error) {
 }
 
 func (driver *mockSaveGameDriver) Has(name string) (bool, error) {
-	return true, nil
+	return false, nil
 }

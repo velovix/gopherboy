@@ -2,17 +2,21 @@ package main
 
 import (
 	"syscall/js"
+	"time"
 )
 
 // videoDriver provides a video driver interface with WebGL as its back end.
 // This can be used inside a WebGL-capable browser as a WebAssembly
 // application.
 type videoDriver struct {
+	targetFPS     int
+	lastFrameTime time.Time
 }
 
+const framePeriod = time.Second / 60
+
 func newVideoDriver(scaleFactor float64) (*videoDriver, error) {
-	var vd videoDriver
-	return &vd, nil
+	return &videoDriver{}, nil
 }
 
 func (vd *videoDriver) Clear() {
@@ -30,6 +34,13 @@ func (vd *videoDriver) Render(frameData []uint8) error {
 			jsClamped,
 		},
 	)
+
+	now := time.Now()
+	if now.Sub(vd.lastFrameTime) < framePeriod {
+		time.Sleep(framePeriod - now.Sub(vd.lastFrameTime))
+	}
+	vd.lastFrameTime = now
+
 	return nil
 }
 

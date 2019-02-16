@@ -180,7 +180,6 @@ func NewDevice(
 
 	device.videoController = newVideoController(
 		device.state, video)
-	device.videoController.unlimitedFPS = false
 
 	device.joypad = newJoypad(device.state, input)
 
@@ -218,7 +217,7 @@ func (device *Device) Start(onExit chan bool) error {
 
 		device.interruptManager.check()
 
-		device.joypad.tick()
+		device.joypad.tick(opTime)
 		if device.state.stopped {
 			// We're in stop mode, don't do anything
 			time.Sleep(time.Millisecond)
