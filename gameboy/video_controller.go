@@ -616,15 +616,15 @@ func (vc *videoController) loadSpritesOnScanLine(scanLine uint8) {
 		}
 
 		yPos := vc.state.mmu.atOAMRAM(entryStart)
-		var spriteTop uint8
+		var spriteTop int
 		switch vc.lcdc.spriteSize {
 		case spriteSize8x8:
-			spriteTop = yPos - spriteShortHeight
+			spriteTop = int(yPos) - spriteShortHeight
 		case spriteSize8x16:
-			spriteTop = yPos
+			spriteTop = int(yPos)
 		}
 
-		if scanLine >= spriteTop || int(scanLine) < int(yPos)-spriteTallHeight {
+		if int(scanLine) >= int(spriteTop) || int(scanLine) < int(yPos)-spriteTallHeight {
 			// This sprite is not on this scan line
 			continue
 		}
