@@ -141,7 +141,9 @@ func (vc *videoController) tick(opTime int) {
 		// value increments even during VBlank even though new scan lines
 		// aren't actually being drawn.
 		currScanLine := vc.frameTick / scanLineFullClocks
-		vc.state.mmu.setIORAM(lyAddr, uint8(currScanLine))
+		// TODO(velovix): Is adding a 1 to this correct behavior? Not adding 1
+		// results in visual glitches
+		vc.state.mmu.setIORAM(lyAddr, uint8(currScanLine+1))
 
 		if vc.frameTick < scanLineFullClocks*ScreenHeight {
 			// We're still drawing scan lines
