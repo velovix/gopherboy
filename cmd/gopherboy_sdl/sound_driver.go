@@ -1,7 +1,7 @@
 package main
 
-// typedef unsigned char Uint8;
-// void SoundCallback(void *userdata, Uint8 *stream, int len);
+// #include <stdint.h>
+// void SoundCallback(void *userdata, uint8_t *stream, int len);
 import "C"
 import (
 	"log"
@@ -48,10 +48,16 @@ func wave(phase float64, pattern [32]float64) float64 {
 }
 
 //export SoundCallback
-func SoundCallback(userdata unsafe.Pointer, stream *C.Uint8, length C.int) {
-	n := int(length)
-	sliceHeader := reflect.SliceHeader{Data: uintptr(unsafe.Pointer(stream)), Len: n, Cap: n}
-	buffer := *(*[]C.Uint8)(unsafe.Pointer(&sliceHeader))
+func SoundCallback(userdata unsafe.Pointer, bufferRaw *C.uint8_t, rawLength C.int) {
+	length := int(rawLength)
+
+	// Construct a Go slice from the C pointer to the buffer
+	sliceHeader := reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(bufferRaw)),
+		Len: length,
+		Cap: length,
+	}
+	buffer := *(*[]C.uint8_t)(unsafe.Pointer(&sliceHeader))
 
 	pulseAPhaseDelta := tau * float64(myDevice.SoundController.PulseA.Frequency()) / totalHz
 	pulseBPhaseDelta := tau * myDevice.SoundController.PulseB.Frequency() / totalHz
@@ -59,15 +65,16 @@ func SoundCallback(userdata unsafe.Pointer, stream *C.Uint8, length C.int) {
 
 	if !myDevice.SoundController.Enabled {
 		// Fill the buffer with zeros
-		for i := 0; i < n; i++ {
+		for i := 0; i < length; i++ {
 			buffer[i] = 0
 		}
 		return
 	}
 
-	for i := 0; i < n; i += 2 {
+	for i := 0; i < length; i += 2 {
 		var sampleLeft, sampleRight float64
 
+		// Handle pulse A voice
 		if myDevice.SoundController.PulseA.On {
 			pulseAPhase += pulseAPhaseDelta
 
@@ -84,6 +91,7 @@ func SoundCallback(userdata unsafe.Pointer, stream *C.Uint8, length C.int) {
 			}
 		}
 
+		// Handle pulse B voice
 		if myDevice.SoundController.PulseB.On {
 			pulseBPhase += pulseBPhaseDelta
 
@@ -100,6 +108,7 @@ func SoundCallback(userdata unsafe.Pointer, stream *C.Uint8, length C.int) {
 			}
 		}
 
+		// Handle wave voice
 		if myDevice.SoundController.Wave.On {
 			wavePhase += wavePhaseDelta
 
@@ -116,9 +125,10 @@ func SoundCallback(userdata unsafe.Pointer, stream *C.Uint8, length C.int) {
 			}
 		}
 
+		// Handle noise voice
 		if myDevice.SoundController.Noise.On {
+			// Shift the LFSR by the necessary amount
 			shiftCount += myDevice.SoundController.Noise.ShiftFrequency() / totalHz
-
 			for shiftCount >= 1 {
 				lfsr >>= 1
 				xorVal := (lfsr & 0x1) ^ ((lfsr & 0x2) >> 1)
@@ -140,11 +150,15 @@ func SoundCallback(userdata unsafe.Pointer, stream *C.Uint8, length C.int) {
 			}
 		}
 
+		// Normalize samples such that all devices on highest volume = 1.0
+		sampleLeft /= 4.0
+		sampleRight /= 4.0
+
 		sampleLeft *= myDevice.SoundController.LeftVolume()
 		sampleRight *= myDevice.SoundController.RightVolume()
 
-		buffer[i] = C.Uint8(uint8(sampleLeft * 50))
-		buffer[i+1] = C.Uint8(uint8(sampleRight * 50))
+		buffer[i] = C.uint8_t(sampleLeft * 25)
+		buffer[i+1] = C.uint8_t(sampleRight * 25)
 	}
 }
 
