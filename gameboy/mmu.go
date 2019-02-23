@@ -218,7 +218,7 @@ func (m *mmu) set(addr uint16, val uint8) {
 // that might incorrectly trigger themselves when writing to a place in memory.
 func (m *mmu) setNoNotify(addr uint16, val uint8) {
 	if m.db != nil {
-		m.db.memWriteHook(addr)
+		m.db.memWriteHook(addr, val)
 	}
 
 	switch {

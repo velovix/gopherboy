@@ -45,9 +45,9 @@ func (db *debugger) memReadHook(addr uint16) {
 	}
 }
 
-func (db *debugger) memWriteHook(addr uint16) {
+func (db *debugger) memWriteHook(addr uint16, val uint8) {
 	if db.breakOnAddrWrite != nil && addr == *db.breakOnAddrWrite {
-		fmt.Printf("Address write BREAK: %#04x\n", addr)
+		fmt.Printf("Address write BREAK: %#04x with value %#04x\n", addr, val)
 		db.printState()
 		db.readCommand()
 	}

@@ -125,6 +125,23 @@ func (vc *videoController) tick(opTime int) {
 		return
 	}
 
+	stat := vc.loadSTAT()
+
+	// Check which interrupts are currently enabled
+	lcdcInterruptsEnabled := vc.state.mmu.atHRAM(ieAddr)&0x02 == 0x02
+	lyEqualsLYCInterruptEnabled := stat.lyEqualsLYCInterruptOn &&
+		lcdcInterruptsEnabled &&
+		vc.state.interruptsEnabled
+	mode2InterruptEnabled := stat.mode2InterruptOn &&
+		lcdcInterruptsEnabled &&
+		vc.state.interruptsEnabled
+	mode1InterruptEnabled := stat.mode1InterruptOn &&
+		lcdcInterruptsEnabled &&
+		vc.state.interruptsEnabled
+	mode0InterruptEnabled := stat.mode0InterruptOn &&
+		lcdcInterruptsEnabled &&
+		vc.state.interruptsEnabled
+
 	for i := 0; i < opTime; i++ {
 		if vc.frameTick == 0 {
 			// Get ready for a new frame draw
@@ -140,10 +157,22 @@ func (vc *videoController) tick(opTime int) {
 		// Update the LY register with the current scan line. Note that this
 		// value increments even during VBlank even though new scan lines
 		// aren't actually being drawn.
-		currScanLine := vc.frameTick / scanLineFullClocks
 		// TODO(velovix): Is adding a 1 to this correct behavior? Not adding 1
 		// results in visual glitches
-		vc.state.mmu.setIORAM(lyAddr, uint8(currScanLine+1))
+		currScanLine := (vc.frameTick / scanLineFullClocks) + 1
+		vc.state.mmu.setIORAM(lyAddr, uint8(currScanLine))
+
+		// Check if LY==LYC
+		lyJustChanged := vc.frameTick % scanLineFullClocks == 0
+		if lyJustChanged {
+			lyc := vc.state.mmu.atIORAM(lyAddr)
+			stat.lyEqualsLYC = currScanLine == int(lyc)
+			// Trigger an interrupt if they're equal and the interrupt is
+			// enabled
+			if stat.lyEqualsLYC && lyEqualsLYCInterruptEnabled {
+				vc.state.mmu.setIORAM(ifAddr, vc.state.mmu.atIORAM(ifAddr)|0x02)
+			}
+		}
 
 		if vc.frameTick < scanLineFullClocks*ScreenHeight {
 			// We're still drawing scan lines
@@ -152,7 +181,10 @@ func (vc *videoController) tick(opTime int) {
 			switch scanLineProgress {
 			case 0:
 				// We're in mode 2, OAM read mode.
-				vc.setMode(vcMode2)
+				stat.mode = vcMode2
+				if mode2InterruptEnabled {
+					vc.state.mmu.setIORAM(ifAddr, vc.state.mmu.atIORAM(ifAddr)|0x02)
+				}
 				// TODO(velovix): Lock OAM?
 
 				vc.loadSpritesOnScanLine(uint8(currScanLine))
@@ -164,7 +196,7 @@ func (vc *videoController) tick(opTime int) {
 				vc.windowX = vc.state.mmu.atIORAM(windowPosXAddr)
 			case scanLineOAMClocks:
 				// We're in mode 3, OAM and VRAM transfer mode.
-				vc.setMode(vcMode3)
+				stat.mode = vcMode3
 
 				vc.bgPalette = vc.loadBGPalette()
 				vc.spritePalette0 = vc.loadSpritePalette(0)
@@ -172,14 +204,23 @@ func (vc *videoController) tick(opTime int) {
 				// TODO(velovix): Lock VRAM
 			case scanLineVRAMClocks:
 				// We're in mode 0, HBlank period
-				vc.setMode(vcMode0)
+				stat.mode = vcMode0
+				if mode0InterruptEnabled {
+					vc.state.mmu.setIORAM(ifAddr, vc.state.mmu.atIORAM(ifAddr)|0x02)
+				}
+
 				// TODO(velovix): Unlock things
+				// TODO(velovix): What's the deal with this value? These +1 -1
+				// "solutions" probably aren't correct
 				// We're ready to draw the scan line
-				vc.drawScanLine(uint8(currScanLine))
+				vc.drawScanLine(uint8(currScanLine-1))
 			}
 		} else {
 			// We're in mode 1, VBlank period
-			vc.setMode(vcMode1)
+			stat.mode = vcMode1
+			if mode1InterruptEnabled {
+				vc.state.mmu.setIORAM(ifAddr, vc.state.mmu.atIORAM(ifAddr)|0x02)
+			}
 
 			if vc.frameTick == scanLineFullClocks*ScreenHeight {
 				// We just finished drawing the frame
@@ -209,8 +250,9 @@ func (vc *videoController) tick(opTime int) {
 		if vc.frameTick == fullFrameClocks {
 			vc.frameTick = 0
 		}
-
 	}
+
+	vc.saveSTAT(stat)
 }
 
 // drawScanLine draws a scan line at the given height position.
@@ -438,19 +480,6 @@ func (vc *videoController) destroy() {
 	vc.driver.Close()
 }
 
-// setMode updates the necessary registers to show what mode the video
-// controller is in.
-func (vc *videoController) setMode(mode vcMode) {
-	statVal := vc.state.mmu.atIORAM(statAddr)
-
-	// Clear the current mode value
-	statVal &= 0xFC
-	// Set the mode
-	statVal |= uint8(mode)
-
-	vc.state.mmu.setIORAM(statAddr, statVal)
-}
-
 const (
 	_ uint16 = 0x0000
 
@@ -490,12 +519,12 @@ const (
 	// The HBlank period mode.
 	vcMode0 vcMode = 0
 	// The VBlank period mode.
-	vcMode1
+	vcMode1 = 1
 	// The OAM RAM loading mode. OAM RAM may not be written to at this time.
-	vcMode2
+	vcMode2 = 2
 	// The VRAM and OAM RAM loading mode. VRAM and OAM RAM may not be written
 	// to at this time.
-	vcMode3
+	vcMode3 = 3
 )
 
 type spriteSize string
