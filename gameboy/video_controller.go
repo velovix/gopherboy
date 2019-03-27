@@ -163,7 +163,7 @@ func (vc *videoController) tick(opTime int) {
 		vc.state.mmu.setIORAM(lyAddr, uint8(currScanLine))
 
 		// Check if LY==LYC
-		lyJustChanged := vc.frameTick % scanLineFullClocks == 0
+		lyJustChanged := vc.frameTick%scanLineFullClocks == 0
 		if lyJustChanged {
 			lyc := vc.state.mmu.atIORAM(lyAddr)
 			stat.lyEqualsLYC = currScanLine == int(lyc)
@@ -213,7 +213,7 @@ func (vc *videoController) tick(opTime int) {
 				// TODO(velovix): What's the deal with this value? These +1 -1
 				// "solutions" probably aren't correct
 				// We're ready to draw the scan line
-				vc.drawScanLine(uint8(currScanLine-1))
+				vc.drawScanLine(uint8(currScanLine - 1))
 			}
 		} else {
 			// We're in mode 1, VBlank period

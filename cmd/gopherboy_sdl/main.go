@@ -63,14 +63,14 @@ func main() {
 	var bootROMData []byte
 	var err error
 	if *bootROM == "" {
-		bootROMData = gameboy.BootROM()
-	} else {
-		// Load the boot ROM
-		bootROMData, err = ioutil.ReadFile(*bootROM)
-		if err != nil {
-			fmt.Println("Error: While reading boot ROM:", err)
-			os.Exit(1)
-		}
+		fmt.Println("A boot ROM must be provided")
+		os.Exit(1)
+	}
+	// Load the boot ROM
+	bootROMData, err = ioutil.ReadFile(*bootROM)
+	if err != nil {
+		fmt.Println("Error: While reading boot ROM:", err)
+		os.Exit(1)
 	}
 
 	if *scaleFactor <= 0 {
