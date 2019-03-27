@@ -157,16 +157,17 @@ func (vc *videoController) tick(opTime int) {
 		// Update the LY register with the current scan line. Note that this
 		// value increments even during VBlank even though new scan lines
 		// aren't actually being drawn.
+		currScanLine := (vc.frameTick / scanLineFullClocks)
 		// TODO(velovix): Is adding a 1 to this correct behavior? Not adding 1
-		// results in visual glitches
-		currScanLine := (vc.frameTick / scanLineFullClocks) + 1
-		vc.state.mmu.setIORAM(lyAddr, uint8(currScanLine))
+		// results in visual glitche
+		vc.state.mmu.setIORAM(lyAddr, uint8(currScanLine+1))
 
 		// Check if LY==LYC
 		lyJustChanged := vc.frameTick%scanLineFullClocks == 0
 		if lyJustChanged {
 			lyc := vc.state.mmu.atIORAM(lyAddr)
-			stat.lyEqualsLYC = currScanLine == int(lyc)
+			// TODO(velovix): Why do I need to add a one here?
+			stat.lyEqualsLYC = (currScanLine + 1) == int(lyc)
 			// Trigger an interrupt if they're equal and the interrupt is
 			// enabled
 			if stat.lyEqualsLYC && lyEqualsLYCInterruptEnabled {
@@ -210,10 +211,7 @@ func (vc *videoController) tick(opTime int) {
 				}
 
 				// TODO(velovix): Unlock things
-				// TODO(velovix): What's the deal with this value? These +1 -1
-				// "solutions" probably aren't correct
-				// We're ready to draw the scan line
-				vc.drawScanLine(uint8(currScanLine - 1))
+				vc.drawScanLine(uint8(currScanLine))
 			}
 		} else {
 			// We're in mode 1, VBlank period
