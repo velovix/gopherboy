@@ -67,7 +67,6 @@ func (t *timers) tick(amount int) {
 		if t.cpuClock == cpuClockRate {
 			t.cpuClock = 0
 		}
-		// TODO(velovix): Should we do a manual wraparound here?
 
 		// Pull the bit of interest from the CPU clock
 		var timaBit uint8
