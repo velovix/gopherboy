@@ -47,8 +47,8 @@ func halt(state *State) int {
 
 // cpl inverts the value of register A.
 func cpl(state *State) int {
-	invertedA := ^state.regs8[regA].get()
-	state.regs8[regA].set(invertedA)
+	invertedA := ^state.regA.get()
+	state.regA.set(invertedA)
 
 	state.setHalfCarryFlag(true)
 	state.setSubtractFlag(true)

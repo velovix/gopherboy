@@ -54,11 +54,11 @@ func (db *debugger) memWriteHook(addr uint16, val uint8) {
 }
 
 func (db *debugger) printState() {
-	fmt.Printf("  AF: %#04x\n", db.state.regs16[regAF].get())
-	fmt.Printf("  BC: %#04x\n", db.state.regs16[regBC].get())
-	fmt.Printf("  DE: %#04x\n", db.state.regs16[regDE].get())
-	fmt.Printf("  HL: %#04x\n", db.state.regs16[regHL].get())
-	fmt.Printf("  SP: %#04x\n", db.state.regs16[regSP].get())
+	fmt.Printf("  AF: %#04x\n", db.state.regAF.get())
+	fmt.Printf("  BC: %#04x\n", db.state.regBC.get())
+	fmt.Printf("  DE: %#04x\n", db.state.regDE.get())
+	fmt.Printf("  HL: %#04x\n", db.state.regHL.get())
+	fmt.Printf("  SP: %#04x\n", db.state.regSP.get())
 	fmt.Printf("  PC: %#04x\n", db.state.instructionStart)
 	fmt.Printf("  DV: %#02x\n", db.state.mmu.at(dividerAddr))
 }

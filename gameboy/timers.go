@@ -15,7 +15,7 @@ const (
 // timers keeps track of all timers in the Gameboy, including the TIMA.
 type timers struct {
 	// A clock that increments every clock cycle
-	cpuClock uint16
+	cpuClock uint32
 
 	// The last value of a CPU clock bit. Used to detect falling edges in the
 	// system clock, which trigger a TIMA increment.
@@ -64,6 +64,9 @@ func (t *timers) tick(amount int) {
 
 	for i := 0; i < amount; i++ {
 		t.cpuClock++
+		if t.cpuClock == cpuClockRate {
+			t.cpuClock = 0
+		}
 		// TODO(velovix): Should we do a manual wraparound here?
 
 		// Pull the bit of interest from the CPU clock

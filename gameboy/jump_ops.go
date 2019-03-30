@@ -30,7 +30,7 @@ func jr(state *State) int {
 // setting.
 func makeJRIfFlag(flagMask uint8, isSet bool) instruction {
 	return func(state *State) int {
-		flagState := state.regs8[regF].get()&flagMask == flagMask
+		flagState := state.regF.get()&flagMask == flagMask
 		offset := int8(state.incrementPC())
 
 		if printInstructions {
@@ -58,7 +58,7 @@ func jp(state *State) int {
 		// M-Cycle 2: Load the most significant bit of the target address
 		return func(state *State) instruction {
 			msb := state.incrementPC()
-			state.regs16[regPC].set(combine16(lsb, msb))
+			state.regPC.set(combine16(lsb, msb))
 
 			// M-Cycle 3: Internal delay
 			return func(state *State) instruction {
@@ -70,7 +70,7 @@ func jp(state *State) int {
 	lsb := state.incrementPC()
 
 	msb := state.incrementPC()
-	state.regs16[regPC].set(combine16(lsb, msb))
+	state.regPC.set(combine16(lsb, msb))
 	return 16
 }
 
@@ -78,7 +78,7 @@ func jp(state *State) int {
 // it if the given flag is at the expected setting.
 func makeJPIfFlag(flagMask uint8, isSet bool) instruction {
 	return func(state *State) int {
-		flagState := state.regs8[regF].get()&flagMask == flagMask
+		flagState := state.regF.get()&flagMask == flagMask
 		address := combine16(state.incrementPC(), state.incrementPC())
 
 		if printInstructions {
@@ -87,7 +87,7 @@ func makeJPIfFlag(flagMask uint8, isSet bool) instruction {
 		}
 
 		if flagState == isSet {
-			state.regs16[regPC].set(address)
+			state.regPC.set(address)
 			return 16
 		}
 		// A jump didn't happen, so the instruction took fewer cycles
@@ -97,18 +97,15 @@ func makeJPIfFlag(flagMask uint8, isSet bool) instruction {
 
 // jpToHL jumps to the address specified by register HL.
 func jpToHL(state *State) int {
-	hlVal := state.regs16[regHL].get()
+	hlVal := state.regHL.get()
 
-	state.regs16[regPC].set(hlVal)
+	state.regPC.set(hlVal)
 
-	if printInstructions {
-		fmt.Printf("JP (%v)\n", regHL)
-	}
 	return 4
 }
 
 // relativeJump moves the program counter by the given signed value.
 func relativeJump(state *State, offset int8) {
-	pc := uint16(int(state.regs16[regPC].get()) + int(offset))
-	state.regs16[regPC].set(pc)
+	pc := uint16(int(state.regPC.get()) + int(offset))
+	state.regPC.set(pc)
 }

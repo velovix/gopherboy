@@ -3,14 +3,14 @@ package gameboy
 import "fmt"
 
 // makeLD creates an instruction that loads the value of reg2 into reg1.
-func makeLD(reg1, reg2 registerType8Bit) instruction {
+func makeLD(reg1, reg2 register8) instruction {
 	return func(state *State) int {
-		state.regs8[reg1].set(state.regs8[reg2].get())
+		reg1.set(reg2.get())
 
 		if printInstructions {
 			fmt.Printf("LD %v,%v (%#x,%#x)\n",
 				reg1, reg2,
-				state.regs8[reg1].get(), state.regs8[reg2].get())
+				reg1.get(), reg2.get())
 		}
 		return 4
 	}
@@ -18,21 +18,18 @@ func makeLD(reg1, reg2 registerType8Bit) instruction {
 
 // ldHLToSP puts the value of register HL into register SP.
 func ldHLToSP(state *State) int {
-	hlVal := state.regs16[regHL].get()
+	hlVal := state.regHL.get()
 
-	state.regs16[regSP].set(hlVal)
+	state.regSP.set(hlVal)
 
-	if printInstructions {
-		fmt.Printf("LD %v,%v\n", regSP, regHL)
-	}
 	return 8
 }
 
 // makeLDToMem creates an instruction that loads the value of reg2 into the
 // memory address specified by reg1.
-func makeLDToMem(reg1 registerType16Bit, reg2 registerType8Bit) instruction {
+func makeLDToMem(reg1 register16, reg2 register8) instruction {
 	return func(state *State) int {
-		state.mmu.set(state.regs16[reg1].get(), state.regs8[reg2].get())
+		state.mmu.set(reg1.get(), reg2.get())
 
 		if printInstructions {
 			fmt.Printf("LD (%v),%v\n", reg1, reg2)
@@ -43,10 +40,10 @@ func makeLDToMem(reg1 registerType16Bit, reg2 registerType8Bit) instruction {
 
 // makeLDFromMem creates an instruction that loads the value in the memory
 // address specified by reg2 into reg1.
-func makeLDFromMem(reg1 registerType8Bit, reg2 registerType16Bit) instruction {
+func makeLDFromMem(reg1 register8, reg2 register16) instruction {
 	return func(state *State) int {
-		val := state.mmu.at(state.regs16[reg2].get())
-		state.regs8[reg1].set(val)
+		val := state.mmu.at(reg2.get())
+		reg1.set(val)
 
 		if printInstructions {
 			fmt.Printf("LD %v,(%v)\n", reg1, reg2)
@@ -58,11 +55,11 @@ func makeLDFromMem(reg1 registerType8Bit, reg2 registerType16Bit) instruction {
 
 // makeLD8BitImm creates an instruction that loads an 8-bit immediate value
 // into the given register.
-func makeLD8BitImm(reg registerType8Bit) instruction {
+func makeLD8BitImm(reg register8) instruction {
 	return func(state *State) int {
 		imm := state.incrementPC()
 
-		state.regs8[reg].set(imm)
+		reg.set(imm)
 
 		if printInstructions {
 			fmt.Printf("LD %v,%#x\n", reg, imm)
@@ -73,10 +70,10 @@ func makeLD8BitImm(reg registerType8Bit) instruction {
 
 // makeLD16BitImm creates an instruction that loads a 16-bit immediate value
 // into the specified 16-bit register.
-func makeLD16BitImm(reg registerType16Bit) func(*State) int {
+func makeLD16BitImm(reg register16) func(*State) int {
 	return func(state *State) int {
 		imm := combine16(state.incrementPC(), state.incrementPC())
-		state.regs16[reg].set(imm)
+		reg.set(imm)
 
 		if printInstructions {
 			fmt.Printf("LD %v,%#x\n", reg, imm)
@@ -89,13 +86,10 @@ func makeLD16BitImm(reg registerType16Bit) func(*State) int {
 // specified by a 16-bit immediate value.
 func ldTo16BitImmMem(state *State) int {
 	imm := combine16(state.incrementPC(), state.incrementPC())
-	aVal := state.regs8[regA].get()
+	aVal := state.regA.get()
 
 	state.mmu.set(imm, aVal)
 
-	if printInstructions {
-		fmt.Printf("LD (%#x),%v\n", imm, regA)
-	}
 	return 16
 }
 
@@ -105,11 +99,8 @@ func ldFrom16BitImmMem(state *State) int {
 	imm := combine16(state.incrementPC(), state.incrementPC())
 	memVal := state.mmu.at(imm)
 
-	state.regs8[regA].set(memVal)
+	state.regA.set(memVal)
 
-	if printInstructions {
-		fmt.Printf("LD %v,(%#x)\n", regA, imm)
-	}
 	return 16
 }
 
@@ -118,11 +109,8 @@ func ldFrom16BitImmMem(state *State) int {
 func makeLD8BitImmToMemHL(state *State) int {
 	imm := state.incrementPC()
 
-	state.mmu.set(state.regs16[regHL].get(), imm)
+	state.mmu.set(state.regHL.get(), imm)
 
-	if printInstructions {
-		fmt.Printf("LD (%v),%#x\n", regHL, imm)
-	}
 	return 12
 }
 
@@ -132,95 +120,74 @@ func ldSPToMem(state *State) int {
 	imm := combine16(state.incrementPC(), state.incrementPC())
 
 	// Save each byte of the stack pointer into memory
-	lower, upper := split16(state.regs16[regSP].get())
+	lower, upper := split16(state.regSP.get())
 	state.mmu.set(imm, lower)
 	state.mmu.set(imm+1, upper)
 
-	if printInstructions {
-		fmt.Printf("LD (%#x),%v\n", imm, regSP)
-	}
 	return 20
 }
 
 // ldToMemC saves the value of register A at the memory address
 // 0xFF00+register C.
 func ldToMemC(state *State) int {
-	aVal := state.regs8[regA].get()
-	addr := uint16(state.regs8[regC].get()) + 0xFF00
+	aVal := state.regA.get()
+	addr := uint16(state.regC.get()) + 0xFF00
 
 	state.mmu.set(addr, aVal)
 
-	if printInstructions {
-		fmt.Printf("LD (%v),%v\n", regC, regA)
-	}
 	return 8
 }
 
 // ldFromMemC loads the value at memory address 0xFF00 + register C into
 // register A.
 func ldFromMemC(state *State) int {
-	addr := uint16(state.regs8[regC].get()) + 0xFF00
+	addr := uint16(state.regC.get()) + 0xFF00
 	memVal := state.mmu.at(addr)
 
-	state.regs8[regA].set(memVal)
+	state.regA.set(memVal)
 
-	if printInstructions {
-		fmt.Printf("LD %v,(%v)\n", regA, regC)
-	}
 	return 8
 }
 
 // makeLDIToMem loads register A into the memory address specified by register
 // HL, then increments register HL.
 func makeLDIToMem(state *State) int {
-	state.mmu.set(state.regs16[regHL].get(), state.regs8[regA].get())
+	state.mmu.set(state.regHL.get(), state.regA.get())
 
-	state.regs16[regHL].set(state.regs16[regHL].get() + 1)
+	state.regHL.set(state.regHL.get() + 1)
 
-	if printInstructions {
-		fmt.Printf("LD (%v+),%v\n", regHL, regA)
-	}
 	return 8
 }
 
 // makeLDDToMem loads register A into the memory address specified by register
 // HL, then decrements register HL.
 func makeLDDToMem(state *State) int {
-	state.mmu.set(state.regs16[regHL].get(), state.regs8[regA].get())
+	state.mmu.set(state.regHL.get(), state.regA.get())
 
-	state.regs16[regHL].set(state.regs16[regHL].get() - 1)
+	state.regHL.set(state.regHL.get() - 1)
 
-	if printInstructions {
-		fmt.Printf("LD (%v-),%v\n", regHL, regA)
-	}
 	return 8
 }
 
 // ldiFromMem puts the value stored in the memory address specified by register
 // HL into register A, then increments register HL.
 func ldiFromMem(state *State) int {
-	memVal := state.mmu.at(state.regs16[regHL].get())
-	state.regs8[regA].set(memVal)
+	memVal := state.mmu.at(state.regHL.get())
+	state.regA.set(memVal)
 
-	state.regs16[regHL].set(state.regs16[regHL].get() + 1)
+	state.regHL.set(state.regHL.get() + 1)
 
-	if printInstructions {
-		fmt.Printf("LD %v,(%v+)\n", regA, regHL)
-	}
 	return 8
 }
 
 // lddFromMem puts the value stored in the memory address specified by register
 // HL into register A, then decrements register HL.
 func lddFromMem(state *State) int {
-	memVal := state.mmu.at(state.regs16[regHL].get())
-	state.regs8[regA].set(memVal)
+	memVal := state.mmu.at(state.regHL.get())
+	state.regA.set(memVal)
 
-	state.regs16[regHL].set(state.regs16[regHL].get() - 1)
+	state.regHL.set(state.regHL.get() - 1)
 
-	if printInstructions {
-		fmt.Printf("LD %v,(%v-)\n", regA, regHL)
-	}
 	return 8
 }
 
@@ -229,11 +196,8 @@ func lddFromMem(state *State) int {
 func ldhToMem(state *State) int {
 	offset := state.incrementPC()
 
-	state.mmu.set(0xFF00+uint16(offset), state.regs8[regA].get())
+	state.mmu.set(0xFF00+uint16(offset), state.regA.get())
 
-	if printInstructions {
-		fmt.Printf("LDH (%#x),%v (%#x)\n", offset, regA, 0xFF00+uint16(offset))
-	}
 	return 12
 }
 
@@ -243,11 +207,8 @@ func ldhFromMem(state *State) int {
 	offset := state.incrementPC()
 
 	fromMem := state.mmu.at(0xFF00 + uint16(offset))
-	state.regs8[regA].set(fromMem)
+	state.regA.set(fromMem)
 
-	if printInstructions {
-		fmt.Printf("LDH %v,(%#x)\n", regA, offset)
-	}
 	return 12
 }
 
@@ -256,7 +217,7 @@ func ldhFromMem(state *State) int {
 func ldhl(state *State) int {
 	immUnsigned := state.incrementPC()
 	imm := int8(immUnsigned)
-	spVal := state.regs16[regSP].get()
+	spVal := state.regSP.get()
 
 	// This instruction's behavior for the carry and half carry flags is very
 	// weird.
@@ -268,22 +229,19 @@ func ldhl(state *State) int {
 	state.setHalfCarryFlag(isHalfCarry(lowerSP, immUnsigned))
 	state.setCarryFlag(isCarry(lowerSP, immUnsigned))
 
-	state.regs16[regHL].set(uint16(int(imm) + int(spVal)))
+	state.regHL.set(uint16(int(imm) + int(spVal)))
 
 	state.setZeroFlag(false)
 	state.setSubtractFlag(false)
 
-	if printInstructions {
-		fmt.Printf("LD %v,%v+%#x\n", regHL, regSP, imm)
-	}
 	return 12
 }
 
 // makePUSH creates an instruction that decrements the stack pointer by 2, then
 // puts the value of the given register at its position.
-func makePUSH(reg registerType16Bit) instruction {
+func makePUSH(reg register16) instruction {
 	return func(state *State) int {
-		state.pushToStack16(state.regs16[reg].get())
+		state.pushToStack16(reg.get())
 
 		if printInstructions {
 			fmt.Printf("PUSH %v\n", reg)
@@ -294,9 +252,9 @@ func makePUSH(reg registerType16Bit) instruction {
 
 // makePOP creates an instruction that loads the two bytes at the top of the
 // stack in the given register and increments the stack pointer by 2.
-func makePOP(reg registerType16Bit) instruction {
+func makePOP(reg register16) instruction {
 	return func(state *State) int {
-		state.regs16[reg].set(state.popFromStack16())
+		reg.set(state.popFromStack16())
 
 		if printInstructions {
 			fmt.Printf("POP %v\n", reg)

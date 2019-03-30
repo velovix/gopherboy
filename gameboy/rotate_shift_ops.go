@@ -9,14 +9,14 @@ import (
 // shift where the most significant bit is carried over to the least
 // significant bit. This bit is also stored in the carry flag.
 func rlca(state *State) int {
-	rotated := bits.RotateLeft8(state.regs8[regA].get(), 1)
-	state.regs8[regA].set(rotated)
+	rotated := bits.RotateLeft8(state.regA.get(), 1)
+	state.regA.set(rotated)
 
 	state.setZeroFlag(false)
 	state.setSubtractFlag(false)
 	state.setHalfCarryFlag(false)
 
-	carryBit := state.regs8[regA].get() & 0x01
+	carryBit := state.regA.get() & 0x01
 	state.setCarryFlag(carryBit == 1)
 
 	if printInstructions {
@@ -29,7 +29,7 @@ func rlca(state *State) int {
 // sorts during this operation. This means that we're essentially rotating
 // "(carry flag << 1) | register A".
 func rla(state *State) int {
-	oldVal := state.regs8[regA].get()
+	oldVal := state.regA.get()
 	// Get the current most significant bit, which will be put in the carry
 	// flag
 	var msb uint8
@@ -56,7 +56,7 @@ func rla(state *State) int {
 	state.setSubtractFlag(false)
 	state.setHalfCarryFlag(false)
 
-	state.regs8[regA].set(newVal)
+	state.regA.set(newVal)
 
 	if printInstructions {
 		fmt.Printf("RLA\n")
@@ -68,11 +68,11 @@ func rla(state *State) int {
 // shift where the least significant bit is carried over to the most
 // significant bit. This bit is also stored in the carry flag.
 func rrca(state *State) int {
-	carryBit := state.regs8[regA].get() & 0x01
+	carryBit := state.regA.get() & 0x01
 	state.setCarryFlag(carryBit == 1)
 
-	rotated := bits.RotateLeft8(state.regs8[regA].get(), -1)
-	state.regs8[regA].set(rotated)
+	rotated := bits.RotateLeft8(state.regA.get(), -1)
+	state.regA.set(rotated)
 
 	state.setZeroFlag(false)
 	state.setSubtractFlag(false)
@@ -88,7 +88,7 @@ func rrca(state *State) int {
 // of sorts during this operation. This means that we're essentially rotating
 // "carry flag | (register A << 1)".
 func rra(state *State) int {
-	oldVal := state.regs8[regA].get()
+	oldVal := state.regA.get()
 	// Get the current least significant bit, which will be put in the carry
 	// flag
 	var lsb uint8
@@ -115,7 +115,7 @@ func rra(state *State) int {
 	state.setSubtractFlag(false)
 	state.setHalfCarryFlag(false)
 
-	state.regs8[regA].set(newVal)
+	state.regA.set(newVal)
 
 	if printInstructions {
 		fmt.Printf("RRA\n")
@@ -126,15 +126,15 @@ func rra(state *State) int {
 // makeSRL creates an instruction that shifts the contents of the given
 // register to the right. Bit 0 is shifted to the carry register. Bit 7 is set
 // to 0.
-func makeSRL(reg registerType8Bit) instruction {
+func makeSRL(reg register8) instruction {
 	return func(state *State) int {
-		regVal := state.regs8[reg].get()
+		regVal := reg.get()
 
 		// Put the least significant bit in the carry register
 		lsb := regVal & 0x01
 		state.setCarryFlag(lsb == 1)
 
-		regVal = state.regs8[reg].set(regVal >> 1)
+		regVal = reg.set(regVal >> 1)
 
 		state.setZeroFlag(regVal == 0)
 		state.setSubtractFlag(false)
@@ -150,7 +150,7 @@ func makeSRL(reg registerType8Bit) instruction {
 // srlMemHL shifts the value at the address in memory specified by register
 // HL to the right. Bit 0 is shifted to the carry register. Bit 7 is set to 0.
 func srlMemHL(state *State) int {
-	hlVal := state.regs16[regHL].get()
+	hlVal := state.regHL.get()
 	memVal := state.mmu.at(hlVal)
 
 	// Put the least significant bit in the carry register
@@ -163,10 +163,6 @@ func srlMemHL(state *State) int {
 	state.setSubtractFlag(false)
 	state.setHalfCarryFlag(false)
 
-	if printInstructions {
-		fmt.Printf("SRL (%v)\n", regHL)
-	}
-
 	return 16
 }
 
@@ -174,9 +170,9 @@ func srlMemHL(state *State) int {
 // register right by one, but uses the carry flag as a "bit -1" of sorts during
 // this operation. This means we're essentially rotating "(register << 1) |
 // carry flag".
-func makeRR(reg registerType8Bit) instruction {
+func makeRR(reg register8) instruction {
 	return func(state *State) int {
-		oldVal := state.regs8[reg].get()
+		oldVal := reg.get()
 		// Get the current least significant bit, which will be put in the carry
 		// flag
 		var lsb uint8
@@ -203,11 +199,8 @@ func makeRR(reg registerType8Bit) instruction {
 		state.setSubtractFlag(false)
 		state.setHalfCarryFlag(false)
 
-		state.regs8[reg].set(newVal)
+		reg.set(newVal)
 
-		if printInstructions {
-			fmt.Printf("RR %v\n", reg)
-		}
 		return 8
 	}
 }
@@ -217,7 +210,7 @@ func makeRR(reg registerType8Bit) instruction {
 // operation. This means we're essentially rotating
 // "(mem[regHL] << 1) | carryFlag".
 func rrMemHL(state *State) int {
-	hlVal := state.regs16[regHL].get()
+	hlVal := state.regHL.get()
 	oldVal := state.mmu.at(hlVal)
 
 	// Get the current least significant bit, which will be put in the carry
@@ -248,9 +241,6 @@ func rrMemHL(state *State) int {
 
 	state.mmu.set(hlVal, newVal)
 
-	if printInstructions {
-		fmt.Printf("RR (%v)\n", regHL)
-	}
 	return 16
 }
 
@@ -258,21 +248,18 @@ func rrMemHL(state *State) int {
 // one, which is equivalent to a left bit shift where the most significant bit
 // is carried over to the least significant bit. This bit is also stored in the
 // carry flag.
-func makeRLC(reg registerType8Bit) instruction {
+func makeRLC(reg register8) instruction {
 	return func(state *State) int {
-		rotated := bits.RotateLeft8(state.regs8[reg].get(), 1)
-		state.regs8[reg].set(rotated)
+		rotated := bits.RotateLeft8(reg.get(), 1)
+		reg.set(rotated)
 
 		state.setZeroFlag(rotated == 0)
 		state.setSubtractFlag(false)
 		state.setHalfCarryFlag(false)
 
-		carryBit := state.regs8[reg].get() & 0x01
+		carryBit := reg.get() & 0x01
 		state.setCarryFlag(carryBit == 1)
 
-		if printInstructions {
-			fmt.Printf("RLC %v\n", reg)
-		}
 		return 8
 	}
 }
@@ -282,10 +269,10 @@ func makeRLC(reg registerType8Bit) instruction {
 // significant bit is carried over to the least significant bit. This bit is
 // also stored in the carry flag.
 func rlcMemHL(state *State) int {
-	memVal := state.mmu.at(state.regs16[regHL].get())
+	memVal := state.mmu.at(state.regHL.get())
 
 	memVal = bits.RotateLeft8(memVal, 1)
-	state.mmu.set(state.regs16[regHL].get(), memVal)
+	state.mmu.set(state.regHL.get(), memVal)
 
 	state.setZeroFlag(memVal == 0)
 	state.setSubtractFlag(false)
@@ -294,9 +281,6 @@ func rlcMemHL(state *State) int {
 	carryBit := memVal & 0x01
 	state.setCarryFlag(carryBit == 1)
 
-	if printInstructions {
-		fmt.Printf("RLC (%v)\n", regHL)
-	}
 	return 16
 }
 
@@ -304,21 +288,18 @@ func rlcMemHL(state *State) int {
 // one, which is equivalent to a right bit shift where the least significant
 // bit is carried over to the most significant bit. This bit is also stored in
 // the carry flag.
-func makeRRC(reg registerType8Bit) instruction {
+func makeRRC(reg register8) instruction {
 	return func(state *State) int {
-		carryBit := state.regs8[reg].get() & 0x01
+		carryBit := reg.get() & 0x01
 		state.setCarryFlag(carryBit == 1)
 
-		rotated := bits.RotateLeft8(state.regs8[reg].get(), -1)
-		state.regs8[reg].set(rotated)
+		rotated := bits.RotateLeft8(reg.get(), -1)
+		reg.set(rotated)
 
 		state.setZeroFlag(rotated == 0)
 		state.setSubtractFlag(false)
 		state.setHalfCarryFlag(false)
 
-		if printInstructions {
-			fmt.Printf("RRC %v\n", reg)
-		}
 		return 8
 	}
 }
@@ -328,12 +309,12 @@ func makeRRC(reg registerType8Bit) instruction {
 // significant bit is carried over to the most significant bit. This bit is
 // also stored in the carry flag.
 func rrcMemHL(state *State) int {
-	memVal := state.mmu.at(state.regs16[regHL].get())
+	memVal := state.mmu.at(state.regHL.get())
 
 	carryBit := memVal & 0x01
 
 	memVal = bits.RotateLeft8(memVal, -1)
-	state.mmu.set(state.regs16[regHL].get(), memVal)
+	state.mmu.set(state.regHL.get(), memVal)
 
 	state.setZeroFlag(memVal == 0)
 	state.setSubtractFlag(false)
@@ -341,18 +322,15 @@ func rrcMemHL(state *State) int {
 
 	state.setCarryFlag(carryBit == 1)
 
-	if printInstructions {
-		fmt.Printf("RRC (%v)\n", regHL)
-	}
 	return 16
 }
 
 // makeRL creates an instruction that rotates the given register value left by
 // one, but uses the carry flag as a "bit 8" of sorts during this operation.
 // This means that we're essentially rotating "(carry flag << 1) | register A".
-func makeRL(reg registerType8Bit) instruction {
+func makeRL(reg register8) instruction {
 	return func(state *State) int {
-		oldVal := state.regs8[reg].get()
+		oldVal := reg.get()
 		// Get the current most significant bit, which will be put in the carry
 		// flag
 		var msb uint8
@@ -378,13 +356,10 @@ func makeRL(reg registerType8Bit) instruction {
 		state.setSubtractFlag(false)
 		state.setHalfCarryFlag(false)
 
-		state.regs8[reg].set(newVal)
+		reg.set(newVal)
 
 		state.setZeroFlag(newVal == 0)
 
-		if printInstructions {
-			fmt.Printf("RL %v\n", reg)
-		}
 		return 8
 	}
 }
@@ -394,7 +369,7 @@ func makeRL(reg registerType8Bit) instruction {
 // operation. This means that we're essentially rotating
 // "(carry flag << 1) | mem(regHL)".
 func rlMemHL(state *State) int {
-	oldVal := state.mmu.at(state.regs16[regHL].get())
+	oldVal := state.mmu.at(state.regHL.get())
 	// Get the current most significant bit, which will be put in the carry
 	// flag
 	var msb uint8
@@ -420,36 +395,30 @@ func rlMemHL(state *State) int {
 	state.setSubtractFlag(false)
 	state.setHalfCarryFlag(false)
 
-	state.mmu.set(state.regs16[regHL].get(), newVal)
+	state.mmu.set(state.regHL.get(), newVal)
 
 	state.setZeroFlag(newVal == 0)
 
-	if printInstructions {
-		fmt.Printf("RL (%v)\n", regHL)
-	}
 	return 16
 }
 
 // makeSLA creates an instruction that shifts the contents of the given
 // register to the left. Bit 7 is shifted to the carry register. Bit 0 is set
 // to 0.
-func makeSLA(reg registerType8Bit) instruction {
+func makeSLA(reg register8) instruction {
 	return func(state *State) int {
-		regVal := state.regs8[reg].get()
+		regVal := reg.get()
 
 		// Put the most significant bit in the carry register
 		msb := regVal&0x80 == 0x80
 		state.setCarryFlag(msb)
 
-		regVal = state.regs8[reg].set(regVal << 1)
+		regVal = reg.set(regVal << 1)
 
 		state.setZeroFlag(regVal == 0)
 		state.setSubtractFlag(false)
 		state.setHalfCarryFlag(false)
 
-		if printInstructions {
-			fmt.Printf("SLA %v\n", reg)
-		}
 		return 8
 	}
 }
@@ -457,7 +426,7 @@ func makeSLA(reg registerType8Bit) instruction {
 // slaMemHL shifts the value at the address in memory specified by register
 // HL to the left. Bit 7 is shifted to the carry register. Bit 0 is set to 0.
 func slaMemHL(state *State) int {
-	hlVal := state.regs16[regHL].get()
+	hlVal := state.regHL.get()
 	memVal := state.mmu.at(hlVal)
 
 	// Put the most significant bit in the carry register
@@ -470,18 +439,15 @@ func slaMemHL(state *State) int {
 	state.setSubtractFlag(false)
 	state.setHalfCarryFlag(false)
 
-	if printInstructions {
-		fmt.Printf("SLA (%v)\n", regHL)
-	}
 	return 16
 }
 
 // makeSRA creates an instruction that shifts the contents of the given
 // register to the right. Bit 0 is shifted to the carry register. Bit 7 is left
 // unchanged.
-func makeSRA(reg registerType8Bit) instruction {
+func makeSRA(reg register8) instruction {
 	return func(state *State) int {
-		regVal := state.regs8[reg].get()
+		regVal := reg.get()
 
 		// Put the least significant bit in the carry register
 		lsb := regVal & 0x01
@@ -493,15 +459,12 @@ func makeSRA(reg registerType8Bit) instruction {
 
 		// Put the previous most significant bit back in bit 7
 		regVal |= msb
-		regVal = state.regs8[reg].set(regVal)
+		regVal = reg.set(regVal)
 
 		state.setZeroFlag(regVal == 0)
 		state.setSubtractFlag(false)
 		state.setHalfCarryFlag(false)
 
-		if printInstructions {
-			fmt.Printf("SRA %v\n", reg)
-		}
 		return 8
 	}
 }
@@ -509,7 +472,7 @@ func makeSRA(reg registerType8Bit) instruction {
 // sraMemHL shifts the value at the address in memory specified by register HL
 // to the right. Bit 0 is shifted to the carry register. Bit 7 is unchanged.
 func sraMemHL(state *State) int {
-	hlVal := state.regs16[regHL].get()
+	hlVal := state.regHL.get()
 	memVal := state.mmu.at(hlVal)
 
 	// Put the least significant bit in the carry register
@@ -527,8 +490,5 @@ func sraMemHL(state *State) int {
 	state.setSubtractFlag(false)
 	state.setHalfCarryFlag(false)
 
-	if printInstructions {
-		fmt.Printf("SRA (%v)\n", regHL)
-	}
 	return 16
 }

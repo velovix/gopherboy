@@ -62,8 +62,8 @@ func (mgr *interruptManager) check() {
 			// Clear the interrupt flag
 			mgr.state.mmu.setIORAM(ifAddr, clearedInterruptFlags)
 			// Push the current program counter to the stack for later use
-			mgr.state.pushToStack16(mgr.state.regs16[regPC].get())
-			mgr.state.regs16[regPC].set(target)
+			mgr.state.pushToStack16(mgr.state.regPC.get())
+			mgr.state.regPC.set(target)
 			// Dispatching an interrupt takes clock cycles
 			mgr.timers.tick(interruptDispatchCycles)
 		}

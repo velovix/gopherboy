@@ -84,28 +84,3 @@ func (reg *registerCombined) get() uint16 {
 func (reg *registerCombined) size() int {
 	return 16
 }
-
-type registerType8Bit int
-
-const (
-	regA registerType8Bit = iota
-	regB
-	regC
-	regD
-	regE
-	regH
-	regL
-	regF
-)
-
-type registerType16Bit int
-
-const (
-	regAF registerType16Bit = iota
-	regBC
-	regDE
-	regHL
-
-	regSP
-	regPC
-)

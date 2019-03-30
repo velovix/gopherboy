@@ -18,6 +18,7 @@ type Device struct {
 	serial           *serial
 	interruptManager *interruptManager
 	SoundController  *SoundController
+	opcodeMapper     *opcodeMapper
 
 	saveGames SaveGameDriver
 }
@@ -189,6 +190,8 @@ func NewDevice(
 
 	device.SoundController = newSoundController(device.state)
 
+	device.opcodeMapper = newOpcodeMapper(device.state)
+
 	return &device, nil
 }
 
@@ -230,7 +233,7 @@ func (device *Device) Start(onExit chan bool) error {
 		} else {
 			// Notify the debugger that we're at this PC value
 			if device.debugger != nil {
-				device.debugger.pcHook(device.state.regs16[regPC].get())
+				device.debugger.pcHook(device.state.regPC.get())
 			}
 
 			// Fetch and run an operation
@@ -240,7 +243,7 @@ func (device *Device) Start(onExit chan bool) error {
 				device.debugger.opcodeHook(opcode)
 			}
 
-			opTime, err = runOpcode(device.state, opcode)
+			opTime, err = device.opcodeMapper.run(opcode)
 			if err != nil {
 				return err
 			}

@@ -6,9 +6,9 @@ import "fmt"
 // the stack, and jumps to the loaded address.
 func call(state *State) int {
 	address := combine16(state.incrementPC(), state.incrementPC())
-	state.pushToStack16(state.regs16[regPC].get())
+	state.pushToStack16(state.regPC.get())
 
-	state.regs16[regPC].set(address)
+	state.regPC.set(address)
 
 	if printInstructions {
 		fmt.Printf("CALL %#x\n", address)
@@ -21,7 +21,7 @@ func call(state *State) int {
 // address if the given flag is at the expected setting.
 func makeCALLIfFlag(flagMask uint8, isSet bool) instruction {
 	return func(state *State) int {
-		flagState := state.regs8[regF].get()&flagMask == flagMask
+		flagState := state.regF.get()&flagMask == flagMask
 		address := combine16(state.incrementPC(), state.incrementPC())
 
 		if printInstructions {
@@ -30,8 +30,8 @@ func makeCALLIfFlag(flagMask uint8, isSet bool) instruction {
 		}
 
 		if flagState == isSet {
-			state.pushToStack16(state.regs16[regPC].get())
-			state.regs16[regPC].set(address)
+			state.pushToStack16(state.regPC.get())
+			state.regPC.set(address)
 
 			return 24
 		}
@@ -43,7 +43,7 @@ func makeCALLIfFlag(flagMask uint8, isSet bool) instruction {
 // ret pops a 16-bit address from the stack and jumps to it.
 func ret(state *State) int {
 	addr := state.popFromStack16()
-	state.regs16[regPC].set(addr)
+	state.regPC.set(addr)
 
 	if printInstructions {
 		fmt.Printf("RET\n")
@@ -55,12 +55,12 @@ func ret(state *State) int {
 // stack and jumps to it, but only if the given flag is at the expected value.
 func makeRETIfFlag(flagMask uint8, isSet bool) instruction {
 	return func(state *State) int {
-		flagState := state.regs8[regF].get()&flagMask == flagMask
+		flagState := state.regF.get()&flagMask == flagMask
 
 		var opClocks int
 		if flagState == isSet {
 			addr := state.popFromStack16()
-			state.regs16[regPC].set(addr)
+			state.regPC.set(addr)
 			opClocks = 20
 		} else {
 			opClocks = 8
@@ -78,7 +78,7 @@ func makeRETIfFlag(flagMask uint8, isSet bool) instruction {
 // interrupts.
 func reti(state *State) int {
 	addr := state.popFromStack16()
-	state.regs16[regPC].set(addr)
+	state.regPC.set(addr)
 
 	state.interruptsEnabled = true
 
@@ -92,9 +92,9 @@ func reti(state *State) int {
 // the stack and jumps to the given address.
 func makeRST(address uint16) instruction {
 	return func(state *State) int {
-		state.pushToStack16(state.regs16[regPC].get())
+		state.pushToStack16(state.regPC.get())
 
-		state.regs16[regPC].set(address)
+		state.regPC.set(address)
 
 		if printInstructions {
 			fmt.Printf("RST %#x\n", address)
