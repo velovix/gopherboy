@@ -1,17 +1,10 @@
 package gameboy
 
-import "fmt"
-
 // makeLD creates an instruction that loads the value of reg2 into reg1.
 func makeLD(reg1, reg2 register8) instruction {
 	return func(state *State) int {
 		reg1.set(reg2.get())
 
-		if printInstructions {
-			fmt.Printf("LD %v,%v (%#x,%#x)\n",
-				reg1, reg2,
-				reg1.get(), reg2.get())
-		}
 		return 4
 	}
 }
@@ -31,9 +24,6 @@ func makeLDToMem(reg1 register16, reg2 register8) instruction {
 	return func(state *State) int {
 		state.mmu.set(reg1.get(), reg2.get())
 
-		if printInstructions {
-			fmt.Printf("LD (%v),%v\n", reg1, reg2)
-		}
 		return 8
 	}
 }
@@ -44,10 +34,6 @@ func makeLDFromMem(reg1 register8, reg2 register16) instruction {
 	return func(state *State) int {
 		val := state.mmu.at(reg2.get())
 		reg1.set(val)
-
-		if printInstructions {
-			fmt.Printf("LD %v,(%v)\n", reg1, reg2)
-		}
 
 		return 8
 	}
@@ -61,9 +47,6 @@ func makeLD8BitImm(reg register8) instruction {
 
 		reg.set(imm)
 
-		if printInstructions {
-			fmt.Printf("LD %v,%#x\n", reg, imm)
-		}
 		return 8
 	}
 }
@@ -75,9 +58,6 @@ func makeLD16BitImm(reg register16) func(*State) int {
 		imm := combine16(state.incrementPC(), state.incrementPC())
 		reg.set(imm)
 
-		if printInstructions {
-			fmt.Printf("LD %v,%#x\n", reg, imm)
-		}
 		return 12
 	}
 }
@@ -243,9 +223,6 @@ func makePUSH(reg register16) instruction {
 	return func(state *State) int {
 		state.pushToStack16(reg.get())
 
-		if printInstructions {
-			fmt.Printf("PUSH %v\n", reg)
-		}
 		return 16
 	}
 }
@@ -256,9 +233,6 @@ func makePOP(reg register16) instruction {
 	return func(state *State) int {
 		reg.set(state.popFromStack16())
 
-		if printInstructions {
-			fmt.Printf("POP %v\n", reg)
-		}
 		return 12
 	}
 }

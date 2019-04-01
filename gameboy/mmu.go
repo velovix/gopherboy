@@ -133,7 +133,7 @@ func (m *mmu) at(addr uint16) uint8 {
 	case inInvalidArea(addr):
 		// Invalid area, which always returns 0xFF since it's the MMU's default
 		// value
-		if printInstructions {
+		if printWarnings {
 			fmt.Printf("Warning: Read from invalid memory address %#x\n", addr)
 		}
 		return 0xFF
@@ -238,7 +238,7 @@ func (m *mmu) setNoNotify(addr uint16, val uint8) {
 	case inOAMArea(addr):
 		m.oamRAM[addr-oamRAMAddr] = val
 	case inInvalidArea(addr):
-		if printInstructions {
+		if printWarnings {
 			fmt.Printf("Warning: Write to invalid area %#x", addr)
 		}
 	case inIOArea(addr):

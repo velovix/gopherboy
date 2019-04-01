@@ -26,7 +26,7 @@ func (m *romOnlyMBC) at(addr uint16) uint8 {
 	case inBankedROMArea(addr):
 		return m.romBanks[1][addr-bankedROMAddr]
 	case inBankedRAMArea(addr):
-		if printInstructions {
+		if printWarnings {
 			fmt.Printf("Warning: Read from banked RAM section at address %#x, "+
 				"but the ROM-only MBC does not support banked RAM\n",
 				addr)
@@ -43,12 +43,12 @@ func (m *romOnlyMBC) at(addr uint16) uint8 {
 func (m *romOnlyMBC) set(addr uint16, val uint8) {
 	switch {
 	case inBank0ROMArea(addr) || inBankedROMArea(addr):
-		if printInstructions {
+		if printWarnings {
 			fmt.Printf("Warning: Ignoring write to ROM space "+
 				"at %#x with ROM-only MBC\n", addr)
 		}
 	case inBankedRAMArea(addr):
-		if printInstructions {
+		if printWarnings {
 			fmt.Printf("Warning: Ignoring write to banked RAM space "+
 				"at %#x with ROM-only MBC\n", addr)
 		}

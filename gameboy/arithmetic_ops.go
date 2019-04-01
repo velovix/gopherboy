@@ -1,7 +1,5 @@
 package gameboy
 
-import "fmt"
-
 // makeADD creates an instruction that adds the value of reg, an 8-bit
 // register, into register A.
 func makeADD(reg register8) instruction {
@@ -461,10 +459,6 @@ func incMemHL(state *State) int {
 	// meaning all those "slots" are "filled"
 	state.setHalfCarryFlag(oldVal&0x0F == 0x0F)
 
-	if printInstructions {
-		fmt.Printf("INC (HL)\n")
-	}
-
 	return 12
 }
 
@@ -480,9 +474,6 @@ func makeDEC8Bit(reg register8) instruction {
 		state.setZeroFlag(newVal == 0)
 		state.setSubtractFlag(true)
 
-		if printInstructions {
-			fmt.Printf("DEC %v\n", reg)
-		}
 		return 4
 	}
 }
@@ -511,10 +502,6 @@ func decMemHL(state *State) int {
 	state.setSubtractFlag(true)
 	state.setHalfCarryFlag(isHalfBorrow(oldVal, 1))
 
-	if printInstructions {
-		fmt.Printf("DEC (HL)\n")
-	}
-
 	return 12
 }
 
@@ -536,12 +523,6 @@ func makeCP(reg register8) instruction {
 		state.setZeroFlag(subVal == 0)
 		state.setSubtractFlag(true)
 
-		if printInstructions {
-			fmt.Printf("CP %v (%#x,%#x)\n",
-				reg,
-				state.regA.get(),
-				reg.get())
-		}
 		return 4
 	}
 }
@@ -584,9 +565,6 @@ func cp8BitImm(state *State) int {
 	state.setZeroFlag(subVal == 0)
 	state.setSubtractFlag(true)
 
-	if printInstructions {
-		fmt.Printf("CP %#x\n", imm)
-	}
 	return 8
 }
 
@@ -644,10 +622,6 @@ func daa(state *State) int {
 
 	state.setZeroFlag(aVal == 0)
 	state.setHalfCarryFlag(false)
-
-	if printInstructions {
-		fmt.Printf("DAA\n")
-	}
 
 	return 4
 }

@@ -1,7 +1,5 @@
 package gameboy
 
-import "fmt"
-
 // call loads a 16-bit address, pushes the address of the next instruction onto
 // the stack, and jumps to the loaded address.
 func call(state *State) int {
@@ -10,9 +8,6 @@ func call(state *State) int {
 
 	state.regPC.set(address)
 
-	if printInstructions {
-		fmt.Printf("CALL %#x\n", address)
-	}
 	return 24
 }
 
@@ -23,11 +18,6 @@ func makeCALLIfFlag(flagMask uint8, isSet bool) instruction {
 	return func(state *State) int {
 		flagState := state.regF.get()&flagMask == flagMask
 		address := combine16(state.incrementPC(), state.incrementPC())
-
-		if printInstructions {
-			conditional := getConditionalStr(flagMask, isSet)
-			fmt.Printf("CALL %v,%#x\n", conditional, address)
-		}
 
 		if flagState == isSet {
 			state.pushToStack16(state.regPC.get())
@@ -45,9 +35,6 @@ func ret(state *State) int {
 	addr := state.popFromStack16()
 	state.regPC.set(addr)
 
-	if printInstructions {
-		fmt.Printf("RET\n")
-	}
 	return 16
 }
 
@@ -66,10 +53,6 @@ func makeRETIfFlag(flagMask uint8, isSet bool) instruction {
 			opClocks = 8
 		}
 
-		if printInstructions {
-			conditional := getConditionalStr(flagMask, isSet)
-			fmt.Printf("RET %v\n", conditional)
-		}
 		return opClocks
 	}
 }
@@ -82,9 +65,6 @@ func reti(state *State) int {
 
 	state.interruptsEnabled = true
 
-	if printInstructions {
-		fmt.Printf("RETI\n")
-	}
 	return 16
 }
 
@@ -96,9 +76,6 @@ func makeRST(address uint16) instruction {
 
 		state.regPC.set(address)
 
-		if printInstructions {
-			fmt.Printf("RST %#x\n", address)
-		}
 		return 16
 	}
 }

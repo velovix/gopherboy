@@ -4,9 +4,6 @@ import "fmt"
 
 // nop does nothing.
 func nop(state *State) int {
-	if printInstructions {
-		fmt.Printf("NOP\n")
-	}
 	return 4
 }
 
@@ -17,9 +14,6 @@ func di(state *State) int {
 	// Cancel a delayed interrupt enable request if any
 	state.enableInterruptsTimer = 0
 
-	if printInstructions {
-		fmt.Printf("DI\n")
-	}
 	return 4
 }
 
@@ -29,9 +23,6 @@ func di(state *State) int {
 func ei(state *State) int {
 	state.enableInterruptsTimer = 2
 
-	if printInstructions {
-		fmt.Printf("EI\n")
-	}
 	return 4
 }
 
@@ -39,9 +30,6 @@ func ei(state *State) int {
 func halt(state *State) int {
 	state.halted = true
 
-	if printInstructions {
-		fmt.Printf("HALT\n")
-	}
 	return 4
 }
 
@@ -53,9 +41,6 @@ func cpl(state *State) int {
 	state.setHalfCarryFlag(true)
 	state.setSubtractFlag(true)
 
-	if printInstructions {
-		fmt.Printf("CPL\n")
-	}
 	return 4
 }
 
@@ -66,9 +51,6 @@ func ccf(state *State) int {
 	state.setHalfCarryFlag(false)
 	state.setSubtractFlag(false)
 
-	if printInstructions {
-		fmt.Printf("CCF\n")
-	}
 	return 4
 }
 
@@ -78,9 +60,6 @@ func scf(state *State) int {
 	state.setHalfCarryFlag(false)
 	state.setSubtractFlag(false)
 
-	if printInstructions {
-		fmt.Printf("SCF\n")
-	}
 	return 4
 }
 

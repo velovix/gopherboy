@@ -1,9 +1,5 @@
 package gameboy
 
-import (
-	"fmt"
-)
-
 // jr loads a signed offset value, then jumps to the operation at address PC +
 // offset. In other words, it's a jump relative to the current position.
 func jr(state *State) int {
@@ -32,11 +28,6 @@ func makeJRIfFlag(flagMask uint8, isSet bool) instruction {
 	return func(state *State) int {
 		flagState := state.regF.get()&flagMask == flagMask
 		offset := int8(state.incrementPC())
-
-		if printInstructions {
-			conditional := getConditionalStr(flagMask, isSet)
-			fmt.Printf("JR %v,%#x\n", conditional, offset)
-		}
 
 		if flagState == isSet {
 			relativeJump(state, offset)
@@ -80,11 +71,6 @@ func makeJPIfFlag(flagMask uint8, isSet bool) instruction {
 	return func(state *State) int {
 		flagState := state.regF.get()&flagMask == flagMask
 		address := combine16(state.incrementPC(), state.incrementPC())
-
-		if printInstructions {
-			conditional := getConditionalStr(flagMask, isSet)
-			fmt.Printf("JP %v,%#x\n", conditional, address)
-		}
 
 		if flagState == isSet {
 			state.regPC.set(address)

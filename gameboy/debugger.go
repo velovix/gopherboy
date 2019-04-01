@@ -9,8 +9,7 @@ import (
 	"strings"
 )
 
-// TODO(velovix): Consider making this feature available again
-var printInstructions = false
+var printWarnings = false
 
 type debugger struct {
 	state *State

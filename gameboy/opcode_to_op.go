@@ -34,7 +34,7 @@ func newOpcodeMapper(state *State) *opcodeMapper {
 
 // runOpcode runs the operation that maps to the given opcode.
 func (mapper *opcodeMapper) run(opcode uint8) (cycles int, err error) {
-	if printInstructions {
+	if printWarnings {
 		fmt.Printf("@PC %#x | %#x: ", mapper.state.instructionStart, opcode)
 	}
 

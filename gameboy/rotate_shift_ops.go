@@ -1,7 +1,6 @@
 package gameboy
 
 import (
-	"fmt"
 	"math/bits"
 )
 
@@ -19,9 +18,6 @@ func rlca(state *State) int {
 	carryBit := state.regA.get() & 0x01
 	state.setCarryFlag(carryBit == 1)
 
-	if printInstructions {
-		fmt.Printf("RLCA\n")
-	}
 	return 4
 }
 
@@ -58,9 +54,6 @@ func rla(state *State) int {
 
 	state.regA.set(newVal)
 
-	if printInstructions {
-		fmt.Printf("RLA\n")
-	}
 	return 4
 }
 
@@ -78,9 +71,6 @@ func rrca(state *State) int {
 	state.setSubtractFlag(false)
 	state.setHalfCarryFlag(false)
 
-	if printInstructions {
-		fmt.Printf("RRCA\n")
-	}
 	return 4
 }
 
@@ -117,9 +107,6 @@ func rra(state *State) int {
 
 	state.regA.set(newVal)
 
-	if printInstructions {
-		fmt.Printf("RRA\n")
-	}
 	return 4
 }
 
@@ -140,9 +127,6 @@ func makeSRL(reg register8) instruction {
 		state.setSubtractFlag(false)
 		state.setHalfCarryFlag(false)
 
-		if printInstructions {
-			fmt.Printf("SRL %v\n", reg)
-		}
 		return 8
 	}
 }
