@@ -23,13 +23,15 @@ var mainThreadFuncs = make(chan func())
 
 // doOnMainThread runs the given function in the main thread and returns when
 // done.
-func doOnMainThread(f func()) {
+func doOnMainThread(f func(), async bool) {
 	done := make(chan bool, 1)
 	mainThreadFuncs <- func() {
 		f()
 		done <- true
 	}
-	<-done
+	if !async {
+		<-done
+	}
 }
 
 func main() {

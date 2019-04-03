@@ -55,12 +55,12 @@ func newTimers(state *State) *timers {
 // the last call to tick. Flags interrupts as needed.
 func (t *timers) tick(amount int) {
 	// Parse the TAC bits for TIMA configuration information
-	tac := t.state.mmu.atIORAM(tacAddr)
+	tac := t.state.mmu.memory[tacAddr]
 	timaRunning := tac&0x4 == 0x4
 	timaRateBits := tac & 0x3
 
 	// Load the current TIMA value
-	tima := t.state.mmu.atIORAM(timaAddr)
+	tima := t.state.mmu.memory[timaAddr]
 
 	for i := 0; i < amount; i++ {
 		t.cpuClock++
@@ -96,12 +96,12 @@ func (t *timers) tick(amount int) {
 			t.timaInterruptCountdown--
 			if t.timaInterruptCountdown == 0 {
 				// Start back up at the specified modulo value
-				tima = t.state.mmu.atIORAM(tmaAddr)
+				tima = t.state.mmu.memory[tmaAddr]
 
-				timaInterruptEnabled := t.state.mmu.atHRAM(ieAddr)&0x04 == 0x04
+				timaInterruptEnabled := t.state.mmu.memory[ieAddr]&0x04 == 0x04
 				if t.state.interruptsEnabled && timaInterruptEnabled {
 					// Flag a TIMA overflow interrupt
-					t.state.mmu.setIORAM(ifAddr, t.state.mmu.atIORAM(ifAddr)|0x04)
+					t.state.mmu.memory[ifAddr] = t.state.mmu.memory[ifAddr] | 0x04
 				}
 
 				// The TMA to TIMA transfer process has been initiated
@@ -131,8 +131,8 @@ func (t *timers) tick(amount int) {
 	// Update the timers in memory
 	// The divider register is simply the 8 most significant bits of the CPU
 	// clock
-	t.state.mmu.setIORAM(dividerAddr, uint8(t.cpuClock>>8))
-	t.state.mmu.setIORAM(timaAddr, tima)
+	t.state.mmu.memory[dividerAddr] = uint8(t.cpuClock >> 8)
+	t.state.mmu.memory[timaAddr] = tima
 }
 
 // onDividerWrite is called when the divider register is written to. This
@@ -158,7 +158,7 @@ func (t *timers) onTACWrite(addr uint16, writeVal uint8) uint8 {
 func (t *timers) onTIMAWrite(addr uint16, writeVal uint8) uint8 {
 	if t.tmaToTIMATransferCountdown > 0 {
 		// The TIMA is protected from writes
-		tima := t.state.mmu.atIORAM(timaAddr)
+		tima := t.state.mmu.memory[timaAddr]
 		return tima
 	}
 	return writeVal
@@ -172,7 +172,7 @@ func (t *timers) onTMAWrite(addr uint16, writeVal uint8) uint8 {
 	if t.tmaToTIMATransferCountdown > 0 {
 		// During this time where the TIMA is being set to the TAC, any changes
 		// to the TAC will also be reflected in the TIMA
-		t.state.mmu.setIORAM(timaAddr, writeVal)
+		t.state.mmu.memory[timaAddr] = writeVal
 	}
 
 	return writeVal

@@ -80,13 +80,13 @@ type videoController struct {
 	windowY uint8
 	// bgPalette is the palette for the background. It maps dot data to its
 	// corresponding color.
-	bgPalette []color
+	bgPalette [4]color
 	// spritePalette0 is the first of the two available sprite palettes. It
 	// maps dot data to its corresponding color.
-	spritePalette0 []color
+	spritePalette0 [4]color
 	// spritePalette1 is the second of the two available sprite palettes. It
 	// maps dot data to its corresponding color.
-	spritePalette1 []color
+	spritePalette1 [4]color
 
 	// Raw frame data in 8-bit RGBA format.
 	currFrame []uint8
@@ -101,22 +101,21 @@ type videoController struct {
 }
 
 func newVideoController(state *State, driver VideoDriver) *videoController {
-	var vc videoController
+	vc := &videoController{
+		lcdOn:             true,
+		driver:            driver,
+		state:             state,
+		lastSecond:        time.Now(),
+		spritesOnScanLine: make([]oam, maxSpritesPerScanLine),
+		currFrame:         make([]uint8, ScreenWidth*ScreenHeight*4),
+	}
 
-	vc.lcdOn = true
-
-	vc.driver = driver
-
-	vc.state = state
-
-	vc.lastSecond = time.Now()
-
-	vc.spritesOnScanLine = make([]oam, maxSpritesPerScanLine)
+	vc.currFrame = make([]uint8, ScreenWidth*ScreenHeight*4)
 
 	vc.state.mmu.subscribeTo(statAddr, vc.onSTATWrite)
 	vc.state.mmu.subscribeTo(lcdcAddr, vc.onLCDCWrite)
 
-	return &vc
+	return vc
 }
 
 // tick progresses the video controller by the given number of cycles.
@@ -128,7 +127,7 @@ func (vc *videoController) tick(opTime int) {
 	stat := vc.loadSTAT()
 
 	// Check which interrupts are currently enabled
-	lcdcInterruptsEnabled := vc.state.mmu.atHRAM(ieAddr)&0x02 == 0x02
+	lcdcInterruptsEnabled := vc.state.mmu.memory[ieAddr]&0x02 == 0x02
 	lyEqualsLYCInterruptEnabled := stat.lyEqualsLYCInterruptOn &&
 		lcdcInterruptsEnabled &&
 		vc.state.interruptsEnabled
@@ -144,14 +143,9 @@ func (vc *videoController) tick(opTime int) {
 
 	for i := 0; i < opTime; i++ {
 		if vc.frameTick == 0 {
-			// Get ready for a new frame draw
-			vc.driver.Clear()
 			// Read some frame-wide values
-			vc.scrollY = int8(vc.state.mmu.atIORAM(scrollYAddr))
-			vc.windowY = vc.state.mmu.atIORAM(windowPosYAddr)
-
-			// Make a new frame
-			vc.currFrame = make([]uint8, ScreenWidth*ScreenHeight*4)
+			vc.scrollY = int8(vc.state.mmu.memory[scrollYAddr])
+			vc.windowY = vc.state.mmu.memory[windowPosYAddr]
 		}
 
 		// Update the LY register with the current scan line. Note that this
@@ -160,18 +154,18 @@ func (vc *videoController) tick(opTime int) {
 		currScanLine := (vc.frameTick / scanLineFullClocks)
 		// TODO(velovix): Is adding a 1 to this correct behavior? Not adding 1
 		// results in visual glitche
-		vc.state.mmu.setIORAM(lyAddr, uint8(currScanLine+1))
+		vc.state.mmu.memory[lyAddr] = uint8(currScanLine + 1)
 
 		// Check if LY==LYC
 		lyJustChanged := vc.frameTick%scanLineFullClocks == 0
 		if lyJustChanged {
-			lyc := vc.state.mmu.atIORAM(lyAddr)
+			lyc := vc.state.mmu.memory[lyAddr]
 			// TODO(velovix): Why do I need to add a one here?
 			stat.lyEqualsLYC = (currScanLine + 1) == int(lyc)
 			// Trigger an interrupt if they're equal and the interrupt is
 			// enabled
 			if stat.lyEqualsLYC && lyEqualsLYCInterruptEnabled {
-				vc.state.mmu.setIORAM(ifAddr, vc.state.mmu.atIORAM(ifAddr)|0x02)
+				vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x02
 			}
 		}
 
@@ -184,7 +178,7 @@ func (vc *videoController) tick(opTime int) {
 				// We're in mode 2, OAM read mode.
 				stat.mode = vcMode2
 				if mode2InterruptEnabled {
-					vc.state.mmu.setIORAM(ifAddr, vc.state.mmu.atIORAM(ifAddr)|0x02)
+					vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x02
 				}
 				// TODO(velovix): Lock OAM?
 
@@ -193,21 +187,20 @@ func (vc *videoController) tick(opTime int) {
 				// This is the start of this scan line, read some scan line
 				// wide values
 				vc.lcdc = vc.loadLCDC()
-				vc.scrollX = int8(vc.state.mmu.atIORAM(scrollXAddr))
-				vc.windowX = vc.state.mmu.atIORAM(windowPosXAddr)
+				vc.scrollX = int8(vc.state.mmu.memory[scrollXAddr])
+				vc.windowX = vc.state.mmu.memory[windowPosXAddr]
 			case scanLineOAMClocks:
 				// We're in mode 3, OAM and VRAM transfer mode.
 				stat.mode = vcMode3
 
-				vc.bgPalette = vc.loadBGPalette()
-				vc.spritePalette0 = vc.loadSpritePalette(0)
-				vc.spritePalette1 = vc.loadSpritePalette(1)
+				vc.loadBGPalette()
+				vc.loadSpritePalettes()
 				// TODO(velovix): Lock VRAM
 			case scanLineVRAMClocks:
 				// We're in mode 0, HBlank period
 				stat.mode = vcMode0
 				if mode0InterruptEnabled {
-					vc.state.mmu.setIORAM(ifAddr, vc.state.mmu.atIORAM(ifAddr)|0x02)
+					vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x02
 				}
 
 				// TODO(velovix): Unlock things
@@ -217,14 +210,14 @@ func (vc *videoController) tick(opTime int) {
 			// We're in mode 1, VBlank period
 			stat.mode = vcMode1
 			if mode1InterruptEnabled {
-				vc.state.mmu.setIORAM(ifAddr, vc.state.mmu.atIORAM(ifAddr)|0x02)
+				vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x02
 			}
 
 			if vc.frameTick == scanLineFullClocks*ScreenHeight {
 				// We just finished drawing the frame
-				vblankInterruptEnabled := vc.state.mmu.atHRAM(ieAddr)&0x01 == 0x01
+				vblankInterruptEnabled := vc.state.mmu.memory[ieAddr]&0x01 == 0x01
 				if vc.state.interruptsEnabled && vblankInterruptEnabled {
-					vc.state.mmu.setIORAM(ifAddr, vc.state.mmu.atIORAM(ifAddr)|0x01)
+					vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x01
 				}
 
 				vc.driver.Render(vc.currFrame)
@@ -352,11 +345,13 @@ func (vc *videoController) coordInWindow(x, y uint8) bool {
 	return x >= vc.windowX-7 && y >= vc.windowY
 }
 
+var spritesAtCache [maxSpritesPerScanLine]oam
+
 // spritesAt returns all sprites that are at the given X value, sorted by their
 // drawing priority.  Sprites are loaded on a per-scan-line basis, so there's
 // no need to check if sprites are at the current Y position.
 func (vc *videoController) spritesAt(x uint8) []oam {
-	var sprites []oam
+	spriteCount := 0
 
 	for i := 0; i < vc.spriteCount; i++ {
 		spriteX := vc.spritesOnScanLine[i].xPos
@@ -365,11 +360,12 @@ func (vc *videoController) spritesAt(x uint8) []oam {
 		// point. Remember that a sprite's X and Y position is relative to the
 		// bottom right of the sprite.
 		if x < spriteX && int(x) >= int(spriteX)-spriteWidth {
-			sprites = append(sprites, vc.spritesOnScanLine[i])
+			spritesAtCache[spriteCount] = vc.spritesOnScanLine[i]
+			spriteCount++
 		}
 	}
 
-	return sprites
+	return spritesAtCache[:spriteCount]
 }
 
 // bgDotCode returns the dot code in the background layer at the given screen
@@ -393,7 +389,7 @@ func (vc *videoController) bgDotCode(x, y uint8) uint8 {
 	// Get the tile this point is inside of
 	tileOffset := (bgY/bgTileHeight)*bgWidthInTiles + (bgX / bgTileWidth)
 	tileAddr := vc.lcdc.bgTileMapAddr + uint16(tileOffset)
-	tile := vc.state.mmu.atVideoRAM(tileAddr)
+	tile := vc.state.mmu.memory[tileAddr]
 
 	// Find the dot code at this specific place in the tile
 	inTileX := bgX % bgTileWidth
@@ -416,7 +412,7 @@ func (vc *videoController) windowDotCode(x, y uint8) uint8 {
 
 	tileOffset := (winY/windowTileHeight)*windowWidthInTiles + (winX / windowTileWidth)
 	tileAddr := vc.lcdc.windowTileMapAddr + uint16(tileOffset)
-	tile := vc.state.mmu.atVideoRAM(tileAddr)
+	tile := vc.state.mmu.memory[tileAddr]
 
 	inTileX := winX % windowTileWidth
 	inTileY := winY % windowTileHeight
@@ -439,8 +435,8 @@ func (vc *videoController) dotCodeInTile(tileID uint8, inTileX, inTileY int) uin
 		panic(fmt.Sprintf("unknown tile data table %#x", tileDataAddr))
 	}
 
-	lower := vc.state.mmu.atVideoRAM(tileDataAddr + uint16(inTileY*2))
-	upper := vc.state.mmu.atVideoRAM(tileDataAddr + uint16((inTileY*2)+1))
+	lower := vc.state.mmu.memory[tileDataAddr+uint16(inTileY*2)]
+	upper := vc.state.mmu.memory[tileDataAddr+uint16((inTileY*2)+1)]
 
 	lower <<= uint(inTileX)
 	upper <<= uint(inTileX)
@@ -463,8 +459,8 @@ func (vc *videoController) dotCodeInSprite(spriteID uint8, inSpriteX, inSpriteY 
 	// Find the address of the tile data
 	spriteDataAddr := spriteDataTable + uint16(spriteID)*spriteBytes8x8
 
-	lower := vc.state.mmu.atVideoRAM(spriteDataAddr + uint16(inSpriteY*2))
-	upper := vc.state.mmu.atVideoRAM(spriteDataAddr + uint16((inSpriteY*2)+1))
+	lower := vc.state.mmu.memory[spriteDataAddr+uint16(inSpriteY*2)]
+	upper := vc.state.mmu.memory[spriteDataAddr+uint16((inSpriteY*2)+1)]
 
 	lower <<= uint(inSpriteX)
 	upper <<= uint(inSpriteX)
@@ -560,7 +556,7 @@ type lcdcConfig struct {
 // information.
 func (vc *videoController) loadLCDC() lcdcConfig {
 	var config lcdcConfig
-	lcdc := vc.state.mmu.atIORAM(lcdcAddr)
+	lcdc := vc.state.mmu.memory[lcdcAddr]
 
 	config.lcdOn = lcdc&0x80 == 0x80
 	if lcdc&0x40 == 0x40 {
@@ -636,13 +632,13 @@ func (vc *videoController) loadSpritesOnScanLine(scanLine uint8) {
 
 	for i := 0; i < maxOAMEntries; i++ {
 		entryStart := uint16(oamRAMAddr + (i * oamBytes))
-		xPos := vc.state.mmu.atOAMRAM(entryStart + 1)
+		xPos := vc.state.mmu.memory[entryStart+1]
 		if xPos == 0 {
 			// This sprite is not on-screen
 			continue
 		}
 
-		yPos := vc.state.mmu.atOAMRAM(entryStart)
+		yPos := vc.state.mmu.memory[entryStart]
 		var spriteTop int
 		switch vc.lcdc.spriteSize {
 		case spriteSize8x8:
@@ -660,10 +656,10 @@ func (vc *videoController) loadSpritesOnScanLine(scanLine uint8) {
 			address:      entryStart,
 			yPos:         yPos,
 			xPos:         xPos,
-			spriteNumber: vc.state.mmu.atOAMRAM(entryStart + 2),
+			spriteNumber: vc.state.mmu.memory[entryStart+2],
 		}
 
-		flags := vc.state.mmu.atOAMRAM(entryStart + 3)
+		flags := vc.state.mmu.memory[entryStart+3]
 		newOAM.priority = flags&0x80 == 0x80
 		newOAM.yFlip = flags&0x40 == 0x40
 		newOAM.xFlip = flags&0x20 == 0x20
@@ -730,7 +726,7 @@ type statConfig struct {
 // loadSTAT inspects the STAT register value for LCD configuration information.
 func (vc *videoController) loadSTAT() statConfig {
 	var config statConfig
-	stat := vc.state.mmu.atIORAM(statAddr)
+	stat := vc.state.mmu.memory[statAddr]
 
 	config.lyEqualsLYCInterruptOn = stat&0x40 == 0x40
 	config.mode2InterruptOn = stat&0x20 == 0x20
@@ -744,7 +740,7 @@ func (vc *videoController) loadSTAT() statConfig {
 
 // saveSTAT saves the given STAT configuration into the memory register.
 func (vc *videoController) saveSTAT(config statConfig) {
-	statVal := vc.state.mmu.atIORAM(statAddr)
+	statVal := vc.state.mmu.memory[statAddr]
 
 	if config.lyEqualsLYCInterruptOn {
 		statVal |= 0x40
@@ -775,17 +771,14 @@ func (vc *videoController) saveSTAT(config statConfig) {
 	statVal &= 0xFC
 	statVal |= uint8(config.mode)
 
-	vc.state.mmu.set(statAddr, statVal)
+	vc.state.mmu.memory[statAddr] = statVal
 }
 
-// loadBGPalette inspects the BGP register value and returns a map that maps
-// dot data to actual colors.
-func (vc *videoController) loadBGPalette() []color {
-	bgp := vc.state.mmu.atIORAM(bgpAddr)
-	palette := make([]color, 0x04)
-
-	for dotData := uint8(0); dotData < 0x04; dotData++ {
-		paletteOption := bgp & 0x03
+// loadPalette populates the given palette list with colors corresponding to
+// the selections in the given palette data.
+func loadPalette(palette *[4]color, paletteData uint8) {
+	for dotData := 0; dotData < 0x04; dotData++ {
+		paletteOption := paletteData & 0x03
 
 		var c color
 		switch paletteOption {
@@ -804,42 +797,25 @@ func (vc *videoController) loadBGPalette() []color {
 		}
 
 		palette[dotData] = c
-		bgp >>= 2
+		paletteData >>= 2
 	}
-
-	return palette
 }
 
-// loadSpritePalette inspects the OBP0 or OPB1 register values and returns a
-// map that maps dot data to actual colors.
-func (vc *videoController) loadSpritePalette(paletteNum int) []color {
-	obp := vc.state.mmu.atIORAM(opb0Addr + uint16(paletteNum))
-	palette := make([]color, 0x04)
+// loadBGPalette inspects the BGP register value for palette information.
+func (vc *videoController) loadBGPalette() {
+	bgp := vc.state.mmu.memory[bgpAddr]
 
-	for dotData := uint8(0); dotData < 0x04; dotData++ {
-		paletteOption := obp & 0x03
+	loadPalette(&vc.bgPalette, bgp)
+}
 
-		var c color
-		switch paletteOption {
-		case 0x00:
-			//c = color{52, 104, 86, 255}
-			c = color{224, 248, 208, 255}
-		case 0x01:
-			//c = color{8, 24, 32, 255}
-			c = color{136, 192, 112, 255}
-		case 0x02:
-			//c = color{52, 104, 86, 255}
-			c = color{52, 104, 86, 255}
-		case 0x03:
-			//c = color{8, 24, 32, 255}
-			c = color{8, 24, 32, 255}
-		}
+// loadSpritePalettes inspects the OBP0 or OPB1 register values and populates
+// both sprite palettes.
+func (vc *videoController) loadSpritePalettes() {
+	opb0 := vc.state.mmu.memory[opb0Addr]
+	opb1 := vc.state.mmu.memory[opb1Addr]
 
-		palette[dotData] = c
-		obp >>= 2
-	}
-
-	return palette
+	loadPalette(&vc.spritePalette0, opb0)
+	loadPalette(&vc.spritePalette1, opb1)
 }
 
 type color struct {

@@ -11,6 +11,8 @@ const dmaCycleLength = 671
 // to all Game Boy games and defers to the cartridge's memory bank controller
 // in cartridge-specific cases.
 type mmu struct {
+	memory *[0x10000]uint8
+
 	// bootROM refers to the first 256 bytes of ROM, which is where the Game
 	// Boy boot sequence is stored.
 	bootROM []uint8
@@ -77,6 +79,7 @@ func newMMU(bootROM []byte, cartridgeData []uint8, mbc mbc) *mmu {
 	}
 
 	m := &mmu{
+		memory:         &[0x10000]uint8{},
 		bootROM:        bootROM,
 		ram:            make([]uint8, ramMirrorAddr-ramAddr),
 		bootROMEnabled: true,
@@ -100,12 +103,10 @@ func (m *mmu) at(addr uint16) uint8 {
 		m.db.memReadHook(addr)
 	}
 
-	// Unmapped areas of memory always read 0xFF
-	if isUnmappedAddress[addr] {
-		return 0xFF
-	}
-
 	switch {
+	case isUnmappedAddress[addr]:
+		// Unmapped areas of memory always read 0xFF
+		return 0xFF
 	case inBootROMArea(addr):
 		// Either the boot ROM if it's enabled, or a ROM access
 		if m.bootROMEnabled {
@@ -118,18 +119,12 @@ func (m *mmu) at(addr uint16) uint8 {
 	case inBankedROMArea(addr):
 		// Some additional ROM bank, controlled by the MBC
 		return m.mbc.at(addr)
-	case inVideoRAMArea(addr):
-		return m.atVideoRAM(addr)
-	case inRAMArea(addr):
-		return m.ram[addr-ramAddr]
 	case inBankedRAMArea(addr):
 		// The MBC handles RAM banking and availability
 		return m.mbc.at(addr)
 	case inRAMMirrorArea(addr):
 		// A bank 0 RAM mirror
-		return m.ram[addr-ramMirrorAddr]
-	case inOAMArea(addr):
-		return m.atOAMRAM(addr)
+		return m.memory[addr-(ramMirrorAddr-ramAddr)]
 	case inInvalidArea(addr):
 		// Invalid area, which always returns 0xFF since it's the MMU's default
 		// value
@@ -137,41 +132,9 @@ func (m *mmu) at(addr uint16) uint8 {
 			fmt.Printf("Warning: Read from invalid memory address %#x\n", addr)
 		}
 		return 0xFF
-	case inIOArea(addr):
-		return m.atIORAM(addr)
-	case inHRAMArea(addr):
-		return m.hram[addr-hramAddr]
 	default:
-		panic(fmt.Sprintf("Unexpected memory address %#x", addr))
+		return m.memory[addr]
 	}
-}
-
-// atVideoRAM return the value at the given address, assuming it is in video
-// RAM. This bypasses checks that the regular `at` method does to improve
-// performance, so it should only be used on known good values.
-func (m *mmu) atVideoRAM(addr uint16) uint8 {
-	return m.videoRAM[addr-videoRAMAddr]
-}
-
-// atOAMRAM return the value at the given address, assuming it is in OAM RAM.
-// This bypasses checks that the regular `at` method does to improve
-// performance, so it should only be used on known good values.
-func (m *mmu) atOAMRAM(addr uint16) uint8 {
-	return m.oamRAM[addr-oamRAMAddr]
-}
-
-// atIORAM return the value at the given address, assuming it is in IO RAM.
-// This bypasses checks that the regular `at` method does to improve
-// performance, so it should only be used on known good values.
-func (m *mmu) atIORAM(addr uint16) uint8 {
-	return m.ioRAM[addr-ioAddr]
-}
-
-// atIORAM return the value at the given address, assuming it is in HRAM.  This
-// bypasses checks that the regular `at` method does to improve performance, so
-// it should only be used on known good values.
-func (m *mmu) atHRAM(addr uint16) uint8 {
-	return m.hram[addr-hramAddr]
 }
 
 // tick progresses the MMU by the given number of cycles.
@@ -225,47 +188,16 @@ func (m *mmu) setNoNotify(addr uint16, val uint8) {
 	case inBank0ROMArea(addr) || inBankedROMArea(addr):
 		// "Writes" to ROM areas are used to control MBCs
 		m.mbc.set(addr, val)
-	case inVideoRAMArea(addr):
-		m.videoRAM[addr-videoRAMAddr] = val
-	case inRAMArea(addr):
-		m.ram[addr-ramAddr] = val
 	case inBankedRAMArea(addr):
 		// The MBC handles RAM banking and availability
 		m.mbc.set(addr, val)
-	case inRAMMirrorArea(addr):
-		// An area that mirrors built-in RAM
-		m.ram[addr-ramMirrorAddr] = val
-	case inOAMArea(addr):
-		m.oamRAM[addr-oamRAMAddr] = val
 	case inInvalidArea(addr):
 		if printWarnings {
 			fmt.Printf("Warning: Write to invalid area %#x", addr)
 		}
-	case inIOArea(addr):
-		m.setIORAM(addr, val)
-	case inHRAMArea(addr):
-		m.hram[addr-hramAddr] = val
 	default:
-		panic(fmt.Sprintf("Unexpected memory address %#x", addr))
+		m.memory[addr] = val
 	}
-}
-
-// setIORAM sets the value at the given address, assuming it is in IO RAM.
-// This bypasses checks that the regular `set` method does to improve
-// performance, so it should only be used on known good values. It also does
-// not notify subscribers, so it should only be used for sets within the Game
-// Boy hardware, not as a result of instructions.
-func (m *mmu) setIORAM(addr uint16, val uint8) {
-	m.ioRAM[addr-ioAddr] = val
-}
-
-// setHRAM sets the value at the given address, assuming it is in HRAM.  This
-// bypasses checks that the regular `set` method does to improve performance,
-// so it should only be used on known good values. It also does not notify
-// subscribers, so it should only be used for sets within the Game Boy
-// hardware, not as a result of instructions.
-func (m *mmu) setHRAM(addr uint16, val uint8) {
-	m.hram[addr-hramAddr] = val
 }
 
 // subscribeTo sets up the given function to be called when a value is written

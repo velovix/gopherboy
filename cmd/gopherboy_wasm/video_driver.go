@@ -13,13 +13,10 @@ type videoDriver struct {
 	lastFrameTime time.Time
 }
 
-const framePeriod = time.Second / 60
+const framePeriod = time.Second / 10
 
 func newVideoDriver(scaleFactor float64) (*videoDriver, error) {
 	return &videoDriver{}, nil
-}
-
-func (vd *videoDriver) Clear() {
 }
 
 func (vd *videoDriver) Render(frameData []uint8) error {

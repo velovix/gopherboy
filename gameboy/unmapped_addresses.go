@@ -3,10 +3,9 @@ package gameboy
 // isUnmappedAddress is a slice whose index is a memory address and whose value
 // is true if the address is unmapped. This array is filled in using the
 // unmappedAddresses slice at program initialization.
-var isUnmappedAddress []bool
+var isUnmappedAddress [0x10000]bool
 
 func init() {
-	isUnmappedAddress = make([]bool, 0x10000)
 	for _, addr := range unmappedAddresses {
 		isUnmappedAddress[addr] = true
 	}

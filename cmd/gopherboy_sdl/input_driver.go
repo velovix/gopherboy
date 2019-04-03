@@ -64,7 +64,7 @@ func (driver *inputDriver) Update() bool {
 				}
 			}
 		}
-	})
+	}, false)
 
 	return buttonPressed
 }

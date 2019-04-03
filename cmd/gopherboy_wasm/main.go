@@ -12,17 +12,26 @@ func main() {
 
 	// Set up the event handler
 	eventHandler := eventHandler{}
-	js.Global().Set("onmessage", js.NewEventCallback(0, eventHandler.onMessage))
+	js.Global().Set("onmessage", js.FuncOf(eventHandler.onMessage))
 
 	var cartridgeData []byte
+	var bootROMData []byte
 
-	// Wait for cartridge data
-	cartridgeDataEvents := make(chan message)
-	eventHandler.subscribers = append(eventHandler.subscribers, cartridgeDataEvents)
-	for cartridgeData == nil {
-		msg := <-cartridgeDataEvents
+	// Wait for data
+	dataEvents := make(chan message)
+	eventHandler.subscribers = append(eventHandler.subscribers, dataEvents)
+
+	for cartridgeData == nil || bootROMData == nil {
+		msg := <-dataEvents
 
 		switch msg.kind {
+		case "BootROMData":
+			bootROMData = make([]uint8, msg.data.Length())
+			for i := 0; i < msg.data.Length(); i++ {
+				bootROMData[i] = uint8(msg.data.Index(i).Int())
+			}
+
+			fmt.Println("emulator: Boot ROM data message received")
 		case "CartridgeData":
 			cartridgeData = make([]uint8, msg.data.Length())
 			for i := 0; i < msg.data.Length(); i++ {
@@ -50,7 +59,7 @@ func main() {
 	}
 	eventHandler.subscribers = append(eventHandler.subscribers, input.messages)
 
-	device, err := gameboy.NewDevice(gameboy.BootROM(), cartridgeData, video, input, &mockSaveGameDriver{}, gameboy.DebugConfiguration{})
+	device, err := gameboy.NewDevice(bootROMData, cartridgeData, video, input, &mockSaveGameDriver{}, gameboy.DebugConfiguration{})
 	if err != nil {
 		fmt.Println("Error: While initializing Game Boy:", err)
 		return

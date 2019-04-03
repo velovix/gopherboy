@@ -20,6 +20,8 @@ type videoDriver struct {
 
 	unlimitedFPS  bool
 	lastFrameTime time.Time
+
+	readyForNewFrame bool
 }
 
 // newVideoDriver creates a new SDL video driver. The scale factor resizes the
@@ -51,20 +53,19 @@ func newVideoDriver(scaleFactor float64, unlimitedFPS bool) (*videoDriver, error
 
 	vd.renderer.SetDrawColor(255, 255, 255, 255)
 
+	vd.readyForNewFrame = true
+
 	return &vd, nil
 }
 
-// clear clears the screen in preparation for a new frame.
-func (vd *videoDriver) Clear() {
-	doOnMainThread(func() {
-		vd.renderer.Clear()
-	})
-}
-
-// render renders the given RGBA frame data on-screen. This is done by turning
+// Render renders the given RGBA frame data on-screen. This is done by turning
 // it into a texture and copying it onto the renderer.
 func (vd *videoDriver) Render(frameData []uint8) error {
-	var err error
+	if !vd.readyForNewFrame {
+		return nil
+	}
+
+	vd.readyForNewFrame = false
 
 	doOnMainThread(func() {
 		surface, err := sdl.CreateRGBSurfaceFrom(
@@ -98,16 +99,18 @@ func (vd *videoDriver) Render(frameData []uint8) error {
 		}
 
 		vd.renderer.Present()
-	})
 
-	if !vd.unlimitedFPS {
-		if time.Since(vd.lastFrameTime) < time.Second/targetFPS {
-			time.Sleep((time.Second / targetFPS) - time.Since(vd.lastFrameTime))
+		if !vd.unlimitedFPS {
+			if time.Since(vd.lastFrameTime) < time.Second/targetFPS {
+				time.Sleep((time.Second / targetFPS) - time.Since(vd.lastFrameTime))
+			}
+			vd.lastFrameTime = time.Now()
 		}
-		vd.lastFrameTime = time.Now()
-	}
 
-	return err
+		vd.readyForNewFrame = true
+	}, true)
+
+	return nil
 }
 
 // close de-initializes the video driver in preparation for exit.
@@ -115,5 +118,5 @@ func (vd *videoDriver) Close() {
 	doOnMainThread(func() {
 		vd.renderer.Destroy()
 		vd.window.Destroy()
-	})
+	}, false)
 }

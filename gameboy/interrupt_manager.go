@@ -21,8 +21,8 @@ func newInterruptManager(state *State, timers *timers) *interruptManager {
 // check checks for any interrupts that have happened, and triggers an
 // interrupt handler by moving the program counter where appropriate.
 func (mgr *interruptManager) check() {
-	interruptFlags := mgr.state.mmu.atIORAM(ifAddr)
-	interruptEnable := mgr.state.mmu.atHRAM(ieAddr)
+	interruptFlags := mgr.state.mmu.memory[ifAddr]
+	interruptEnable := mgr.state.mmu.memory[ieAddr]
 	clearedInterruptFlags := interruptFlags
 
 	// The address of the handler to jump to
@@ -60,7 +60,7 @@ func (mgr *interruptManager) check() {
 			// Dispatch the interrupt
 			mgr.state.interruptsEnabled = false
 			// Clear the interrupt flag
-			mgr.state.mmu.setIORAM(ifAddr, clearedInterruptFlags)
+			mgr.state.mmu.memory[ifAddr] = clearedInterruptFlags
 			// Push the current program counter to the stack for later use
 			mgr.state.pushToStack16(mgr.state.regPC.get())
 			mgr.state.regPC.set(target)

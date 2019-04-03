@@ -32,6 +32,24 @@ function main() {
     fileReader.readAsArrayBuffer(files[0]);
   });
 
+  let bootROMSelector = document.getElementById('boot-rom-selector');
+  bootROMSelector.addEventListener('change', function(ev) {
+    let files = ev.target.files;
+    if (files.length == 0) {
+      console.log('js: No files received!');
+      return;
+    }
+
+    let fileReader = new FileReader();
+    fileReader.onload = function(ev) {
+      let array = new Uint8Array(ev.target.result);
+
+      emulatorWorker.postMessage(['BootROMData', array]);
+      console.log('js: Sent boot ROM data to emulator');
+    };
+    fileReader.readAsArrayBuffer(files[0]);
+  });
+
   let display = document.getElementById('frame-display');
   let displayContext = display.getContext('2d');
 
