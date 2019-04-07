@@ -193,7 +193,7 @@ func (m *mmu) setNoNotify(addr uint16, val uint8) {
 		m.mbc.set(addr, val)
 	case inInvalidArea(addr):
 		if printWarnings {
-			fmt.Printf("Warning: Write to invalid area %#x", addr)
+			fmt.Printf("Warning: Write to invalid area %#x\n", addr)
 		}
 	default:
 		m.memory[addr] = val

@@ -629,6 +629,29 @@ func (vc *videoController) loadLCDC() lcdcConfig {
 // as a fast path for detecting LCD power toggles.
 func (vc *videoController) onLCDCWrite(addr uint16, val uint8) uint8 {
 	vc.lcdOn = val&0x80 == 0x80
+
+	if !vc.lcdOn {
+		// Reset some aspects of the video controller
+		vc.state.mmu.memory[lyAddr] = 0
+		vc.frameTick = 0
+
+		stat := vc.loadSTAT()
+
+		if stat.mode != vcMode1 && printWarnings {
+			fmt.Println(
+				"Warning: Attempt to turn off the LCD in mode", stat.mode,
+				"! This might damage real hardware! The LCD should only be",
+				"turned off in mode 1.\n")
+		}
+
+		// Put the video controller in mode 0
+		stat.mode = vcMode0
+		vc.saveSTAT(stat)
+
+		// TODO(velovix): Also unlock any locked VRAM, once I implement VRAM
+		//                locking in the first place
+	}
+
 	return val
 }
 
