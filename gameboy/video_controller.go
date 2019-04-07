@@ -153,7 +153,7 @@ func (vc *videoController) tick(opTime int) {
 		// aren't actually being drawn.
 		currScanLine := (vc.frameTick / scanLineFullClocks)
 		// TODO(velovix): Is adding a 1 to this correct behavior? Not adding 1
-		// results in visual glitche
+		// results in visual glitches
 		vc.state.mmu.memory[lyAddr] = uint8(currScanLine + 1)
 
 		// Check if LY==LYC
@@ -870,14 +870,14 @@ func (vc *videoController) loadBGPalette() {
 	loadPalette(&vc.bgPalette, bgp)
 }
 
-// loadSpritePalettes inspects the OBP0 or OPB1 register values and populates
+// loadSpritePalettes inspects the OBP0 or OBP1 register values and populates
 // both sprite palettes.
 func (vc *videoController) loadSpritePalettes() {
-	opb0 := vc.state.mmu.memory[opb0Addr]
-	opb1 := vc.state.mmu.memory[opb1Addr]
+	obp0 := vc.state.mmu.memory[obp0Addr]
+	obp1 := vc.state.mmu.memory[obp1Addr]
 
-	loadPalette(&vc.spritePalette0, opb0)
-	loadPalette(&vc.spritePalette1, opb1)
+	loadPalette(&vc.spritePalette0, obp0)
+	loadPalette(&vc.spritePalette1, obp1)
 }
 
 type color struct {

@@ -426,7 +426,7 @@ const (
 	//        1: Internal clock
 	scAddr = 0xFF02
 
-	// These variables points to the OBP0 and OPB1 memory registers, which
+	// These variables points to the OBP0 and OBP1 memory registers, which
 	// control the two available sprite palettes. These registers maps dot data
 	// to actual colors.
 	//
@@ -437,8 +437,8 @@ const (
 	// Bits 5-4: The color for dot data 0b10
 	// Bits 3-2: The color for dot data 0b01
 	// Bits 1-0: Unused. This dot data is always interpreted as transparent.
-	opb0Addr = 0xFF48
-	opb1Addr = 0xFF48
+	obp0Addr = 0xFF48
+	obp1Addr = 0xFF49
 
 	// dmaAddr points to the DMA Transfer and Start Address register. When this
 	// register is written to, a transfer will happen between a specified
