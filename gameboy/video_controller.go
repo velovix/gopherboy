@@ -261,7 +261,7 @@ func (vc *videoController) drawScanLine(line uint8) {
 		var pixelColor color
 		pixelDrawn := false
 
-		if vc.lcdc.spritesOn {
+		if vc.lcdc.spritesOn && vc.spriteCount > 0 {
 			// Look for a sprite to draw at this position
 			for _, sprite := range vc.spritesAt(x) {
 				// If the sprite has priority 1 and the background dot data is
