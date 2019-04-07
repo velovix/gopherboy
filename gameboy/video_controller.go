@@ -248,9 +248,16 @@ func (vc *videoController) tick(opTime int) {
 
 // drawScanLine draws a scan line at the given height position.
 func (vc *videoController) drawScanLine(line uint8) {
-	for x := uint8(0); x < ScreenWidth; x++ {
-		bgDotCode := vc.bgDotCode(x, line)
+	bgDotCodes := vc.makeBGScanLine(line)
 
+	// Get window dot codes if the window is enabled and this scan line is
+	// within the window
+	var windowDotCodes *[ScreenWidth]uint8
+	if vc.lcdc.windowOn && line >= vc.windowY {
+		windowDotCodes = vc.makeWindowScanLine(line)
+	}
+
+	for x := uint8(0); x < ScreenWidth; x++ {
 		var pixelColor color
 		pixelDrawn := false
 
@@ -261,7 +268,7 @@ func (vc *videoController) drawScanLine(line uint8) {
 				// other than zero, that part of the sprite will not be drawn
 				// and the background will be seen instead, assuming it is
 				// enabled.
-				if sprite.priority && bgDotCode != 0 {
+				if sprite.priority && bgDotCodes[x] != 0 {
 					continue
 				}
 
@@ -308,14 +315,13 @@ func (vc *videoController) drawScanLine(line uint8) {
 
 		// Draw the window if a sprite hasn't already been drawn
 		if !pixelDrawn && vc.lcdc.windowBGOn && vc.lcdc.windowOn && vc.coordInWindow(x, line) {
-			dotCode := vc.windowDotCode(x, line)
-			pixelColor = vc.bgPalette[dotCode]
+			pixelColor = vc.bgPalette[windowDotCodes[x]]
 			pixelDrawn = true
 		}
 
 		// Draw the background if a sprite or window hasn't already been drawn
 		if !pixelDrawn && vc.lcdc.windowBGOn {
-			pixelColor = vc.bgPalette[bgDotCode]
+			pixelColor = vc.bgPalette[bgDotCodes[x]]
 			pixelDrawn = true
 		}
 
@@ -345,6 +351,8 @@ func (vc *videoController) coordInWindow(x, y uint8) bool {
 	return x >= vc.windowX-7 && y >= vc.windowY
 }
 
+// spritesAtCache is a pre-allocated array of OAM data that is used by
+// spritesAt to avoid memory allocations at runtime.
 var spritesAtCache [maxSpritesPerScanLine]oam
 
 // spritesAt returns all sprites that are at the given X value, sorted by their
@@ -368,82 +376,113 @@ func (vc *videoController) spritesAt(x uint8) []oam {
 	return spritesAtCache[:spriteCount]
 }
 
-// bgDotCode returns the dot code in the background layer at the given screen
-// coordinates.
-func (vc *videoController) bgDotCode(x, y uint8) uint8 {
-	// Get the coordinates relative to the background and wrap them if
-	// necessary
-	bgX := int(x) + int(vc.scrollX)
-	if bgX < 0 {
-		bgX += bgWidth
-	} else if bgX >= bgWidth {
-		bgX -= bgWidth
-	}
-	bgY := int(y) + int(vc.scrollY)
+// bgScanLineCache is a pre-allocated array used by makeBGScanLine to reduce
+// memory allocations at runtime.
+var bgScanLineCache [ScreenWidth]uint8
+
+// makeBGScanLine returns a rendered scan line of the background layer.
+func (vc *videoController) makeBGScanLine(line uint8) *[ScreenWidth]uint8 {
+	// Get the Y coordinate relative to the background and wrap it if necessary
+	bgY := int(line) + int(vc.scrollY)
 	if bgY < 0 {
 		bgY += bgHeight
 	} else if bgY >= bgHeight {
 		bgY -= bgHeight
 	}
 
-	// Get the tile this point is inside of
-	tileOffset := (bgY/bgTileHeight)*bgWidthInTiles + (bgX / bgTileWidth)
-	tileAddr := vc.lcdc.bgTileMapAddr + uint16(tileOffset)
-	tile := vc.state.mmu.memory[tileAddr]
+	for x := 0; x < ScreenWidth; {
+		// Get the X coordinate relative to the background and wrap it if
+		// necessary
+		bgX := int(x) + int(vc.scrollX)
+		if bgX < 0 {
+			bgX += bgWidth
+		} else if bgX >= bgWidth {
+			bgX -= bgWidth
+		}
 
-	// Find the dot code at this specific place in the tile
-	inTileX := bgX % bgTileWidth
-	inTileY := bgY % bgTileHeight
+		// Get the tile this point is inside of
+		tileOffset := (bgY/bgTileHeight)*bgWidthInTiles + (bgX / bgTileWidth)
+		tileAddr := vc.lcdc.bgTileMapAddr + uint16(tileOffset)
+		tile := vc.state.mmu.memory[tileAddr]
 
-	return vc.dotCodeInTile(tile, inTileX, inTileY)
-}
+		// Find the address of the tile data
+		var tileDataAddr uint16
+		switch vc.lcdc.windowBGTileDataTableAddr {
+		case tileDataTable0:
+			// Tile indexes at this data table are signed from -128 to 127
+			tileDataAddr = uint16(tileDataTable0 + int(int8(tile))*tileBytes)
+		case tileDataTable1:
+			tileDataAddr = tileDataTable1 + (uint16(tile) * tileBytes)
+		default:
+			panic(fmt.Sprintf("unknown tile data table %#x", tileDataAddr))
+		}
 
-// windowDotCode returns the dot code in the window layer at the given screen
-// coordinates. The coordinates should be checked to see if they are in the
-// window before calling this method.
-func (vc *videoController) windowDotCode(x, y uint8) uint8 {
-	if !vc.coordInWindow(x, y) {
-		panic("Attempt to load a window dot code in a non-window location")
+		// Find the offset within the tile
+		inTileX := bgX % bgTileWidth
+		inTileY := bgY % bgTileHeight
+
+		// Read pixel data for this tile
+		lowerByte := vc.state.mmu.memory[tileDataAddr+uint16(inTileY*2)]
+		upperByte := vc.state.mmu.memory[tileDataAddr+uint16((inTileY*2)+1)]
+		for i := uint(inTileX); i < bgTileWidth && x < ScreenWidth; i++ {
+			lowerBit := (lowerByte << i) >> 7
+			upperBit := (upperByte << i) >> 7
+			bgScanLineCache[x] = (upperBit << 1) | lowerBit
+			x++
+		}
 	}
 
-	// Get the x and y coordinates in window space
-	winX := int(x - vc.windowX + 7)
-	winY := int(y - vc.windowY)
-
-	tileOffset := (winY/windowTileHeight)*windowWidthInTiles + (winX / windowTileWidth)
-	tileAddr := vc.lcdc.windowTileMapAddr + uint16(tileOffset)
-	tile := vc.state.mmu.memory[tileAddr]
-
-	inTileX := winX % windowTileWidth
-	inTileY := winY % windowTileHeight
-
-	return vc.dotCodeInTile(tile, inTileX, inTileY)
+	return &bgScanLineCache
 }
 
-// dotCodeInTile finds the dot code for a place in a tile given the tile's ID
-// and the coordinates within the tile to look at.
-func (vc *videoController) dotCodeInTile(tileID uint8, inTileX, inTileY int) uint8 {
-	// Find the address of the tile data
-	var tileDataAddr uint16
-	switch vc.lcdc.windowBGTileDataTableAddr {
-	case tileDataTable0:
-		// Tile indexes at this data table are signed from -128 to 127
-		tileDataAddr = uint16(tileDataTable0 + int(int8(tileID))*tileBytes)
-	case tileDataTable1:
-		tileDataAddr = tileDataTable1 + (uint16(tileID) * tileBytes)
-	default:
-		panic(fmt.Sprintf("unknown tile data table %#x", tileDataAddr))
+// windowScanLineCache is a pre-allocated array used by makeWindowScanLine to
+// reduce memory allocations at runtime.
+var windowScanLineCache [ScreenWidth]uint8
+
+// makeWindowScanLine returns a rendered scan line of the window layer. For
+// pixels where the window isn't present, the dot codes for those positions
+// will likely be garbage.
+func (vc *videoController) makeWindowScanLine(line uint8) *[ScreenWidth]uint8 {
+	// Get the Y coordinate in window space
+	winY := int(line - vc.windowY)
+
+	for x := 0; x < ScreenWidth; {
+		// Get the X coordinate in window space
+		winX := int(uint8(x) - vc.windowX + 7)
+
+		// Get the current window tile this coordinate is in
+		tileOffset := (winY/windowTileHeight)*windowWidthInTiles + (winX / windowTileWidth)
+		tileAddr := vc.lcdc.windowTileMapAddr + uint16(tileOffset)
+		tile := vc.state.mmu.memory[tileAddr]
+
+		// Get the coordinates within this tile
+		inTileX := winX % windowTileWidth
+		inTileY := winY % windowTileHeight
+
+		// Find the address of the tile data
+		var tileDataAddr uint16
+		switch vc.lcdc.windowBGTileDataTableAddr {
+		case tileDataTable0:
+			// Tile indexes at this data table are signed from -128 to 127
+			tileDataAddr = uint16(tileDataTable0 + int(int8(tile))*tileBytes)
+		case tileDataTable1:
+			tileDataAddr = tileDataTable1 + (uint16(tile) * tileBytes)
+		default:
+			panic(fmt.Sprintf("unknown tile data table %#x", tileDataAddr))
+		}
+
+		// Read pixel data for this tile
+		lowerByte := vc.state.mmu.memory[tileDataAddr+uint16(inTileY*2)]
+		upperByte := vc.state.mmu.memory[tileDataAddr+uint16((inTileY*2)+1)]
+		for i := uint(inTileX); i < bgTileWidth && x < ScreenWidth; i++ {
+			lowerBit := (lowerByte << i) >> 7
+			upperBit := (upperByte << i) >> 7
+			windowScanLineCache[x] = (upperBit << 1) | lowerBit
+			x++
+		}
 	}
 
-	lower := vc.state.mmu.memory[tileDataAddr+uint16(inTileY*2)]
-	upper := vc.state.mmu.memory[tileDataAddr+uint16((inTileY*2)+1)]
-
-	lower <<= uint(inTileX)
-	upper <<= uint(inTileX)
-
-	lowerBit := (lower & 0x80) >> 7
-	upperBit := (upper & 0x80) >> 7
-	return (upperBit << 1) | lowerBit
+	return &windowScanLineCache
 }
 
 // dotCodeInSprite finds the dot code for a place in a sprite given the
