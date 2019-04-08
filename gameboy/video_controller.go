@@ -124,23 +124,6 @@ func (vc *videoController) tick(opTime int) {
 		return
 	}
 
-	stat := vc.loadSTAT()
-
-	// Check which interrupts are currently enabled
-	lcdcInterruptsEnabled := vc.state.mmu.memory[ieAddr]&0x02 == 0x02
-	lyEqualsLYCInterruptEnabled := stat.lyEqualsLYCInterruptOn &&
-		lcdcInterruptsEnabled &&
-		vc.state.interruptsEnabled
-	mode2InterruptEnabled := stat.mode2InterruptOn &&
-		lcdcInterruptsEnabled &&
-		vc.state.interruptsEnabled
-	mode1InterruptEnabled := stat.mode1InterruptOn &&
-		lcdcInterruptsEnabled &&
-		vc.state.interruptsEnabled
-	mode0InterruptEnabled := stat.mode0InterruptOn &&
-		lcdcInterruptsEnabled &&
-		vc.state.interruptsEnabled
-
 	for i := 0; i < opTime; i++ {
 		if vc.frameTick == 0 {
 			// Read some frame-wide values
@@ -148,23 +131,27 @@ func (vc *videoController) tick(opTime int) {
 			vc.windowY = vc.state.mmu.memory[windowPosYAddr]
 		}
 
-		// Update the LY register with the current scan line. Note that this
-		// value increments even during VBlank even though new scan lines
-		// aren't actually being drawn.
 		currScanLine := (vc.frameTick / scanLineFullClocks)
-		// TODO(velovix): Is adding a 1 to this correct behavior? Not adding 1
-		// results in visual glitches
-		vc.state.mmu.memory[lyAddr] = uint8(currScanLine + 1)
 
-		// Check if LY==LYC
 		lyJustChanged := vc.frameTick%scanLineFullClocks == 0
 		if lyJustChanged {
-			lyc := vc.state.mmu.memory[lyAddr]
-			// TODO(velovix): Why do I need to add a one here?
-			stat.lyEqualsLYC = (currScanLine + 1) == int(lyc)
+			// Update the LY register with the current scan line. Note that this
+			// value increments even during VBlank even though new scan lines
+			// aren't actually being drawn.
+			// TODO(velovix): Is adding a 1 to this correct behavior? Not adding 1
+			// results in visual glitches
+			vc.state.mmu.memory[lyAddr] = uint8(currScanLine + 1)
+
+			// Check if LY==LYC
+			lyc := vc.state.mmu.memory[lycAddr]
+			vc.setLYEqualsLYC(currScanLine == int(lyc))
 			// Trigger an interrupt if they're equal and the interrupt is
 			// enabled
-			if stat.lyEqualsLYC && lyEqualsLYCInterruptEnabled {
+			lcdcInterruptsEnabled := vc.state.mmu.memory[ieAddr]&0x02 == 0x02
+			lyEqualsLYCInterruptEnabled := vc.lyEqualsLYCInterruptOn() &&
+				lcdcInterruptsEnabled &&
+				vc.state.interruptsEnabled
+			if currScanLine == int(lyc) && lyEqualsLYCInterruptEnabled {
 				vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x02
 			}
 		}
@@ -175,8 +162,15 @@ func (vc *videoController) tick(opTime int) {
 
 			switch scanLineProgress {
 			case 0:
+				// Stat will always be loaded at this point from the LY updating code
+
 				// We're in mode 2, OAM read mode.
-				stat.mode = vcMode2
+				vc.setMode(vcMode2)
+
+				lcdcInterruptsEnabled := vc.state.mmu.memory[ieAddr]&0x02 == 0x02
+				mode2InterruptEnabled := vc.mode2InterruptOn() &&
+					lcdcInterruptsEnabled &&
+					vc.state.interruptsEnabled
 				if mode2InterruptEnabled {
 					vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x02
 				}
@@ -186,19 +180,24 @@ func (vc *videoController) tick(opTime int) {
 
 				// This is the start of this scan line, read some scan line
 				// wide values
-				vc.lcdc = vc.loadLCDC()
+				vc.loadLCDC()
 				vc.scrollX = int8(vc.state.mmu.memory[scrollXAddr])
 				vc.windowX = vc.state.mmu.memory[windowPosXAddr]
 			case scanLineOAMClocks:
 				// We're in mode 3, OAM and VRAM transfer mode.
-				stat.mode = vcMode3
+				vc.setMode(vcMode3)
 
 				vc.loadBGPalette()
 				vc.loadSpritePalettes()
 				// TODO(velovix): Lock VRAM
 			case scanLineVRAMClocks:
 				// We're in mode 0, HBlank period
-				stat.mode = vcMode0
+				vc.setMode(vcMode0)
+
+				lcdcInterruptsEnabled := vc.state.mmu.memory[ieAddr]&0x02 == 0x02
+				mode0InterruptEnabled := vc.mode0InterruptOn() &&
+					lcdcInterruptsEnabled &&
+					vc.state.interruptsEnabled
 				if mode0InterruptEnabled {
 					vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x02
 				}
@@ -208,7 +207,11 @@ func (vc *videoController) tick(opTime int) {
 			}
 		} else {
 			// We're in mode 1, VBlank period
-			stat.mode = vcMode1
+			vc.setMode(vcMode1)
+			lcdcInterruptsEnabled := vc.state.mmu.memory[ieAddr]&0x02 == 0x02
+			mode1InterruptEnabled := vc.mode1InterruptOn() &&
+				lcdcInterruptsEnabled &&
+				vc.state.interruptsEnabled
 			if mode1InterruptEnabled {
 				vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x02
 			}
@@ -242,8 +245,6 @@ func (vc *videoController) tick(opTime int) {
 			vc.frameTick = 0
 		}
 	}
-
-	vc.saveSTAT(stat)
 }
 
 // drawScanLine draws a scan line at the given height position.
@@ -591,38 +592,35 @@ type lcdcConfig struct {
 	windowBGOn bool
 }
 
-// loadLCDC inspects the LCDC register value for display configuration
+// loadLCDC loads the LCDC register value for display configuration
 // information.
-func (vc *videoController) loadLCDC() lcdcConfig {
-	var config lcdcConfig
-	lcdc := vc.state.mmu.memory[lcdcAddr]
+func (vc *videoController) loadLCDC() {
+	lcdcVal := vc.state.mmu.memory[lcdcAddr]
 
-	config.lcdOn = lcdc&0x80 == 0x80
-	if lcdc&0x40 == 0x40 {
-		config.windowTileMapAddr = tileMap1
+	vc.lcdc.lcdOn = lcdcVal&0x80 == 0x80
+	if lcdcVal&0x40 == 0x40 {
+		vc.lcdc.windowTileMapAddr = tileMap1
 	} else {
-		config.windowTileMapAddr = tileMap0
+		vc.lcdc.windowTileMapAddr = tileMap0
 	}
-	config.windowOn = lcdc&0x20 == 0x20
-	if lcdc&0x10 == 0x10 {
-		config.windowBGTileDataTableAddr = tileDataTable1
+	vc.lcdc.windowOn = lcdcVal&0x20 == 0x20
+	if lcdcVal&0x10 == 0x10 {
+		vc.lcdc.windowBGTileDataTableAddr = tileDataTable1
 	} else {
-		config.windowBGTileDataTableAddr = tileDataTable0
+		vc.lcdc.windowBGTileDataTableAddr = tileDataTable0
 	}
-	if lcdc&0x08 == 0x08 {
-		config.bgTileMapAddr = tileMap1
+	if lcdcVal&0x08 == 0x08 {
+		vc.lcdc.bgTileMapAddr = tileMap1
 	} else {
-		config.bgTileMapAddr = tileMap0
+		vc.lcdc.bgTileMapAddr = tileMap0
 	}
-	if lcdc&0x04 == 0x04 {
-		config.spriteSize = spriteSize8x16
+	if lcdcVal&0x04 == 0x04 {
+		vc.lcdc.spriteSize = spriteSize8x16
 	} else {
-		config.spriteSize = spriteSize8x8
+		vc.lcdc.spriteSize = spriteSize8x8
 	}
-	config.spritesOn = lcdc&0x02 == 0x02
-	config.windowBGOn = lcdc&0x01 == 0x01
-
-	return config
+	vc.lcdc.spritesOn = lcdcVal&0x02 == 0x02
+	vc.lcdc.windowBGOn = lcdcVal&0x01 == 0x01
 }
 
 // onLCDCWrite is called when the LCDC memory register is written to. It acts
@@ -634,19 +632,8 @@ func (vc *videoController) onLCDCWrite(addr uint16, val uint8) uint8 {
 		// Reset some aspects of the video controller
 		vc.state.mmu.memory[lyAddr] = 0
 		vc.frameTick = 0
-
-		stat := vc.loadSTAT()
-
-		if stat.mode != vcMode1 && printWarnings {
-			fmt.Println(
-				"Warning: Attempt to turn off the LCD in mode", stat.mode,
-				"! This might damage real hardware! The LCD should only be",
-				"turned off in mode 1.\n")
-		}
-
 		// Put the video controller in mode 0
-		stat.mode = vcMode0
-		vc.saveSTAT(stat)
+		vc.setMode(vcMode0)
 
 		// TODO(velovix): Also unlock any locked VRAM, once I implement VRAM
 		//                locking in the first place
@@ -764,76 +751,43 @@ const (
 	oamBytes = 4
 )
 
-// statConfig configures LCD configuration information as configured by the
-// STAT memory register.
-type statConfig struct {
-	// lyEqualsLYCInterruptOn is true if an interrupt should be generated when
-	// the LY and LYC memory registers are equal.
-	lyEqualsLYCInterruptOn bool
-	// mode2InterruptOn is true if an interrupt should be generated when the
-	// video controller switches to mode 2.
-	mode2InterruptOn bool
-	// mode1InterruptOn is true if an interrupt should be generated when the
-	// video controller switches to mode 1.
-	mode1InterruptOn bool
-	// mode0InterruptOn is true if an interrupt should be generated when the
-	// video controller switches to mode 0.
-	mode0InterruptOn bool
-	// lyEqualsLYC is true if the LY and LYC memory registers are equal.
-	lyEqualsLYC bool
-	// vcMode is the current mode of the video controller.
-	mode vcMode
+// setMode sets the current video mode in memory.
+func (vc *videoController) setMode(mode vcMode) {
+	vc.state.mmu.memory[statAddr] = (vc.state.mmu.memory[statAddr] & 0xFC) | uint8(mode)
 }
 
-// loadSTAT inspects the STAT register value for LCD configuration information.
-func (vc *videoController) loadSTAT() statConfig {
-	var config statConfig
-	stat := vc.state.mmu.memory[statAddr]
-
-	config.lyEqualsLYCInterruptOn = stat&0x40 == 0x40
-	config.mode2InterruptOn = stat&0x20 == 0x20
-	config.mode1InterruptOn = stat&0x10 == 0x10
-	config.mode0InterruptOn = stat&0x08 == 0x08
-	config.lyEqualsLYC = stat&0x04 == 0x04
-	config.mode = vcMode(stat & 0x03)
-
-	return config
+// lyEqualsLYCInterruptOn returns true if the LY=LYC interrupt is enabled
+// according to the STAT register.
+func (vc *videoController) lyEqualsLYCInterruptOn() bool {
+	return vc.state.mmu.memory[statAddr]&0x40 == 0x40
 }
 
-// saveSTAT saves the given STAT configuration into the memory register.
-func (vc *videoController) saveSTAT(config statConfig) {
-	statVal := vc.state.mmu.memory[statAddr]
+// mode0InterruptOn returns true if the Mode 0 interrupt is enabled according
+// to the STAT register.
+func (vc *videoController) mode0InterruptOn() bool {
+	return vc.state.mmu.memory[statAddr]&0x08 == 0x08
+}
 
-	if config.lyEqualsLYCInterruptOn {
-		statVal |= 0x40
-	} else {
-		statVal &= ^uint8(0x40)
-	}
-	if config.mode2InterruptOn {
-		statVal |= 0x20
-	} else {
-		statVal &= ^uint8(0x20)
-	}
-	if config.mode1InterruptOn {
-		statVal |= 0x10
-	} else {
-		statVal &= ^uint8(0x10)
-	}
-	if config.mode0InterruptOn {
-		statVal |= 0x08
-	} else {
-		statVal &= ^uint8(0x08)
-	}
-	if config.lyEqualsLYC {
-		statVal |= 0x04
-	} else {
-		statVal &= ^uint8(0x04)
-	}
-	// Clear and set the mode
-	statVal &= 0xFC
-	statVal |= uint8(config.mode)
+// mode1InterruptOn returns true if the Mode 1 interrupt is enabled according
+// to the STAT register.
+func (vc *videoController) mode1InterruptOn() bool {
+	return vc.state.mmu.memory[statAddr]&0x10 == 0x10
+}
 
-	vc.state.mmu.memory[statAddr] = statVal
+// mode2InterruptOn returns true if the Mode 2 interrupt is enabled according
+// to the STAT register.
+func (vc *videoController) mode2InterruptOn() bool {
+	return vc.state.mmu.memory[statAddr]&0x20 == 0x20
+}
+
+// setLYEqualsLYC sets the LY=LYC flag in the STAT register to the given value.
+func (vc *videoController) setLYEqualsLYC(val bool) {
+	if val {
+		vc.state.mmu.memory[statAddr] &= 0x04
+
+	} else {
+		vc.state.mmu.memory[statAddr] &= ^uint8(0x04)
+	}
 }
 
 // loadPalette populates the given palette list with colors corresponding to
@@ -845,16 +799,12 @@ func loadPalette(palette *[4]color, paletteData uint8) {
 		var c color
 		switch paletteOption {
 		case 0x00:
-			//c = color{52, 104, 86, 255}
 			c = color{224, 248, 208, 255}
 		case 0x01:
-			//c = color{8, 24, 32, 255}
 			c = color{136, 192, 112, 255}
 		case 0x02:
-			//c = color{52, 104, 86, 255}
 			c = color{52, 104, 86, 255}
 		case 0x03:
-			//c = color{8, 24, 32, 255}
 			c = color{8, 24, 32, 255}
 		}
 
