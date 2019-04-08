@@ -9,8 +9,8 @@ games properly and has support for sound.
 
 ## Performance
 
-With the SDL back ends, it runs at roughly 6x speed on my machine (i7-8750H @
-2.20 GHz). With the in-progress WebAssembly back end, it runs at roughly 0.5x
-speed. There is still significant room for optimization.
+With the SDL back ends, it runs at roughly 1200% native speed on my machine
+(i7-8750H @ 2.20 GHz). With the in-progress WebAssembly back end, it runs at
+roughly 75% native speed. There is still significant room for optimization.
 
 [screenshots]: https://i.imgur.com/UlDcNVC.png
