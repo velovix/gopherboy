@@ -11,6 +11,16 @@ type VideoDriver interface {
 	Close()
 }
 
+// noopVideoDriver is a mock video driver that does nothing.
+type noopVideoDriver struct{}
+
+func (driver *noopVideoDriver) Render(frameData []uint8) error {
+	return nil
+}
+
+func (driver *noopVideoDriver) Close() {
+}
+
 type Button int
 
 const (
@@ -33,6 +43,17 @@ type InputDriver interface {
 	// Update updates the internal button state and returns true if a button
 	// has been pressed since the last call.
 	Update() bool
+}
+
+// noopInputDriver is a mock input driver that does nothing.
+type noopInputDriver struct{}
+
+func (driver *noopInputDriver) State(button Button) bool {
+	return false
+}
+
+func (driver *noopInputDriver) Update() bool {
+	return false
 }
 
 // SaveGameDriver describes an object that can save and load game saves.
