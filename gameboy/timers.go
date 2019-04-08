@@ -31,6 +31,20 @@ type timers struct {
 	// reflected in the TIMA.
 	tmaToTIMATransferCountdown int
 
+	// The divider is a one-byte timer that is incremented every 64 clocks. It
+	// is, in effect, the upper byte of the CPU clock, if we think of the
+	// system clock as a two-byte value.
+	divider uint8
+	// The TIMA is a one-byte that can be configured to increment at various
+	// rates. It is accessed as a memory register.
+	tima uint8
+	// The TAC is a one-byte area of one-bit flags that configure the TIMA.
+	// TODO(velovix): Add some documentation here about what each bit does
+	tac uint8
+	// The TMA is a one-byte integer that configures the value the TIMA gets
+	// set to when it overflows.
+	tma uint8
+
 	state *State
 }
 
@@ -55,18 +69,15 @@ func newTimers(state *State) *timers {
 // the last call to tick. Flags interrupts as needed.
 func (t *timers) tick(amount int) {
 	// Parse the TAC bits for TIMA configuration information
-	tac := t.state.mmu.memory[tacAddr]
-	timaRunning := tac&0x4 == 0x4
-	timaRateBits := tac & 0x3
-
-	// Load the current TIMA value
-	tima := t.state.mmu.memory[timaAddr]
+	timaRunning := t.tac&0x4 == 0x4
+	timaRateBits := t.tac & 0x3
 
 	for i := 0; i < amount; i++ {
 		t.cpuClock++
 		if t.cpuClock == cpuClockRate {
 			t.cpuClock = 0
 		}
+		t.divider = uint8(t.cpuClock >> 8)
 
 		// Pull the bit of interest from the CPU clock
 		var timaBit uint8
@@ -96,7 +107,7 @@ func (t *timers) tick(amount int) {
 			t.timaInterruptCountdown--
 			if t.timaInterruptCountdown == 0 {
 				// Start back up at the specified modulo value
-				tima = t.state.mmu.memory[tmaAddr]
+				t.tima = t.tma
 
 				timaInterruptEnabled := t.state.mmu.memory[ieAddr]&0x04 == 0x04
 				if t.state.interruptsEnabled && timaInterruptEnabled {
@@ -117,9 +128,9 @@ func (t *timers) tick(amount int) {
 		}
 		timaShouldIncrement := timaBitAndEnabled != 1 && t.timaDelay == 1
 		if timaShouldIncrement {
-			tima++
+			t.tima++
 
-			if tima == 0 {
+			if t.tima == 0 {
 				// There is a 4-cycle delay between the TIMA overflow and the
 				// interrupt and reset to TMA
 				t.timaInterruptCountdown = 4
@@ -127,12 +138,6 @@ func (t *timers) tick(amount int) {
 		}
 		t.timaDelay = timaBitAndEnabled
 	}
-
-	// Update the timers in memory
-	// The divider register is simply the 8 most significant bits of the CPU
-	// clock
-	t.state.mmu.memory[dividerAddr] = uint8(t.cpuClock >> 8)
-	t.state.mmu.memory[timaAddr] = tima
 }
 
 // onDividerWrite is called when the divider register is written to. This
@@ -148,6 +153,8 @@ func (t *timers) onTACWrite(addr uint16, writeVal uint8) uint8 {
 	// This register is only 3 bits in size, get those bits
 	writeVal = writeVal & 0x07
 
+	t.tac = writeVal
+
 	// All unused bits are high
 	return 0xF8 | writeVal
 }
@@ -158,9 +165,9 @@ func (t *timers) onTACWrite(addr uint16, writeVal uint8) uint8 {
 func (t *timers) onTIMAWrite(addr uint16, writeVal uint8) uint8 {
 	if t.tmaToTIMATransferCountdown > 0 {
 		// The TIMA is protected from writes
-		tima := t.state.mmu.memory[timaAddr]
-		return tima
+		return t.tima
 	}
+	t.tima = writeVal
 	return writeVal
 }
 
@@ -169,10 +176,12 @@ func (t *timers) onTIMAWrite(addr uint16, writeVal uint8) uint8 {
 // to this address while the TMA->TIMA transfer is happening, the TIMA will
 // take on this new value.
 func (t *timers) onTMAWrite(addr uint16, writeVal uint8) uint8 {
+	t.tma = writeVal
+
 	if t.tmaToTIMATransferCountdown > 0 {
-		// During this time where the TIMA is being set to the TAC, any changes
-		// to the TAC will also be reflected in the TIMA
-		t.state.mmu.memory[timaAddr] = writeVal
+		// During this time where the TIMA is being set to the TMA, any changes
+		// to the TMA will also be reflected in the TIMA
+		t.tima = writeVal
 	}
 
 	return writeVal

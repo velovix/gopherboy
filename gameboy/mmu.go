@@ -49,6 +49,8 @@ type mmu struct {
 	// mbc is the memory bank controller that this MMU will use.
 	mbc mbc
 
+	timers *timers
+
 	db *debugger
 }
 
@@ -132,6 +134,14 @@ func (m *mmu) at(addr uint16) uint8 {
 			fmt.Printf("Warning: Read from invalid memory address %#x\n", addr)
 		}
 		return 0xFF
+	case addr == dividerAddr:
+		return m.timers.divider
+	case addr == timaAddr:
+		return m.timers.tima
+	case addr == tacAddr:
+		return m.timers.tac
+	case addr == tmaAddr:
+		return m.timers.tma
 	default:
 		return m.memory[addr]
 	}

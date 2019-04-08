@@ -53,6 +53,9 @@ func main() {
 		"If true, frame rate will not be capped. Games will run as quickly as possible.")
 	saveGameDirectory := flag.String("save-game-dir", ".",
 		"The directory to find save games in")
+	benchmarkComponents := flag.Bool("benchmark-components", false,
+		"If true, some performance information will be printed out about each "+
+			"component, then the emulator will exit.")
 	_ = unlimitedFPS
 
 	flag.Parse()
@@ -151,6 +154,11 @@ func main() {
 	if err != nil {
 		fmt.Println("Error: While initializing sound driver:", err)
 		os.Exit(1)
+	}
+
+	if *benchmarkComponents {
+		device.BenchmarkComponents()
+		return
 	}
 
 	// Stop main loop on sigint

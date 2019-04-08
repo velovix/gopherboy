@@ -164,7 +164,8 @@ func NewDevice(
 		}
 	}
 
-	device.state = NewState(newMMU(bootROM, cartridgeData, mbc))
+	mmu := newMMU(bootROM, cartridgeData, mbc)
+	device.state = NewState(mmu)
 
 	if dbConfig.Debugging {
 		device.debugger = &debugger{state: device.state}
@@ -178,6 +179,7 @@ func NewDevice(
 	}
 
 	device.timers = newTimers(device.state)
+	mmu.timers = device.timers
 
 	device.videoController = newVideoController(
 		device.state, video)
@@ -193,6 +195,70 @@ func NewDevice(
 	device.opcodeMapper = newOpcodeMapper(device.state)
 
 	return &device, nil
+}
+
+// BenchmarkComponents prints out performance information on each component of
+// the device. Drivers are temporarily mocked out. This will leave the device
+// in a strange state that will likely not play nicely with games.
+//
+// Once I'm more confident of the performance of this emulator, this could
+// likely be removed.
+func (device *Device) BenchmarkComponents() {
+	secondCycles := 10
+
+	start := time.Now()
+	for i := 0; i < secondCycles; i++ {
+		for j := 0; j < cpuClockRate; j++ {
+			device.timers.tick(1)
+		}
+	}
+	fmt.Println("Timer performance:", float64(secondCycles)/time.Since(start).Seconds())
+
+	start = time.Now()
+	oldVideoDriver := device.videoController.driver
+	device.videoController.driver = &noopVideoDriver{}
+	for i := 0; i < secondCycles; i++ {
+		for j := 0; j < cpuClockRate; j++ {
+			device.videoController.tick(1)
+		}
+	}
+	fmt.Println("Video controller performance:", float64(secondCycles)/time.Since(start).Seconds())
+	device.videoController.driver = oldVideoDriver
+
+	start = time.Now()
+	oldInputDriver := device.joypad.driver
+	device.joypad.driver = &noopInputDriver{}
+	for i := 0; i < secondCycles; i++ {
+		for j := 0; j < cpuClockRate; j++ {
+			device.joypad.tick(1)
+		}
+	}
+	device.joypad.driver = oldInputDriver
+	fmt.Println("Joypad performance:", float64(secondCycles)/time.Since(start).Seconds())
+
+	start = time.Now()
+	for i := 0; i < secondCycles; i++ {
+		for j := 0; j < cpuClockRate; j++ {
+			device.interruptManager.check()
+		}
+	}
+	fmt.Println("Interrupt manager performance:", float64(secondCycles)/time.Since(start).Seconds())
+
+	start = time.Now()
+	for i := 0; i < secondCycles; i++ {
+		for j := 0; j < cpuClockRate; j++ {
+			device.SoundController.tick(1)
+		}
+	}
+	fmt.Println("Sound controller performance:", float64(secondCycles)/time.Since(start).Seconds())
+
+	start = time.Now()
+	for i := 0; i < secondCycles; i++ {
+		for j := 0; j < cpuClockRate; j++ {
+			device.opcodeMapper.run(0x00)
+		}
+	}
+	fmt.Println("Opcode mapper performance:", float64(secondCycles)/time.Since(start).Seconds())
 }
 
 // Start starts the main processing loop of the Gameboy.
