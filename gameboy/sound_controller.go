@@ -435,22 +435,22 @@ func (sc *SoundController) onNR14Write(addr uint16, val uint8) uint8 {
 		sc.PulseA.On = true
 
 		// Load duration information
-		duration := sc.state.mmu.at(nr11Addr) & 0x3F
+		duration := sc.state.mmu.memory[nr11Addr] & 0x3F
 		sc.PulseA.duration = 64 - int(duration)
 		sc.PulseA.useDuration = val&0x40 == 0x40
 
 		// Load volume and volume sweep information
-		nr12 := sc.state.mmu.at(nr12Addr)
+		nr12 := sc.state.mmu.memory[nr12Addr]
 		volume := (nr12 & 0xF0) >> 4
 		volumePeriod := nr12 & 0x7
 		amplify := nr12&0x8 == 0x8
 
-		dutyCycle := (sc.state.mmu.at(nr11Addr) & 0xC0) >> 6
+		dutyCycle := (sc.state.mmu.memory[nr11Addr] & 0xC0) >> 6
 
 		// Load frequency and frequency sweep information
-		frequency := uint16(sc.state.mmu.at(nr13Addr))
+		frequency := uint16(sc.state.mmu.memory[nr13Addr])
 		frequency |= uint16(val&0x7) << 8
-		nr10 := sc.state.mmu.at(nr10Addr)
+		nr10 := sc.state.mmu.memory[nr10Addr]
 		frequencyPeriod := (nr10 & 0x70) >> 4
 		attenuate := nr10&0x08 == 0x08
 		sweepShift := nr10 & 0x07
@@ -480,21 +480,21 @@ func (sc *SoundController) onNR24Write(addr uint16, val uint8) uint8 {
 		sc.PulseB.On = true
 
 		// Load duration information
-		duration := sc.state.mmu.at(nr21Addr) & 0x3F
+		duration := sc.state.mmu.memory[nr21Addr] & 0x3F
 		sc.PulseB.duration = 64 - int(duration)
 		sc.PulseB.useDuration = val&0x40 == 0x40
 
 		// Load frequency information
-		frequency := uint16(sc.state.mmu.at(nr23Addr))
+		frequency := uint16(sc.state.mmu.memory[nr23Addr])
 		frequency |= uint16(val&0x7) << 8
 
 		// Load volume and volume sweep information
-		nr22 := sc.state.mmu.at(nr22Addr)
+		nr22 := sc.state.mmu.memory[nr22Addr]
 		volume := (nr22 & 0xF0) >> 4
 		amplify := nr22&0x8 == 0x8
 		volumePeriod := nr22 & 0x7
 
-		dutyCycle := (sc.state.mmu.at(nr21Addr) & 0xC0) >> 6
+		dutyCycle := (sc.state.mmu.memory[nr21Addr] & 0xC0) >> 6
 
 		sc.PulseB.volume = int(volume)
 		sc.PulseB.volumePeriod = int(volumePeriod)
@@ -528,17 +528,17 @@ func (sc *SoundController) onNR34Write(addr uint16, val uint8) uint8 {
 		sc.Wave.On = true
 
 		// Wave volume is one bit in size
-		sc.Wave.volume = int(sc.state.mmu.at(nr30Addr) & 0x80 >> 7)
+		sc.Wave.volume = int(sc.state.mmu.memory[nr30Addr] & 0x80 >> 7)
 
 		// Load duration information
-		duration := sc.state.mmu.at(nr31Addr)
+		duration := sc.state.mmu.memory[nr31Addr]
 		sc.Wave.duration = 256 - int(duration)
 		sc.Wave.useDuration = val&0x40 == 0x40
 
-		frequency := uint16(sc.state.mmu.at(nr33Addr))
+		frequency := uint16(sc.state.mmu.memory[nr33Addr])
 		frequency |= uint16(val&0x7) << 8
 
-		rightShiftCode := (sc.state.mmu.at(nr32Addr) & 0x60) >> 5
+		rightShiftCode := (sc.state.mmu.memory[nr32Addr] & 0x60) >> 5
 
 		sc.Wave.rightShiftCode = int(rightShiftCode)
 		sc.Wave.frequency = int(frequency)
@@ -562,16 +562,16 @@ func (sc *SoundController) onNR44Write(addr uint16, val uint8) uint8 {
 	if val&0x80 == 0x80 {
 		sc.Noise.On = true
 
-		duration := sc.state.mmu.at(nr41Addr) & 0x3F
+		duration := sc.state.mmu.memory[nr41Addr] & 0x3F
 		sc.Noise.duration = 64 - int(duration)
 		sc.Noise.useDuration = val&0x40 == 0x40
 
-		nr42 := sc.state.mmu.at(nr42Addr)
+		nr42 := sc.state.mmu.memory[nr42Addr]
 		volume := (nr42 & 0xF0) >> 4
 		amplify := nr42&0x8 == 0x8
 		volumePeriod := nr42 & 0x7
 
-		nr43 := sc.state.mmu.at(nr43Addr)
+		nr43 := sc.state.mmu.memory[nr43Addr]
 		shiftClockFrequency := (nr43 & 0xF0) >> 4
 		dividingRatio := nr43 & 0x7
 
@@ -637,7 +637,7 @@ func (sc *SoundController) readWaveTable() []uint8 {
 	wavePattern := make([]uint8, 0, 32)
 
 	for addr := uint16(wavePatternRAMStart); addr < wavePatternRAMEnd; addr++ {
-		val := sc.state.mmu.at(addr)
+		val := sc.state.mmu.memory[addr]
 		lower, upper := split(val)
 		wavePattern = append(wavePattern, upper, lower)
 	}

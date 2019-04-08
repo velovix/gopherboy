@@ -45,7 +45,8 @@ type timers struct {
 	// set to when it overflows.
 	tma uint8
 
-	state *State
+	state            *State
+	interruptManager *interruptManager
 }
 
 func newTimers(state *State) *timers {
@@ -109,10 +110,9 @@ func (t *timers) tick(amount int) {
 				// Start back up at the specified modulo value
 				t.tima = t.tma
 
-				timaInterruptEnabled := t.state.mmu.memory[ieAddr]&0x04 == 0x04
-				if t.state.interruptsEnabled && timaInterruptEnabled {
+				if t.state.interruptsEnabled && t.interruptManager.timaEnabled() {
 					// Flag a TIMA overflow interrupt
-					t.state.mmu.memory[ifAddr] = t.state.mmu.memory[ifAddr] | 0x04
+					t.interruptManager.flagTIMA()
 				}
 
 				// The TMA to TIMA transfer process has been initiated

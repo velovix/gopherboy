@@ -63,7 +63,9 @@ type videoController struct {
 
 	frameTick      int
 	drawnScanLines int
-	lcdc           lcdcConfig
+	// lcdc is a register that controls various aspects of how the frame is
+	// drawn.
+	lcdc lcdcConfig
 	// spritesOnScanLine is a list of up to 10 sprites that are on the scan
 	// line that is currently being drawn.
 	spritesOnScanLine []oam
@@ -78,6 +80,13 @@ type videoController struct {
 	windowX uint8
 	// windowY controls the Y position of the window is screen coordinates.
 	windowY uint8
+	// ly is the LCD Current Scanline register, which indicates what line of
+	// the display is currently being drawn. Starts at 0 and ends at 153.
+	ly uint8
+	// lyc is the LY Compare register. If this value and the LY register value
+	// match, an interrupt can be generated. Games write to this value to be
+	// notified of a specific point during frame rendering.
+	lyc uint8
 	// bgPalette is the palette for the background. It maps dot data to its
 	// corresponding color.
 	bgPalette [4]color
@@ -91,7 +100,8 @@ type videoController struct {
 	// Raw frame data in 8-bit RGBA format.
 	currFrame []uint8
 
-	state *State
+	state            *State
+	interruptManager *interruptManager
 
 	// Used for finding FPS
 	lastSecond    time.Time
@@ -110,10 +120,17 @@ func newVideoController(state *State, driver VideoDriver) *videoController {
 		currFrame:         make([]uint8, ScreenWidth*ScreenHeight*4),
 	}
 
+	// Load default values for the LCDC register.
+	vc.decodeLCDC(0)
+
 	vc.currFrame = make([]uint8, ScreenWidth*ScreenHeight*4)
 
 	vc.state.mmu.subscribeTo(statAddr, vc.onSTATWrite)
 	vc.state.mmu.subscribeTo(lcdcAddr, vc.onLCDCWrite)
+	vc.state.mmu.subscribeTo(lyAddr, vc.onLYWrite)
+	vc.state.mmu.subscribeTo(lycAddr, vc.onLYCWrite)
+	vc.state.mmu.subscribeTo(scrollYAddr, vc.onScrollYWrite)
+	vc.state.mmu.subscribeTo(windowPosYAddr, vc.onWindowPosYWrite)
 
 	return vc
 }
@@ -125,12 +142,6 @@ func (vc *videoController) tick(opTime int) {
 	}
 
 	for i := 0; i < opTime; i++ {
-		if vc.frameTick == 0 {
-			// Read some frame-wide values
-			vc.scrollY = int8(vc.state.mmu.memory[scrollYAddr])
-			vc.windowY = vc.state.mmu.memory[windowPosYAddr]
-		}
-
 		currScanLine := (vc.frameTick / scanLineFullClocks)
 
 		lyJustChanged := vc.frameTick%scanLineFullClocks == 0
@@ -140,19 +151,17 @@ func (vc *videoController) tick(opTime int) {
 			// aren't actually being drawn.
 			// TODO(velovix): Is adding a 1 to this correct behavior? Not adding 1
 			// results in visual glitches
-			vc.state.mmu.memory[lyAddr] = uint8(currScanLine + 1)
+			vc.ly = uint8(currScanLine + 1)
 
 			// Check if LY==LYC
-			lyc := vc.state.mmu.memory[lycAddr]
-			vc.setLYEqualsLYC(currScanLine == int(lyc))
+			vc.setLYEqualsLYC(currScanLine == int(vc.lyc))
 			// Trigger an interrupt if they're equal and the interrupt is
 			// enabled
-			lcdcInterruptsEnabled := vc.state.mmu.memory[ieAddr]&0x02 == 0x02
 			lyEqualsLYCInterruptEnabled := vc.lyEqualsLYCInterruptOn() &&
-				lcdcInterruptsEnabled &&
+				vc.interruptManager.lcdcEnabled() &&
 				vc.state.interruptsEnabled
-			if currScanLine == int(lyc) && lyEqualsLYCInterruptEnabled {
-				vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x02
+			if currScanLine == int(vc.lyc) && lyEqualsLYCInterruptEnabled {
+				vc.interruptManager.flagLCDC()
 			}
 		}
 
@@ -167,12 +176,11 @@ func (vc *videoController) tick(opTime int) {
 				// We're in mode 2, OAM read mode.
 				vc.setMode(vcMode2)
 
-				lcdcInterruptsEnabled := vc.state.mmu.memory[ieAddr]&0x02 == 0x02
 				mode2InterruptEnabled := vc.mode2InterruptOn() &&
-					lcdcInterruptsEnabled &&
+					vc.interruptManager.lcdcEnabled() &&
 					vc.state.interruptsEnabled
 				if mode2InterruptEnabled {
-					vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x02
+					vc.interruptManager.flagLCDC()
 				}
 				// TODO(velovix): Lock OAM?
 
@@ -180,7 +188,6 @@ func (vc *videoController) tick(opTime int) {
 
 				// This is the start of this scan line, read some scan line
 				// wide values
-				vc.loadLCDC()
 				vc.scrollX = int8(vc.state.mmu.memory[scrollXAddr])
 				vc.windowX = vc.state.mmu.memory[windowPosXAddr]
 			case scanLineOAMClocks:
@@ -194,33 +201,30 @@ func (vc *videoController) tick(opTime int) {
 				// We're in mode 0, HBlank period
 				vc.setMode(vcMode0)
 
-				lcdcInterruptsEnabled := vc.state.mmu.memory[ieAddr]&0x02 == 0x02
 				mode0InterruptEnabled := vc.mode0InterruptOn() &&
-					lcdcInterruptsEnabled &&
+					vc.interruptManager.lcdcEnabled() &&
 					vc.state.interruptsEnabled
 				if mode0InterruptEnabled {
-					vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x02
+					vc.interruptManager.flagLCDC()
 				}
 
 				// TODO(velovix): Unlock things
 				vc.drawScanLine(uint8(currScanLine))
 			}
 		} else {
-			// We're in mode 1, VBlank period
-			vc.setMode(vcMode1)
-			lcdcInterruptsEnabled := vc.state.mmu.memory[ieAddr]&0x02 == 0x02
-			mode1InterruptEnabled := vc.mode1InterruptOn() &&
-				lcdcInterruptsEnabled &&
-				vc.state.interruptsEnabled
-			if mode1InterruptEnabled {
-				vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x02
-			}
-
 			if vc.frameTick == scanLineFullClocks*ScreenHeight {
+				// We're in mode 1, VBlank period
+				vc.setMode(vcMode1)
+				mode1InterruptEnabled := vc.mode1InterruptOn() &&
+					vc.interruptManager.lcdcEnabled() &&
+					vc.state.interruptsEnabled
+				if mode1InterruptEnabled {
+					vc.interruptManager.flagLCDC()
+				}
+
 				// We just finished drawing the frame
-				vblankInterruptEnabled := vc.state.mmu.memory[ieAddr]&0x01 == 0x01
-				if vc.state.interruptsEnabled && vblankInterruptEnabled {
-					vc.state.mmu.memory[ifAddr] = vc.state.mmu.memory[ifAddr] | 0x01
+				if vc.state.interruptsEnabled && vc.interruptManager.vblankEnabled() {
+					vc.interruptManager.flagVBlank()
 				}
 
 				vc.driver.Render(vc.currFrame)
@@ -592,11 +596,8 @@ type lcdcConfig struct {
 	windowBGOn bool
 }
 
-// loadLCDC loads the LCDC register value for display configuration
-// information.
-func (vc *videoController) loadLCDC() {
-	lcdcVal := vc.state.mmu.memory[lcdcAddr]
-
+// decodeLCDC updates the internal LCDC value by parsing the given byte.
+func (vc *videoController) decodeLCDC(lcdcVal uint8) {
 	vc.lcdc.lcdOn = lcdcVal&0x80 == 0x80
 	if lcdcVal&0x40 == 0x40 {
 		vc.lcdc.windowTileMapAddr = tileMap1
@@ -624,13 +625,14 @@ func (vc *videoController) loadLCDC() {
 }
 
 // onLCDCWrite is called when the LCDC memory register is written to. It acts
-// as a fast path for detecting LCD power toggles.
+// as a fast path for detecting LCD power toggles and updates the internal LCDC
+// value.
 func (vc *videoController) onLCDCWrite(addr uint16, val uint8) uint8 {
 	vc.lcdOn = val&0x80 == 0x80
 
 	if !vc.lcdOn {
 		// Reset some aspects of the video controller
-		vc.state.mmu.memory[lyAddr] = 0
+		vc.ly = 0
 		vc.frameTick = 0
 		// Put the video controller in mode 0
 		vc.setMode(vcMode0)
@@ -639,6 +641,35 @@ func (vc *videoController) onLCDCWrite(addr uint16, val uint8) uint8 {
 		//                locking in the first place
 	}
 
+	vc.decodeLCDC(val)
+
+	return val
+}
+
+// onLYWrite is called when the LCD Current Scanline register is written to. It
+// just updates the internal value stored in this component.
+func (vc *videoController) onLYWrite(addr uint16, val uint8) uint8 {
+	vc.ly = val
+	return val
+}
+
+func (vc *videoController) onLYCWrite(addr uint16, val uint8) uint8 {
+	vc.lyc = val
+	return val
+}
+
+// onScrollYWrite is called when the scroll Y memory register is written to. It
+// just updates the internal scroll Y value of this component.
+func (vc *videoController) onScrollYWrite(addr uint16, val uint8) uint8 {
+	vc.scrollY = int8(val)
+	return val
+}
+
+// onWindowPosYWrite is called when the Window Position Y memory register is
+// written to. It just updates the internal window pos Y value of this
+// component.
+func (vc *videoController) onWindowPosYWrite(addr uint16, val uint8) uint8 {
+	vc.windowY = val
 	return val
 }
 

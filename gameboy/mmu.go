@@ -49,7 +49,11 @@ type mmu struct {
 	// mbc is the memory bank controller that this MMU will use.
 	mbc mbc
 
-	timers *timers
+	// Components that will be consulted for their internal values when certain
+	// addresses are read from.
+	timers           *timers
+	videoController  *videoController
+	interruptManager *interruptManager
 
 	db *debugger
 }
@@ -134,6 +138,10 @@ func (m *mmu) at(addr uint16) uint8 {
 			fmt.Printf("Warning: Read from invalid memory address %#x\n", addr)
 		}
 		return 0xFF
+	case addr == ifAddr:
+		return m.interruptManager.interruptFlags
+	case addr == ieAddr:
+		return m.interruptManager.interruptEnable
 	case addr == dividerAddr:
 		return m.timers.divider
 	case addr == timaAddr:
@@ -142,6 +150,10 @@ func (m *mmu) at(addr uint16) uint8 {
 		return m.timers.tac
 	case addr == tmaAddr:
 		return m.timers.tma
+	case addr == lyAddr:
+		return m.videoController.ly
+	case addr == lycAddr:
+		return m.videoController.lyc
 	default:
 		return m.memory[addr]
 	}

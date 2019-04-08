@@ -7,7 +7,8 @@ const eventProcessPeriod = cpuClockRate / 60
 
 // joypad handles user input events and exposes them to the ROM.
 type joypad struct {
-	state *State
+	state            *State
+	interruptManager *interruptManager
 
 	driver InputDriver
 
@@ -48,9 +49,8 @@ func (j *joypad) tick(amount int) {
 	}
 
 	// Generate an interrupt if any new buttons have been pressed
-	p10ThruP13InterruptEnabled := j.state.mmu.memory[ieAddr]&0x10 == 0x10
-	if buttonPressed && j.state.interruptsEnabled && p10ThruP13InterruptEnabled {
-		j.state.mmu.setNoNotify(ifAddr, j.state.mmu.at(ifAddr)|0x10)
+	if buttonPressed && j.state.interruptsEnabled && j.interruptManager.p10ToP13Enabled() {
+		j.interruptManager.flagP10ToP13()
 	}
 }
 

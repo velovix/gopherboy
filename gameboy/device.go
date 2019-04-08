@@ -183,12 +183,17 @@ func NewDevice(
 
 	device.videoController = newVideoController(
 		device.state, video)
+	mmu.videoController = device.videoController
 
 	device.joypad = newJoypad(device.state, input)
 
 	device.serial = newSerial(device.state)
 
 	device.interruptManager = newInterruptManager(device.state, device.timers)
+	device.joypad.interruptManager = device.interruptManager
+	device.videoController.interruptManager = device.interruptManager
+	device.timers.interruptManager = device.interruptManager
+	mmu.interruptManager = device.interruptManager
 
 	device.SoundController = newSoundController(device.state)
 
@@ -268,20 +273,23 @@ func (device *Device) Start(onExit chan bool) error {
 	for {
 		var err error
 
-		// Check if the main loop should be exited
-		select {
-		case <-onExit:
-			// Save the game, if necessary
-			if mbc, ok := device.state.mmu.mbc.(batteryBackedMBC); ok {
-				fmt.Println("Saving battery-backed game state...")
-				data := mbc.dumpBatteryBackedRAM()
-				err := device.saveGames.Save(device.header.title, data)
-				if err != nil {
-					return xerrors.Errorf("saving game: %w", err)
+		// Check periodically (but not every tick for performance reasons) if
+		// the main loop should be exited
+		if device.timers.cpuClock%65536 == 0 {
+			select {
+			case <-onExit:
+				// Save the game, if necessary
+				if mbc, ok := device.state.mmu.mbc.(batteryBackedMBC); ok {
+					fmt.Println("Saving battery-backed game state...")
+					data := mbc.dumpBatteryBackedRAM()
+					err := device.saveGames.Save(device.header.title, data)
+					if err != nil {
+						return xerrors.Errorf("saving game: %w", err)
+					}
 				}
+				return nil
+			default:
 			}
-			return nil
-		default:
 		}
 
 		device.interruptManager.check()
