@@ -61,7 +61,7 @@ func main() {
 	flag.Parse()
 
 	if len(flag.Args()) < 1 {
-		fmt.Println("Usage: gopherboy [OPTIONS] rom_file")
+		fmt.Println("Usage: gopherboy --boot-rom boot_rom_file [OPTIONS] rom_file")
 		os.Exit(1)
 	}
 
