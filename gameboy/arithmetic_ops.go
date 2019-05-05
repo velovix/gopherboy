@@ -3,87 +3,131 @@ package gameboy
 // makeADD creates an instruction that adds the value of reg, an 8-bit
 // register, into register A.
 func makeADD(reg register8) instruction {
-	return func(state *State) int {
-		state.setHalfCarryFlag(isHalfCarry(state.regA.get(), reg.get()))
-		state.setCarryFlag(isCarry(state.regA.get(), reg.get()))
+	return func(state *State) instruction {
+		result, carry, halfCarry := add(state.regA.get(), reg.get(), 0)
 
-		state.regA.set(state.regA.get() + reg.get())
-
-		state.setZeroFlag(state.regA.get() == 0)
+		state.setHalfCarryFlag(halfCarry == 1)
+		state.setCarryFlag(carry == 1)
+		state.setZeroFlag(result == 0)
 		state.setSubtractFlag(false)
 
-		return 4
+		state.regA.set(result)
+
+		return nil
 	}
 }
 
 // addFromMemHL adds the value stored in the memory address specified by HL
 // into register A.
-func addFromMemHL(state *State) int {
-	memVal := state.mmu.at(state.regHL.get())
+func addFromMemHL(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	state.setHalfCarryFlag(isHalfCarry(state.regA.get(), memVal))
-	state.setCarryFlag(isCarry(state.regA.get(), memVal))
+	return func(state *State) instruction {
+		// M-Cycle 1: Load from memory and do operation
+		memVal := state.mmu.at(state.regHL.get())
 
-	state.regA.set(state.regA.get() + memVal)
+		result, carry, halfCarry := add(state.regA.get(), memVal, 0)
 
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(false)
+		state.setHalfCarryFlag(halfCarry == 1)
+		state.setCarryFlag(carry == 1)
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(false)
 
-	return 8
+		state.regA.set(result)
+
+		return nil
+	}
 }
 
 // makeADDToHL creates an instruction that adds the value of the given 16-bit
 // register into register HL.
 func makeADDToHL(reg register16) instruction {
-	return func(state *State) int {
-		state.setHalfCarryFlag(isHalfCarry16(state.regHL.get(), reg.get()))
-		state.setCarryFlag(isCarry16(state.regHL.get(), reg.get()))
-		state.setSubtractFlag(false)
+	return func(state *State) instruction {
+		// M-Cycle 0: Fetch instruction and set the L register
 
-		state.regHL.set(state.regHL.get() + reg.get())
+		regLowerByte, _ := split16(reg.get())
+		hlLowerByte, _ := split16(state.regHL.get())
 
-		return 8
+		lVal, carry, _ := add(regLowerByte, hlLowerByte, 0)
+		state.regL.set(lVal)
+
+		return func(state *State) instruction {
+			// M-Cycle 1: Set the H register
+
+			_, regUpperByte := split16(reg.get())
+			_, hlUpperByte := split16(state.regHL.get())
+
+			hVal, carry, halfCarry := add(regUpperByte, hlUpperByte, carry)
+
+			state.setHalfCarryFlag(halfCarry == 1)
+			state.setCarryFlag(carry == 1)
+			state.setSubtractFlag(false)
+
+			state.regH.set(hVal)
+
+			return nil
+		}
 	}
 }
 
 // add8BitImm loads an 8-bit immediate value and adds it to register A, storing
 // the results in register A.
-func add8BitImm(state *State) int {
-	imm := state.incrementPC()
+func add8BitImm(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	state.setHalfCarryFlag(isHalfCarry(state.regA.get(), imm))
-	state.setCarryFlag(isCarry(state.regA.get(), imm))
+	return func(state *State) instruction {
+		// M-Cycle 1: Read immediate value and do operation
 
-	state.regA.set(imm + state.regA.get())
+		imm := state.incrementPC()
 
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(false)
+		result, carry, halfCarry := add(state.regA.get(), imm, 0)
 
-	return 8
+		state.setHalfCarryFlag(halfCarry == 1)
+		state.setCarryFlag(carry == 1)
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(false)
+
+		state.regA.set(result)
+
+		return nil
+	}
 }
 
 // addToSP loads an immediate signed 8-bit value and adds it to the stack
 // pointer register.
-func addToSP(state *State) int {
-	immUnsigned := state.incrementPC()
-	imm := int8(immUnsigned)
+func addToSP(state *State) instruction {
+	// TODO(velovix): Implement this in an m-cycle accurate way
+	// M-Cycle 0: Fetch instruction
 
-	// This instruction's behavior for the carry and half carry flags is very
-	// weird.
-	//
-	// When checking for a carry and half carry, the immediate value is treated
-	// as _unsigned_ for some reason and only the lowest 8 bits of the stack
-	// pointer are considered.
-	lowerSP, _ := split16(state.regSP.get())
-	state.setHalfCarryFlag(isHalfCarry(lowerSP, immUnsigned))
-	state.setCarryFlag(isCarry(lowerSP, immUnsigned))
+	return func(state *State) instruction {
+		// M-Cycle 1: Read immediate value
 
-	state.regSP.set(uint16(int(state.regSP.get()) + int(imm)))
+		immUnsigned := state.incrementPC()
+		imm := int8(immUnsigned)
 
-	state.setZeroFlag(false)
-	state.setSubtractFlag(false)
+		return func(state *State) instruction {
+			// M-Cycle 2: Write to lower SP byte
 
-	return 16
+			return func(state *State) instruction {
+				// M-Cycle 3: Write to upper SP byte
+
+				// This instruction's behavior for the carry and half carry flags is
+				// very weird.  When checking for a carry and half carry, the immediate
+				// value is treated as _unsigned_ for some reason and only the lowest 8
+				// bits of the stack pointer are considered.
+				lowerSP, _ := split16(state.regSP.get())
+
+				state.setHalfCarryFlag(isHalfCarry(lowerSP, immUnsigned))
+				state.setCarryFlag(isCarry(lowerSP, immUnsigned))
+				state.setZeroFlag(false)
+				state.setSubtractFlag(false)
+
+				state.regSP.set(uint16(int(state.regSP.get()) + int(imm)))
+
+				return nil
+			}
+		}
+	}
 }
 
 // makeADC creates an instruction that adds the value of the given register and
@@ -91,22 +135,22 @@ func addToSP(state *State) int {
 //
 // regA = regA + reg + carry bit
 func makeADC(reg register8) instruction {
-	return func(state *State) int {
-		carryVal := uint8(0)
-
+	return func(state *State) instruction {
+		var carry uint8
 		if state.getCarryFlag() {
-			carryVal = 1
+			carry = 1
 		}
 
-		state.setHalfCarryFlag(isHalfCarry(state.regA.get(), reg.get(), carryVal))
-		state.setCarryFlag(isCarry(state.regA.get(), reg.get(), carryVal))
+		result, carry, halfCarry := add(state.regA.get(), reg.get(), carry)
 
-		state.regA.set(state.regA.get() + reg.get() + carryVal)
-
-		state.setZeroFlag(state.regA.get() == 0)
+		state.setHalfCarryFlag(halfCarry == 1)
+		state.setCarryFlag(carry == 1)
+		state.setZeroFlag(result == 0)
 		state.setSubtractFlag(false)
 
-		return 4
+		state.regA.set(result)
+
+		return nil
 	}
 }
 
@@ -114,100 +158,121 @@ func makeADC(reg register8) instruction {
 // HL to register A, then adds the carry bit. Results are stored in register A.
 //
 // regA = regA + mem[regHL] + carry bit
-func adcFromMemHL(state *State) int {
-	memVal := state.mmu.at(state.regHL.get())
-	carryVal := uint8(0)
+func adcFromMemHL(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	if state.getCarryFlag() {
-		carryVal = 1
+	return func(state *State) instruction {
+		// M-Cycle 1: Read from memory and do operation
+		memVal := state.mmu.at(state.regHL.get())
+
+		var carry uint8
+		if state.getCarryFlag() {
+			carry = 1
+		}
+
+		result, carry, halfCarry := add(state.regA.get(), memVal, carry)
+
+		state.setHalfCarryFlag(halfCarry == 1)
+		state.setCarryFlag(carry == 1)
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(false)
+
+		state.regA.set(result)
+
+		return nil
 	}
-
-	state.setHalfCarryFlag(isHalfCarry(state.regA.get(), memVal, carryVal))
-	state.setCarryFlag(isCarry(state.regA.get(), memVal, carryVal))
-
-	state.regA.set(state.regA.get() + memVal + carryVal)
-
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(false)
-
-	return 8
 }
 
 // adc8BitImm loads and 8-bit immediate value and adds it and the carry
 // register to register A, storing the result in register A.
 //
 // regA = regA + imm + carry bit
-func adc8BitImm(state *State) int {
-	imm := state.incrementPC()
-	var carry uint8
+func adc8BitImm(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	if state.getCarryFlag() {
-		carry = 1
+	return func(state *State) instruction {
+		// M-Cycle 1: Read immediate value and do operation
+		imm := state.incrementPC()
+
+		var carry uint8
+		if state.getCarryFlag() {
+			carry = 1
+		}
+
+		result, carry, halfCarry := add(state.regA.get(), imm, carry)
+
+		state.setHalfCarryFlag(halfCarry == 1)
+		state.setCarryFlag(carry == 1)
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(false)
+
+		state.regA.set(result)
+
+		return nil
 	}
-
-	state.setHalfCarryFlag(isHalfCarry(state.regA.get(), imm, carry))
-	state.setCarryFlag(isCarry(state.regA.get(), imm, carry))
-
-	state.regA.set(state.regA.get() + imm + carry)
-
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(false)
-
-	return 8
 }
 
 // makeSUB creates an instruction that subtracts the value of reg, an 8-bit
 // register, from register A.
 func makeSUB(reg register8) instruction {
-	return func(state *State) int {
-		// A carry occurs if the value we're subtracting is greater than register
-		// A, meaning that the register A value rolled over
-		state.setCarryFlag(reg.get() > state.regA.get())
-		state.setHalfCarryFlag(isHalfBorrow(state.regA.get(), reg.get()))
+	return func(state *State) instruction {
+		result, borrow, halfBorrow := subtract(state.regA.get(), reg.get(), 0)
 
-		state.regA.set(state.regA.get() - reg.get())
-
-		state.setZeroFlag(state.regA.get() == 0)
+		state.setHalfCarryFlag(halfBorrow == 1)
+		state.setCarryFlag(borrow == 1)
+		state.setZeroFlag(result == 0)
 		state.setSubtractFlag(true)
 
-		return 4
+		state.regA.set(result)
+
+		return nil
 	}
 }
 
 // subFromMemHL subtracts the value in memory at the address specified by HL
 // from register A.
-func subFromMemHL(state *State) int {
-	memVal := state.mmu.at(state.regHL.get())
+func subFromMemHL(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	// A carry occurs if the value we're subtracting is greater than register
-	// A, meaning that the register A value rolled over
-	state.setCarryFlag(memVal > state.regA.get())
-	state.setHalfCarryFlag(isHalfBorrow(state.regA.get(), memVal))
+	return func(state *State) instruction {
+		// M-Cycle 1: Read from memory and do operation
 
-	state.regA.set(state.regA.get() - memVal)
+		memVal := state.mmu.at(state.regHL.get())
 
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(true)
+		result, borrow, halfBorrow := subtract(state.regA.get(), memVal, 0)
 
-	return 8
+		state.setCarryFlag(borrow == 1)
+		state.setHalfCarryFlag(halfBorrow == 1)
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(true)
+
+		state.regA.set(result)
+
+		return nil
+	}
 }
 
 // sub8BitImm loads an 8-bit immediate value and subtracts it from register A,
 // storing the result in register A.
-func sub8BitImm(state *State) int {
-	imm := state.incrementPC()
+func sub8BitImm(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	// A carry occurs if the value we're subtracting is greater than register
-	// A, meaning that the register A value rolled over
-	state.setCarryFlag(imm > state.regA.get())
-	state.setHalfCarryFlag(isHalfBorrow(state.regA.get(), imm))
+	return func(state *State) instruction {
+		// M-Cycle 1: Read immediate value and do operation
 
-	state.regA.set(state.regA.get() - imm)
+		imm := state.incrementPC()
 
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(true)
+		result, borrow, halfBorrow := subtract(state.regA.get(), imm, 0)
 
-	return 8
+		state.setCarryFlag(borrow == 1)
+		state.setHalfCarryFlag(halfBorrow == 1)
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(true)
+
+		state.regA.set(result)
+
+		return nil
+	}
 }
 
 // makeSBC creates an instruction that subtracts the value of the given
@@ -216,22 +281,22 @@ func sub8BitImm(state *State) int {
 //
 // regA = regA - reg - carry bit
 func makeSBC(reg register8) instruction {
-	return func(state *State) int {
-		carryVal := uint8(0)
-
+	return func(state *State) instruction {
+		var borrow uint8
 		if state.getCarryFlag() {
-			carryVal = 1
+			borrow = 1
 		}
 
-		state.setCarryFlag(isBorrow(state.regA.get(), reg.get(), carryVal))
-		state.setHalfCarryFlag(isHalfBorrow(state.regA.get(), reg.get(), carryVal))
+		result, borrow, halfBorrow := subtract(state.regA.get(), reg.get(), borrow)
 
-		state.regA.set(state.regA.get() - reg.get() - carryVal)
-
-		state.setZeroFlag(state.regA.get() == 0)
+		state.setCarryFlag(borrow == 1)
+		state.setHalfCarryFlag(halfBorrow == 1)
+		state.setZeroFlag(result == 0)
 		state.setSubtractFlag(true)
 
-		return 4
+		state.regA.set(result)
+
+		return nil
 	}
 }
 
@@ -240,290 +305,398 @@ func makeSBC(reg register8) instruction {
 // in register A.
 //
 // regA = regA - mem[regHL] - carry bit
-func sbcFromMemHL(state *State) int {
-	memVal := state.mmu.at(state.regHL.get())
-	carryVal := uint8(0)
+func sbcFromMemHL(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	if state.getCarryFlag() {
-		carryVal = 1
+	return func(state *State) instruction {
+		// M-Cycle 1: Read from memory and do operation
+
+		memVal := state.mmu.at(state.regHL.get())
+
+		var carry uint8
+		if state.getCarryFlag() {
+			carry = 1
+		}
+
+		result, borrow, halfBorrow := subtract(state.regA.get(), memVal, carry)
+
+		state.setCarryFlag(borrow == 1)
+		state.setHalfCarryFlag(halfBorrow == 1)
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(true)
+
+		state.regA.set(state.regA.get() - memVal - carry)
+
+		return nil
 	}
-
-	state.setCarryFlag(isBorrow(state.regA.get(), memVal, carryVal))
-	state.setHalfCarryFlag(isHalfBorrow(state.regA.get(), memVal, carryVal))
-
-	state.regA.set(state.regA.get() - memVal - carryVal)
-
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(true)
-
-	return 8
 }
 
 // sbc8BitImm loads and 8-bit immediate value and subtracts it and the carry
 // register from register A, storing the result in register A.
 //
 // regA = regA - imm - carry bit
-func sbc8BitImm(state *State) int {
-	imm := state.incrementPC()
-	carryVal := uint8(0)
+func sbc8BitImm(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	if state.getCarryFlag() {
-		carryVal = 1
+	return func(state *State) instruction {
+		// M-Cycle 1: Get immediate value and do operation
+
+		imm := state.incrementPC()
+
+		var carry uint8
+		if state.getCarryFlag() {
+			carry = 1
+		}
+
+		result, borrow, halfBorrow := subtract(state.regA.get(), imm, carry)
+
+		state.setCarryFlag(borrow == 1)
+		state.setHalfCarryFlag(halfBorrow == 1)
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(true)
+
+		state.regA.set(result)
+
+		return nil
 	}
-
-	state.setCarryFlag(isBorrow(state.regA.get(), imm, carryVal))
-	state.setHalfCarryFlag(isHalfBorrow(state.regA.get(), imm, carryVal))
-
-	state.regA.set(state.regA.get() - imm - carryVal)
-
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(true)
-
-	return 8
 }
 
 // makeAND creates an instruction that performs a bitwise & on the given
 // register and register A, storing the result in register A.
 func makeAND(reg register8) instruction {
-	return func(state *State) int {
-		state.regA.set(state.regA.get() & reg.get())
+	return func(state *State) instruction {
+		result := state.regA.get() & reg.get()
 
-		state.setZeroFlag(state.regA.get() == 0)
+		state.setZeroFlag(result == 0)
 		state.setSubtractFlag(false)
 		state.setHalfCarryFlag(true)
 		state.setCarryFlag(false)
 
-		return 4
+		state.regA.set(result)
+
+		return nil
 	}
 }
 
 // andFromMemHL performs a bitwise & on the value in memory at the address
 // specified by register HL and register A, storing the result in register A.
-func andFromMemHL(state *State) int {
-	memVal := state.mmu.at(state.regHL.get())
+func andFromMemHL(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	state.regA.set(state.regA.get() & memVal)
+	return func(state *State) instruction {
+		// M-Cycle 1: Read from memory and do operation
 
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(false)
-	state.setHalfCarryFlag(true)
-	state.setCarryFlag(false)
+		memVal := state.mmu.at(state.regHL.get())
 
-	return 8
+		result := state.regA.get() & memVal
+
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(false)
+		state.setHalfCarryFlag(true)
+		state.setCarryFlag(false)
+
+		state.regA.set(result)
+
+		return nil
+	}
 }
 
 // and8BitImm performs a bitwise & on register A and an immediate value,
 // storing the result in register A.
-func and8BitImm(state *State) int {
-	imm := state.incrementPC()
+func and8BitImm(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	state.regA.set(state.regA.get() & imm)
+	return func(state *State) instruction {
+		// M-Cycle 1: Get immediate value and do operation
 
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(false)
-	state.setHalfCarryFlag(true)
-	state.setCarryFlag(false)
+		imm := state.incrementPC()
 
-	return 8
+		result := state.regA.get() & imm
+
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(false)
+		state.setHalfCarryFlag(true)
+		state.setCarryFlag(false)
+
+		state.regA.set(result)
+
+		return nil
+	}
 }
 
 // makeOR creates an instruction that performs a bitwise | on the given
 // register and register A, storing the result in register A.
 func makeOR(reg register8) instruction {
-	return func(state *State) int {
-		state.regA.set(state.regA.get() | reg.get())
+	return func(state *State) instruction {
+		// M-Cycle 0: Fetch instruction and do operation
 
-		state.setZeroFlag(state.regA.get() == 0)
+		result := state.regA.get() | reg.get()
+
+		state.setZeroFlag(result == 0)
 		state.setSubtractFlag(false)
 		state.setHalfCarryFlag(false)
 		state.setCarryFlag(false)
 
-		return 4
+		state.regA.set(result)
+
+		return nil
 	}
 }
 
 // orFromMemHL performs a bitwise | on the value in memory at the address
 // specified by register HL and register A, storing the result in register A.
-func orFromMemHL(state *State) int {
-	memVal := state.mmu.at(state.regHL.get())
+func orFromMemHL(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	state.regA.set(state.regA.get() | memVal)
+	return func(state *State) instruction {
+		// M-Cycle 1: Read from memory and do operation
 
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(false)
-	state.setHalfCarryFlag(false)
-	state.setCarryFlag(false)
+		memVal := state.mmu.at(state.regHL.get())
 
-	return 8
+		result := state.regA.get() | memVal
+
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(false)
+		state.setHalfCarryFlag(false)
+		state.setCarryFlag(false)
+
+		state.regA.set(result)
+
+		return nil
+	}
 }
 
 // or8BitImm performs a bitwise | on register A and an immediate value,
 // storing the result in register A.
-func or8BitImm(state *State) int {
-	imm := state.incrementPC()
+func or8BitImm(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	state.regA.set(state.regA.get() | imm)
+	return func(state *State) instruction {
+		// M-Cycle 1: Load immediate value and do operation
 
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(false)
-	state.setHalfCarryFlag(false)
-	state.setCarryFlag(false)
+		imm := state.incrementPC()
 
-	return 8
+		result := state.regA.get() | imm
+
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(false)
+		state.setHalfCarryFlag(false)
+		state.setCarryFlag(false)
+
+		state.regA.set(result)
+
+		return nil
+	}
 }
 
 // makeXOR creates an instruction that performs a bitwise ^ on register A and
 // the given register, storing the result in register A.
 func makeXOR(reg register8) instruction {
-	return func(state *State) int {
-		state.regA.set(state.regA.get() ^ reg.get())
+	return func(state *State) instruction {
+		result := state.regA.get() ^ reg.get()
 
-		state.setZeroFlag(state.regA.get() == 0)
+		state.setZeroFlag(result == 0)
 		state.setSubtractFlag(false)
 		state.setHalfCarryFlag(false)
 		state.setCarryFlag(false)
 
-		return 4
+		state.regA.set(result)
+
+		return nil
 	}
 }
 
 // xorFromMemHL performs a bitwise ^ on the value in memory specified by
 // register HL and register A, storing the result in register A.
-func xorFromMemHL(state *State) int {
-	memVal := state.mmu.at(state.regHL.get())
+func xorFromMemHL(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	state.regA.set(state.regA.get() ^ memVal)
+	return func(state *State) instruction {
+		// M-Cycle 1: Read from memory and do operation
 
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(false)
-	state.setHalfCarryFlag(false)
-	state.setCarryFlag(false)
+		memVal := state.mmu.at(state.regHL.get())
 
-	return 8
+		result := state.regA.get() ^ memVal
+
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(false)
+		state.setHalfCarryFlag(false)
+		state.setCarryFlag(false)
+
+		state.regA.set(result)
+
+		return nil
+	}
 }
 
 // xor8BitImm performs a bitwise ^ on register A and an immediate value,
 // storing the result in register A.
-func xor8BitImm(state *State) int {
-	imm := state.incrementPC()
+func xor8BitImm(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	state.regA.set(state.regA.get() ^ imm)
+	return func(state *State) instruction {
+		// M-Cycle 1: Read immediate value and do operation
 
-	state.setZeroFlag(state.regA.get() == 0)
-	state.setSubtractFlag(false)
-	state.setHalfCarryFlag(false)
-	state.setCarryFlag(false)
+		imm := state.incrementPC()
 
-	return 8
+		result := state.regA.get() ^ imm
+
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(false)
+		state.setHalfCarryFlag(false)
+		state.setCarryFlag(false)
+
+		state.regA.set(result)
+
+		return nil
+	}
 }
 
 // makeINC8Bit creates an instruction that increments the given 8-bit register
 // by 1.
 func makeINC8Bit(reg register8) instruction {
-	return func(state *State) int {
-		oldVal := reg.get()
-		newVal := reg.set(oldVal + 1)
+	return func(state *State) instruction {
+		// M-Cycle 0: Do operation
 
-		state.setZeroFlag(newVal == 0)
+		result, _, halfCarry := add(reg.get(), 1, 0)
+
+		state.setZeroFlag(result == 0)
 		state.setSubtractFlag(false)
-		// A half carry occurs only if the bottom 4 bits of the number are 1,
-		// meaning all those "slots" are "filled"
-		state.setHalfCarryFlag(oldVal&0x0F == 0x0F)
+		state.setHalfCarryFlag(halfCarry == 1)
 
-		return 4
+		reg.set(result)
+
+		return nil
 	}
 }
 
 // makeINC16Bit creates an instruction that increments the given 16-bit
 // register by 1.
 func makeINC16Bit(reg register16) instruction {
-	return func(state *State) int {
-		reg.set(reg.get() + 1)
+	return func(state *State) instruction {
+		// M-Cycle 0: Write to the lower register
 
-		return 8
+		lowerResult, carry, _ := add(uint8(reg.get()), 1, 0)
+		reg.setLower(lowerResult)
+
+		return func(state *State) instruction {
+			// M-Cycle 1: Write to the upper register
+
+			_, upperVal := split16(reg.get())
+			upperResult, _, _ := add(upperVal, 0, carry)
+			reg.setUpper(upperResult)
+
+			return nil
+		}
 	}
 }
 
 // incMemHL increments the value in memory at the address specified by register
 // HL.
-func incMemHL(state *State) int {
-	addr := state.regHL.get()
+func incMemHL(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	oldVal := state.mmu.at(addr)
-	state.mmu.set(addr, oldVal+1)
-	newVal := state.mmu.at(addr)
+	return func(state *State) instruction {
+		// M-Cycle 1: Read from memory
 
-	state.setZeroFlag(newVal == 0)
-	state.setSubtractFlag(false)
-	// A half carry occurs only if the bottom 4 bits of the number are 1,
-	// meaning all those "slots" are "filled"
-	state.setHalfCarryFlag(oldVal&0x0F == 0x0F)
+		addr := state.regHL.get()
+		memVal := state.mmu.at(addr)
 
-	return 12
+		return func(state *State) instruction {
+			// M-Cycle 2: Do operation and write to memory
+
+			result, _, halfCarry := add(memVal, 1, 0)
+
+			state.setZeroFlag(result == 0)
+			state.setSubtractFlag(false)
+			state.setHalfCarryFlag(halfCarry == 1)
+
+			state.mmu.set(addr, result)
+
+			return nil
+		}
+	}
 }
 
 // makeDEC8Bit creates an instruction that decrements the given 8-bit register
 // by 1.
 func makeDEC8Bit(reg register8) instruction {
-	return func(state *State) int {
-		oldVal := reg.get()
+	return func(state *State) instruction {
+		// M-Cycle 0: Do operation
 
-		newVal := reg.set(oldVal - 1)
+		result, _, halfCarry := subtract(reg.get(), 1, 0)
 
-		state.setHalfCarryFlag(isHalfBorrow(oldVal, 1))
-		state.setZeroFlag(newVal == 0)
+		state.setHalfCarryFlag(halfCarry == 1)
+		state.setZeroFlag(result == 0)
 		state.setSubtractFlag(true)
 
-		return 4
+		reg.set(result)
+
+		return nil
 	}
 }
 
 // makeDEC16Bit creates an instruction that decrements the given 16-bit
 // register by 1.
 func makeDEC16Bit(reg register16) instruction {
-	return func(state *State) int {
-		reg.set(reg.get() - 1)
+	return func(state *State) instruction {
+		// M-Cycle 0: Write to lower byte
 
-		return 8
+		lowerResult, borrow, _ := subtract(uint8(reg.get()), 1, 0)
+		reg.setLower(lowerResult)
+
+		return func(state *State) instruction {
+			// M-Cycle 1: Write to upper byte
+
+			_, upperVal := split16(reg.get())
+			upperResult, _, _ := subtract(upperVal, 0, borrow)
+			reg.setUpper(upperResult)
+
+			return nil
+		}
 	}
 }
 
 // decMemHL decrements the value in memory at the address specified by register
 // HL.
-func decMemHL(state *State) int {
-	addr := state.regHL.get()
+func decMemHL(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	oldVal := state.mmu.at(addr)
+	return func(state *State) instruction {
+		// M-Cycle 1: Read from memory
 
-	state.mmu.set(addr, oldVal-1)
-	newVal := state.mmu.at(addr)
+		addr := state.regHL.get()
+		memVal := state.mmu.at(addr)
 
-	state.setZeroFlag(newVal == 0)
-	state.setSubtractFlag(true)
-	state.setHalfCarryFlag(isHalfBorrow(oldVal, 1))
+		return func(state *State) instruction {
+			// M-Cycle 2: Do operation and write to memory
 
-	return 12
+			result, _, halfBorrow := subtract(memVal, 1, 0)
+
+			state.setZeroFlag(result == 0)
+			state.setSubtractFlag(true)
+			state.setHalfCarryFlag(halfBorrow == 1)
+
+			state.mmu.set(addr, result)
+
+			return nil
+		}
+	}
 }
 
 // makeCP creates an instruction that compares the value in register A with the
 // value of the given register and sets flags accordingly. The semantics are
 // the same as the SUB operator, but the result value is not saved.
 func makeCP(reg register8) instruction {
-	return func(state *State) int {
-		aVal := state.regA.get()
-		regVal := reg.get()
+	return func(state *State) instruction {
+		result, borrow, halfBorrow := subtract(state.regA.get(), reg.get(), 0)
 
-		// A carry occurs if the value we're subtracting is greater than register
-		// A, meaning that the register A value rolled over
-		state.setCarryFlag(regVal > aVal)
-		state.setHalfCarryFlag(isHalfBorrow(aVal, regVal))
-
-		subVal := aVal - regVal
-
-		state.setZeroFlag(subVal == 0)
+		state.setCarryFlag(borrow == 1)
+		state.setHalfCarryFlag(halfBorrow == 1)
+		state.setZeroFlag(result == 0)
 		state.setSubtractFlag(true)
 
-		return 4
+		return nil
 	}
 }
 
@@ -531,41 +704,44 @@ func makeCP(reg register8) instruction {
 // address specified by the HL register and sets flags accordingly. The
 // semantics are the same as the SUB operator, but the result value is not
 // saved.
-func cpFromMemHL(state *State) int {
-	aVal := state.regA.get()
-	memVal := state.mmu.at(state.regHL.get())
+func cpFromMemHL(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	// A carry occurs if the value we're subtracting is greater than register
-	// A, meaning that the register A value rolled over
-	state.setCarryFlag(memVal > aVal)
-	state.setHalfCarryFlag(isHalfBorrow(aVal, memVal))
+	return func(state *State) instruction {
+		// M-Cycle 1: Read from memory and do operation
+		memVal := state.mmu.at(state.regHL.get())
 
-	subVal := aVal - memVal
+		result, borrow, halfBorrow := subtract(state.regA.get(), memVal, 0)
 
-	state.setZeroFlag(subVal == 0)
-	state.setSubtractFlag(true)
+		state.setHalfCarryFlag(halfBorrow == 1)
+		state.setCarryFlag(borrow == 1)
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(true)
 
-	return 8
+		return nil
+	}
 }
 
 // cp8BitImm compares register A with an immediate value and sets flags
 // accordingly. The semantics are the same as the SUB operator, but the result
 // value is not saved.
-func cp8BitImm(state *State) int {
-	aVal := state.regA.get()
-	imm := state.incrementPC()
+func cp8BitImm(state *State) instruction {
+	// M-Cycle 0: Fetch instruction
 
-	// A carry occurs if the value we're subtracting is greater than register
-	// A, meaning that the register A value rolled over
-	state.setCarryFlag(aVal < imm)
-	state.setHalfCarryFlag(isHalfBorrow(aVal, imm))
+	return func(state *State) instruction {
+		// M-Cycle 1: Read immediate value and do operation
 
-	subVal := aVal - imm
+		imm := state.incrementPC()
 
-	state.setZeroFlag(subVal == 0)
-	state.setSubtractFlag(true)
+		result, borrow, halfBorrow := subtract(state.regA.get(), imm, 0)
 
-	return 8
+		state.setHalfCarryFlag(halfBorrow == 0)
+		state.setCarryFlag(borrow == 0)
+		state.setZeroFlag(result == 0)
+		state.setSubtractFlag(true)
+
+		return nil
+	}
 }
 
 // daa "corrects" the result of a previous add or subtract operation by
@@ -585,13 +761,15 @@ func cp8BitImm(state *State) int {
 // Now, imagine that you have two BCD-encoded numbers and you add them together
 // with an add instruction. The CPU doesn't know that these numbers are BCD and
 // so it will add them together like they are normal binary numbers. The result
-// will, as a result, be incorrect from a BCD perspective.
+// will, as a result, no longer be in BCD format and will instead be some
+// nonsense value.
 //
-// That's where this instructions comes in. This instruction makes the
+// That's where this instruction comes in. This instruction makes the
 // necessary corrections to the result of the last operation to make it once
 // again BCD encoded. If you're doing math with BCD numbers, this instruction
-// would be called after every add or subtract instruction.
-func daa(state *State) int {
+// would be called after every add or subtract instruction. But why on earth
+// would you?
+func daa(state *State) instruction {
 	aVal := state.regA.get()
 
 	var correction uint8
@@ -623,5 +801,5 @@ func daa(state *State) int {
 	state.setZeroFlag(aVal == 0)
 	state.setHalfCarryFlag(false)
 
-	return 4
+	return nil
 }

@@ -10,7 +10,36 @@ import (
 // return either another instruction function for the next microcode or nil
 // indicating that the instruction has finished. Each microcode takes 4 CPU
 // cycles to complete.
-type instruction func(*State) int
+type instruction func(*State) instruction
+
+// adapter transforms the old instruction function format into the new format.
+// The old format used to return a number indicating how many cycles the
+// operation took. The new format only runs 4 cycles worth of work at a time
+// and returns another function if more work needs to be done.
+//
+// This is a temporary workaround that will disappear when all instructions
+// have been refactored.
+func adapter(oldFunc func(*State) int) instruction {
+	return func(state *State) instruction {
+		cycles := oldFunc(state)
+		cycles -= 4
+
+		var step func(state *State) instruction
+		step = func(state *State) instruction {
+			cycles -= 4
+			if cycles == 0 {
+				return nil
+			} else {
+				return step
+			}
+		}
+
+		if cycles > 0 {
+			return step
+		}
+		return nil
+	}
+}
 
 type opcodeMapper struct {
 	state *State
@@ -30,26 +59,25 @@ func newOpcodeMapper(state *State) *opcodeMapper {
 	return mapper
 }
 
-// runOpcode runs the operation that maps to the given opcode.
-func (mapper *opcodeMapper) run(opcode uint8) (cycles int, err error) {
+func (mapper *opcodeMapper) getInstruction(opcode uint8) (instruction, error) {
 	if opcode == 0xCB {
-		return mapper.cbOpcodeDispatcher(), nil
+		return mapper.cbDispatcher(), nil
 	}
 
 	instr := mapper.mainOps[opcode]
 	if instr == nil {
-		return 0, xerrors.Errorf("unknown opcode %#x", opcode)
+		return nil, xerrors.Errorf("unknown opcode %#x", opcode)
 	}
-	return instr(mapper.state), nil
+	return instr, nil
 }
 
-// cbOpcodeDispatcher pops the next opcode from the program counter and
+// getCBInstruction pops the next opcode from the program counter and
 // dispatches the corresponding CB instruction.
-func (mapper *opcodeMapper) cbOpcodeDispatcher() int {
-	cbOpcode := mapper.state.incrementPC()
-
-	instr := mapper.cbOps[cbOpcode]
-	return instr(mapper.state)
+func (mapper *opcodeMapper) cbDispatcher() instruction {
+	return func(state *State) instruction {
+		cbOpcode := mapper.state.incrementPC()
+		return mapper.cbOps[cbOpcode]
+	}
 }
 
 // getConditionalStr creates a string representation of a conditional flag
@@ -73,41 +101,41 @@ func getConditionalStr(flagMask uint8, isSet bool) string {
 
 func (mapper *opcodeMapper) generateMap() {
 	mapper.mainOps = &[0x100]instruction{
-		0x00: nop,
+		0x00: adapter(nop),
 		0x01: makeLD16BitImm(mapper.state.regBC),
 		0x02: makeLDToMem(mapper.state.regBC, mapper.state.regA),
 		0x03: makeINC16Bit(mapper.state.regBC),
 		0x04: makeINC8Bit(mapper.state.regB),
 		0x05: makeDEC8Bit(mapper.state.regB),
 		0x06: makeLD8BitImm(mapper.state.regB),
-		0x07: rlca,
-		0x08: ldSPToMem,
+		0x07: adapter(rlca),
+		0x08: adapter(ldSPToMem),
 		0x09: makeADDToHL(mapper.state.regBC),
 		0x0A: makeLDFromMem(mapper.state.regA, mapper.state.regBC),
 		0x0B: makeDEC16Bit(mapper.state.regBC),
 		0x0C: makeINC8Bit(mapper.state.regC),
 		0x0D: makeDEC8Bit(mapper.state.regC),
 		0x0E: makeLD8BitImm(mapper.state.regC),
-		0x0F: rrca,
-		0x10: stop,
+		0x0F: adapter(rrca),
+		0x10: adapter(stop),
 		0x11: makeLD16BitImm(mapper.state.regDE),
 		0x12: makeLDToMem(mapper.state.regDE, mapper.state.regA),
 		0x13: makeINC16Bit(mapper.state.regDE),
 		0x14: makeINC8Bit(mapper.state.regD),
 		0x15: makeDEC8Bit(mapper.state.regD),
 		0x16: makeLD8BitImm(mapper.state.regD),
-		0x17: rla,
-		0x18: jr,
+		0x17: adapter(rla),
+		0x18: adapter(jr),
 		0x19: makeADDToHL(mapper.state.regDE),
 		0x1A: makeLDFromMem(mapper.state.regA, mapper.state.regDE),
 		0x1B: makeDEC16Bit(mapper.state.regDE),
 		0x1C: makeINC8Bit(mapper.state.regE),
 		0x1D: makeDEC8Bit(mapper.state.regE),
 		0x1E: makeLD8BitImm(mapper.state.regE),
-		0x1F: rra,
+		0x1F: adapter(rra),
 		0x20: makeJRIfFlag(zeroFlag, false),
 		0x21: makeLD16BitImm(mapper.state.regHL),
-		0x22: makeLDIToMem,
+		0x22: adapter(ldiToMem),
 		0x23: makeINC16Bit(mapper.state.regHL),
 		0x24: makeINC8Bit(mapper.state.regH),
 		0x25: makeDEC8Bit(mapper.state.regH),
@@ -115,28 +143,28 @@ func (mapper *opcodeMapper) generateMap() {
 		0x27: daa,
 		0x28: makeJRIfFlag(zeroFlag, true),
 		0x29: makeADDToHL(mapper.state.regHL),
-		0x2A: ldiFromMem,
+		0x2A: adapter(ldiFromMem),
 		0x2B: makeDEC16Bit(mapper.state.regHL),
 		0x2C: makeINC8Bit(mapper.state.regL),
 		0x2D: makeDEC8Bit(mapper.state.regL),
 		0x2E: makeLD8BitImm(mapper.state.regL),
-		0x2F: cpl,
+		0x2F: adapter(cpl),
 		0x30: makeJRIfFlag(carryFlag, false),
 		0x31: makeLD16BitImm(mapper.state.regSP),
-		0x32: makeLDDToMem,
+		0x32: adapter(lddToMem),
 		0x33: makeINC16Bit(mapper.state.regSP),
 		0x34: incMemHL,
 		0x35: decMemHL,
-		0x36: makeLD8BitImmToMemHL,
-		0x37: scf,
+		0x36: adapter(ld8BitImmToMemHL),
+		0x37: adapter(scf),
 		0x38: makeJRIfFlag(carryFlag, true),
 		0x39: makeADDToHL(mapper.state.regSP),
-		0x3A: lddFromMem,
+		0x3A: adapter(lddFromMem),
 		0x3B: makeDEC16Bit(mapper.state.regSP),
 		0x3C: makeINC8Bit(mapper.state.regA),
 		0x3D: makeDEC8Bit(mapper.state.regA),
 		0x3E: makeLD8BitImm(mapper.state.regA),
-		0x3F: ccf,
+		0x3F: adapter(ccf),
 		0x40: makeLD(mapper.state.regB, mapper.state.regB),
 		0x41: makeLD(mapper.state.regB, mapper.state.regC),
 		0x42: makeLD(mapper.state.regB, mapper.state.regD),
@@ -191,7 +219,7 @@ func (mapper *opcodeMapper) generateMap() {
 		0x73: makeLDToMem(mapper.state.regHL, mapper.state.regE),
 		0x74: makeLDToMem(mapper.state.regHL, mapper.state.regH),
 		0x75: makeLDToMem(mapper.state.regHL, mapper.state.regL),
-		0x76: halt,
+		0x76: adapter(halt),
 		0x77: makeLDToMem(mapper.state.regHL, mapper.state.regA),
 		0x78: makeLD(mapper.state.regA, mapper.state.regB),
 		0x79: makeLD(mapper.state.regA, mapper.state.regC),
@@ -274,11 +302,11 @@ func (mapper *opcodeMapper) generateMap() {
 		0xC6: add8BitImm,
 		0xC7: makeRST(0x00),
 		0xC8: makeRETIfFlag(zeroFlag, true),
-		0xC9: ret,
+		0xC9: adapter(ret),
 		0xCA: makeJPIfFlag(zeroFlag, true),
 		0xCB: nil, // Taken care of in a special case
 		0xCC: makeCALLIfFlag(zeroFlag, true),
-		0xCD: call,
+		0xCD: adapter(call),
 		0xCE: adc8BitImm,
 		0xCF: makeRST(0x08),
 		0xD0: makeRETIfFlag(carryFlag, false),
@@ -290,16 +318,16 @@ func (mapper *opcodeMapper) generateMap() {
 		0xD6: sub8BitImm,
 		0xD7: makeRST(0x10),
 		0xD8: makeRETIfFlag(carryFlag, true),
-		0xD9: reti,
+		0xD9: adapter(reti),
 		0xDA: makeJPIfFlag(carryFlag, true),
 		0xDB: nil,
 		0xDC: makeCALLIfFlag(carryFlag, true),
 		0xDD: nil,
 		0xDE: sbc8BitImm,
 		0xDF: makeRST(0x18),
-		0xE0: ldhToMem,
+		0xE0: adapter(ldhToMem),
 		0xE1: makePOP(mapper.state.regHL),
-		0xE2: ldToMemC,
+		0xE2: adapter(ldToMemC),
 		0xE3: nil,
 		0xE4: nil,
 		0xE5: makePUSH(mapper.state.regHL),
@@ -307,24 +335,24 @@ func (mapper *opcodeMapper) generateMap() {
 		0xE7: makeRST(0x20),
 		0xE8: addToSP,
 		0xE9: jpToHL,
-		0xEA: ldTo16BitImmMem,
+		0xEA: adapter(ldTo16BitImmMem),
 		0xEB: nil,
 		0xEC: nil,
 		0xED: nil,
 		0xEE: xor8BitImm,
 		0xEF: makeRST(0x28),
-		0xF0: ldhFromMem,
+		0xF0: adapter(ldhFromMem),
 		0xF1: makePOP(mapper.state.regAF),
-		0xF2: ldFromMemC,
-		0xF3: di,
+		0xF2: adapter(ldFromMemC),
+		0xF3: adapter(di),
 		0xF4: nil,
 		0xF5: makePUSH(mapper.state.regAF),
 		0xF6: or8BitImm,
 		0xF7: makeRST(0x30),
-		0xF8: ldhl,
-		0xF9: ldHLToSP,
-		0xFA: ldFrom16BitImmMem,
-		0xFB: ei,
+		0xF8: adapter(ldhl),
+		0xF9: adapter(ldHLToSP),
+		0xFA: adapter(ldFrom16BitImmMem),
+		0xFB: adapter(ei),
 		0xFC: nil,
 		0xFD: nil,
 		0xFE: cp8BitImm,
@@ -338,7 +366,7 @@ func (mapper *opcodeMapper) generateMap() {
 		0x03: makeRLC(mapper.state.regE),
 		0x04: makeRLC(mapper.state.regH),
 		0x05: makeRLC(mapper.state.regL),
-		0x06: rlcMemHL,
+		0x06: adapter(rlcMemHL),
 		0x07: makeRLC(mapper.state.regA),
 		0x08: makeRRC(mapper.state.regB),
 		0x09: makeRRC(mapper.state.regC),
@@ -346,7 +374,7 @@ func (mapper *opcodeMapper) generateMap() {
 		0x0B: makeRRC(mapper.state.regE),
 		0x0C: makeRRC(mapper.state.regH),
 		0x0D: makeRRC(mapper.state.regL),
-		0x0E: rrcMemHL,
+		0x0E: adapter(rrcMemHL),
 		0x0F: makeRRC(mapper.state.regA),
 		0x10: makeRL(mapper.state.regB),
 		0x11: makeRL(mapper.state.regC),
@@ -354,7 +382,7 @@ func (mapper *opcodeMapper) generateMap() {
 		0x13: makeRL(mapper.state.regE),
 		0x14: makeRL(mapper.state.regH),
 		0x15: makeRL(mapper.state.regL),
-		0x16: rlMemHL,
+		0x16: adapter(rlMemHL),
 		0x17: makeRL(mapper.state.regA),
 		0x18: makeRR(mapper.state.regB),
 		0x19: makeRR(mapper.state.regC),
@@ -362,7 +390,7 @@ func (mapper *opcodeMapper) generateMap() {
 		0x1B: makeRR(mapper.state.regE),
 		0x1C: makeRR(mapper.state.regH),
 		0x1D: makeRR(mapper.state.regL),
-		0x1E: rrMemHL,
+		0x1E: adapter(rrMemHL),
 		0x1F: makeRR(mapper.state.regA),
 		0x20: makeSLA(mapper.state.regB),
 		0x21: makeSLA(mapper.state.regC),
@@ -370,7 +398,7 @@ func (mapper *opcodeMapper) generateMap() {
 		0x23: makeSLA(mapper.state.regE),
 		0x24: makeSLA(mapper.state.regH),
 		0x25: makeSLA(mapper.state.regL),
-		0x26: slaMemHL,
+		0x26: adapter(slaMemHL),
 		0x27: makeSLA(mapper.state.regA),
 		0x28: makeSRA(mapper.state.regB),
 		0x29: makeSRA(mapper.state.regC),
@@ -378,7 +406,7 @@ func (mapper *opcodeMapper) generateMap() {
 		0x2B: makeSRA(mapper.state.regE),
 		0x2C: makeSRA(mapper.state.regH),
 		0x2D: makeSRA(mapper.state.regL),
-		0x2E: sraMemHL,
+		0x2E: adapter(sraMemHL),
 		0x2F: makeSRA(mapper.state.regA),
 		0x30: makeSWAP(mapper.state.regB),
 		0x31: makeSWAP(mapper.state.regC),
@@ -386,7 +414,7 @@ func (mapper *opcodeMapper) generateMap() {
 		0x33: makeSWAP(mapper.state.regE),
 		0x34: makeSWAP(mapper.state.regH),
 		0x35: makeSWAP(mapper.state.regL),
-		0x36: swapMemHL,
+		0x36: adapter(swapMemHL),
 		0x37: makeSWAP(mapper.state.regA),
 		0x38: makeSRL(mapper.state.regB),
 		0x39: makeSRL(mapper.state.regC),
@@ -394,7 +422,7 @@ func (mapper *opcodeMapper) generateMap() {
 		0x3B: makeSRL(mapper.state.regE),
 		0x3C: makeSRL(mapper.state.regH),
 		0x3D: makeSRL(mapper.state.regL),
-		0x3E: srlMemHL,
+		0x3E: adapter(srlMemHL),
 		0x3F: makeSRL(mapper.state.regA),
 		0x40: makeBIT(0, mapper.state.regB),
 		0x41: makeBIT(0, mapper.state.regC),

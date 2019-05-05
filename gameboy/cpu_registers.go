@@ -45,6 +45,10 @@ func (reg *flagRegister8) get() uint8 {
 type register16 interface {
 	// set sets the register's value.
 	set(val uint16) uint16
+	// setLower sets the least significant byte's value.
+	setLower(val uint8) uint8
+	// setUpper sets the most significant byte's value.
+	setUpper(val uint8) uint8
 	// get returns the register's value.
 	get() uint16
 }
@@ -60,6 +64,16 @@ func (reg *normalRegister16) set(val uint16) uint16 {
 	return reg.get()
 }
 
+func (reg *normalRegister16) setLower(val uint8) uint8 {
+	reg.val = (reg.val & 0xF0) | uint16(val)
+	return val
+}
+
+func (reg *normalRegister16) setUpper(val uint8) uint8 {
+	reg.val = (uint16(val) << 8) | uint16(reg.val)
+	return val
+}
+
 func (reg *normalRegister16) get() uint16 {
 	return reg.val
 }
@@ -67,18 +81,28 @@ func (reg *normalRegister16) get() uint16 {
 // registerCombined represents a 16-bit register backed by two 8-bit registers.
 // Writes to this register are reflected in the two registers it is backed by.
 type registerCombined struct {
-	first, second register8
+	upper, lower register8
 }
 
 func (reg *registerCombined) set(val uint16) uint16 {
-	reg.first.set(uint8(val >> 8))
-	reg.second.set(uint8(val))
+	reg.upper.set(uint8(val >> 8))
+	reg.lower.set(uint8(val))
 
 	return reg.get()
 }
 
+func (reg *registerCombined) setLower(val uint8) uint8 {
+	reg.lower.set(val)
+	return val
+}
+
+func (reg *registerCombined) setUpper(val uint8) uint8 {
+	reg.upper.set(val)
+	return val
+}
+
 func (reg *registerCombined) get() uint16 {
-	return (uint16(reg.first.get()) << 8) | uint16(reg.second.get())
+	return (uint16(reg.upper.get()) << 8) | uint16(reg.lower.get())
 }
 
 func (reg *registerCombined) size() int {

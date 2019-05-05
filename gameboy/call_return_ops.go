@@ -15,7 +15,7 @@ func call(state *State) int {
 // the address of the next instruction onto the stack, and jumps to the loaded
 // address if the given flag is at the expected setting.
 func makeCALLIfFlag(flagMask uint8, isSet bool) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		flagState := state.regF.get()&flagMask == flagMask
 		address := combine16(state.incrementPC(), state.incrementPC())
 
@@ -27,7 +27,7 @@ func makeCALLIfFlag(flagMask uint8, isSet bool) instruction {
 		}
 		// A call didn't happen, so the instruction took fewer cycles
 		return 12
-	}
+	})
 }
 
 // ret pops a 16-bit address from the stack and jumps to it.
@@ -41,7 +41,7 @@ func ret(state *State) int {
 // makeRETIfFlag creates an instruction that pops a 16-bit address from the
 // stack and jumps to it, but only if the given flag is at the expected value.
 func makeRETIfFlag(flagMask uint8, isSet bool) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		flagState := state.regF.get()&flagMask == flagMask
 
 		var opClocks int
@@ -54,7 +54,7 @@ func makeRETIfFlag(flagMask uint8, isSet bool) instruction {
 		}
 
 		return opClocks
-	}
+	})
 }
 
 // reti pops a 16-bit address from the stack and jumps to it, then enables
@@ -71,11 +71,11 @@ func reti(state *State) int {
 // makeRST creates an instruction that pushes the current program counter to
 // the stack and jumps to the given address.
 func makeRST(address uint16) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		state.pushToStack16(state.regPC.get())
 
 		state.regPC.set(address)
 
 		return 16
-	}
+	})
 }

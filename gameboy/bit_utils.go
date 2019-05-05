@@ -1,5 +1,41 @@
 package gameboy
 
+// add adds a, b, and the carry value together. If this results in a carry, the
+// carryOut value is 1, otherwise 0. If this results in a half carry, the
+// halfCarryOut value is 1, otherwise 0.
+func add(a, b, carry uint8) (val, carryOut, halfCarryOut uint8) {
+	val = a + b + carry
+	if val < a {
+		carryOut = 1
+	}
+	// Calculate half carry by adding the lower nibbles of all the values
+	// together and checking if the 4th bit is high
+	if (a&0xF+b&0xF+carry)&0x10 == 0x10 {
+		halfCarryOut = 1
+	}
+
+	return val, carryOut, halfCarryOut
+}
+
+// subtract subtracts a by b and the carry value. If this results in a borrow,
+// the borrowOut value is 1, otherwise 0. If this results in a half borrow, the
+// halfBorrowOut value is 1, otherwise 0.
+func subtract(a, b, borrow uint8) (val, borrowOut, halfBorrowOut uint8) {
+	val = a - b - borrow
+	// If any of the values we subtract are less than the original value, a
+	// borrow/underflow will occur
+	if a < b || (a-b) < borrow {
+		borrowOut = 1
+	}
+	// If the lower nibble of any of the values we subtract are less than the
+	// original value's lower nibble, a half borrow will occur
+	if a&0xF < b&0xF || ((a-b)&0xF) < borrow {
+		halfBorrowOut = 1
+	}
+
+	return val, borrowOut, halfBorrowOut
+}
+
 // combine combines the given upper and lower nibbles into a single uint8.
 func combine(lower, upper uint8) uint8 {
 	return (upper << 4) | lower

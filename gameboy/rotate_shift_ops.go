@@ -114,7 +114,7 @@ func rra(state *State) int {
 // register to the right. Bit 0 is shifted to the carry register. Bit 7 is set
 // to 0.
 func makeSRL(reg register8) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		regVal := reg.get()
 
 		// Put the least significant bit in the carry register
@@ -128,7 +128,7 @@ func makeSRL(reg register8) instruction {
 		state.setHalfCarryFlag(false)
 
 		return 8
-	}
+	})
 }
 
 // srlMemHL shifts the value at the address in memory specified by register
@@ -155,7 +155,7 @@ func srlMemHL(state *State) int {
 // this operation. This means we're essentially rotating "(register << 1) |
 // carry flag".
 func makeRR(reg register8) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		oldVal := reg.get()
 		// Get the current least significant bit, which will be put in the carry
 		// flag
@@ -186,7 +186,7 @@ func makeRR(reg register8) instruction {
 		reg.set(newVal)
 
 		return 8
-	}
+	})
 }
 
 // rrMemHL rotates the value stored in memory at the address specified by
@@ -233,7 +233,7 @@ func rrMemHL(state *State) int {
 // is carried over to the least significant bit. This bit is also stored in the
 // carry flag.
 func makeRLC(reg register8) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		rotated := bits.RotateLeft8(reg.get(), 1)
 		reg.set(rotated)
 
@@ -245,7 +245,7 @@ func makeRLC(reg register8) instruction {
 		state.setCarryFlag(carryBit == 1)
 
 		return 8
-	}
+	})
 }
 
 // rlcMemHL bit rotates the value found in memory at the address specified by
@@ -273,7 +273,7 @@ func rlcMemHL(state *State) int {
 // bit is carried over to the most significant bit. This bit is also stored in
 // the carry flag.
 func makeRRC(reg register8) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		carryBit := reg.get() & 0x01
 		state.setCarryFlag(carryBit == 1)
 
@@ -285,7 +285,7 @@ func makeRRC(reg register8) instruction {
 		state.setHalfCarryFlag(false)
 
 		return 8
-	}
+	})
 }
 
 // rrcMemHL bit rotates the value found in memory at the address specified by
@@ -313,7 +313,7 @@ func rrcMemHL(state *State) int {
 // one, but uses the carry flag as a "bit 8" of sorts during this operation.
 // This means that we're essentially rotating "(carry flag << 1) | register A".
 func makeRL(reg register8) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		oldVal := reg.get()
 		// Get the current most significant bit, which will be put in the carry
 		// flag
@@ -345,7 +345,7 @@ func makeRL(reg register8) instruction {
 		state.setZeroFlag(newVal == 0)
 
 		return 8
-	}
+	})
 }
 
 // rlMemHL rotates the value in memory at the address specified by register HL
@@ -390,7 +390,7 @@ func rlMemHL(state *State) int {
 // register to the left. Bit 7 is shifted to the carry register. Bit 0 is set
 // to 0.
 func makeSLA(reg register8) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		regVal := reg.get()
 
 		// Put the most significant bit in the carry register
@@ -404,7 +404,7 @@ func makeSLA(reg register8) instruction {
 		state.setHalfCarryFlag(false)
 
 		return 8
-	}
+	})
 }
 
 // slaMemHL shifts the value at the address in memory specified by register
@@ -430,7 +430,7 @@ func slaMemHL(state *State) int {
 // register to the right. Bit 0 is shifted to the carry register. Bit 7 is left
 // unchanged.
 func makeSRA(reg register8) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		regVal := reg.get()
 
 		// Put the least significant bit in the carry register
@@ -450,7 +450,7 @@ func makeSRA(reg register8) instruction {
 		state.setHalfCarryFlag(false)
 
 		return 8
-	}
+	})
 }
 
 // sraMemHL shifts the value at the address in memory specified by register HL

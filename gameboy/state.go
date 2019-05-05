@@ -55,17 +55,17 @@ func NewState(mmu *mmu) *State {
 	state.regL = &normalRegister8{0}
 	state.regF = &flagRegister8{0}
 	state.regAF = &registerCombined{
-		first:  state.regA,
-		second: state.regF}
+		upper: state.regA,
+		lower: state.regF}
 	state.regBC = &registerCombined{
-		first:  state.regB,
-		second: state.regC}
+		upper: state.regB,
+		lower: state.regC}
 	state.regDE = &registerCombined{
-		first:  state.regD,
-		second: state.regE}
+		upper: state.regD,
+		lower: state.regE}
 	state.regHL = &registerCombined{
-		first:  state.regH,
-		second: state.regL}
+		upper: state.regH,
+		lower: state.regL}
 	state.regSP = &normalRegister16{0}
 	state.regPC = &normalRegister16{0}
 

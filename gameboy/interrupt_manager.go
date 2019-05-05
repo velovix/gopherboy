@@ -67,14 +67,17 @@ func (mgr *interruptManager) check() {
 			mgr.state.pushToStack16(mgr.state.regPC.get())
 			mgr.state.regPC.set(target)
 			// Dispatching an interrupt takes clock cycles
-			mgr.timers.tick(interruptDispatchCycles)
+			for i := 0; i < interruptDispatchMCycles; i++ {
+				mgr.timers.tick()
+			}
 		}
 
 		if mgr.state.halted {
 			// Take the Game Boy off halt mode. Note that this will happen even
 			// if the master interrupt switch is disabled
 			mgr.state.halted = false
-			mgr.timers.tick(unhaltCycles)
+			// Taking the Game Boy off halt mode takes one M-Cycle
+			mgr.timers.tick()
 		}
 	}
 }

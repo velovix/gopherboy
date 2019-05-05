@@ -135,13 +135,13 @@ func newVideoController(state *State, driver VideoDriver) *videoController {
 	return vc
 }
 
-// tick progresses the video controller by the given number of cycles.
-func (vc *videoController) tick(opTime int) {
+// tick progresses the video controller by one m-cycle.
+func (vc *videoController) tick() {
 	if !vc.lcdOn {
 		return
 	}
 
-	for i := 0; i < opTime; i++ {
+	for i := 0; i < ticksPerMCycle; i++ {
 		currScanLine := (vc.frameTick / scanLineFullClocks)
 
 		lyJustChanged := vc.frameTick%scanLineFullClocks == 0

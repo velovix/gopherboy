@@ -33,8 +33,8 @@ func newJoypad(state *State, driver InputDriver) *joypad {
 // input device and the game's configuration of this register. May also
 // generate a P10-P13 interrupt if a button is pressed and this interrupt is
 // enabled.
-func (j *joypad) tick(amount int) {
-	j.lastEventProcess += amount
+func (j *joypad) tick() {
+	j.lastEventProcess += ticksPerMCycle
 	if j.lastEventProcess < eventProcessPeriod {
 		return
 	}

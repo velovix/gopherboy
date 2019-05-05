@@ -403,8 +403,9 @@ func (sc *SoundController) RightVolume() float64 {
 	return float64(sc.rightVolume) / 7
 }
 
-func (sc *SoundController) tick(cycles int) {
-	for i := 0; i < cycles; i++ {
+// tick runs the sound controller for one m-cycle.
+func (sc *SoundController) tick() {
+	for i := 0; i < ticksPerMCycle; i++ {
 		// Update the frame sequencer
 		sc.tClock++
 		if sc.tClock%(cpuClockRate/frameSequencerClockRate) == 0 {

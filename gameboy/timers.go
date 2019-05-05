@@ -8,6 +8,9 @@ const (
 	// The Game Boy processor clock speed
 	cpuClockRate = 4194304
 
+	// The number of CPU clock cycles in one machine cycle, or m-cycle.
+	ticksPerMCycle = 4
+
 	// The time that it takes in hardware to perform one cycle.
 	timePerClock = time.Nanosecond * 238
 )
@@ -61,19 +64,19 @@ func newTimers(state *State) *timers {
 	// incrementing the timer.
 	// TODO(velovix): Is this sufficient or do these NOPs effect any other
 	// subsystem?
-	t.tick(8)
+	t.tick()
+	t.tick()
 
 	return t
 }
 
-// tick increments the timers given the amount of cycles that have passed since
-// the last call to tick. Flags interrupts as needed.
-func (t *timers) tick(amount int) {
+// tick increments the timers by one m-cycle.
+func (t *timers) tick() {
 	// Parse the TAC bits for TIMA configuration information
 	timaRunning := t.tac&0x4 == 0x4
 	timaRateBits := t.tac & 0x3
 
-	for i := 0; i < amount; i++ {
+	for i := 0; i < ticksPerMCycle; i++ {
 		t.cpuClock++
 		if t.cpuClock == cpuClockRate {
 			t.cpuClock = 0

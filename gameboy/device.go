@@ -214,7 +214,7 @@ func (device *Device) BenchmarkComponents() {
 	start := time.Now()
 	for i := 0; i < secondCycles; i++ {
 		for j := 0; j < cpuClockRate; j++ {
-			device.timers.tick(1)
+			device.timers.tick()
 		}
 	}
 	fmt.Println("Timer performance:", float64(secondCycles)/time.Since(start).Seconds())
@@ -224,7 +224,7 @@ func (device *Device) BenchmarkComponents() {
 	device.videoController.driver = &noopVideoDriver{}
 	for i := 0; i < secondCycles; i++ {
 		for j := 0; j < cpuClockRate; j++ {
-			device.videoController.tick(1)
+			device.videoController.tick()
 		}
 	}
 	fmt.Println("Video controller performance:", float64(secondCycles)/time.Since(start).Seconds())
@@ -235,7 +235,7 @@ func (device *Device) BenchmarkComponents() {
 	device.joypad.driver = &noopInputDriver{}
 	for i := 0; i < secondCycles; i++ {
 		for j := 0; j < cpuClockRate; j++ {
-			device.joypad.tick(1)
+			device.joypad.tick()
 		}
 	}
 	device.joypad.driver = oldInputDriver
@@ -252,7 +252,7 @@ func (device *Device) BenchmarkComponents() {
 	start = time.Now()
 	for i := 0; i < secondCycles; i++ {
 		for j := 0; j < cpuClockRate; j++ {
-			device.SoundController.tick(1)
+			device.SoundController.tick()
 		}
 	}
 	fmt.Println("Sound controller performance:", float64(secondCycles)/time.Since(start).Seconds())
@@ -260,7 +260,7 @@ func (device *Device) BenchmarkComponents() {
 	start = time.Now()
 	for i := 0; i < secondCycles; i++ {
 		for j := 0; j < cpuClockRate; j++ {
-			device.opcodeMapper.run(0x00)
+			//device.opcodeMapper.run(0x00)
 		}
 	}
 	fmt.Println("Opcode mapper performance:", float64(secondCycles)/time.Since(start).Seconds())
@@ -268,11 +268,10 @@ func (device *Device) BenchmarkComponents() {
 
 // Start starts the main processing loop of the Gameboy.
 func (device *Device) Start(onExit chan bool) error {
-	var opTime int
+	var currentInstruction instruction
+	var err error
 
 	for {
-		var err error
-
 		// Check periodically (but not every tick for performance reasons) if
 		// the main loop should be exited
 		if device.timers.cpuClock%65536 == 0 {
@@ -294,40 +293,41 @@ func (device *Device) Start(onExit chan bool) error {
 
 		device.interruptManager.check()
 
-		device.joypad.tick(opTime)
+		device.joypad.tick()
 		if device.state.stopped {
 			// We're in stop mode, don't do anything
 			time.Sleep(time.Millisecond)
 			continue
 		}
 
-		if device.state.halted {
-			// Spin our wheels running NOPs until an interrupt happens
-			opTime = 4
-		} else {
+		if !device.state.halted {
 			// Notify the debugger that we're at this PC value
-			if device.debugger != nil {
+			/*if device.debugger != nil {
 				device.debugger.pcHook(device.state.regPC.get())
+			}*/
+
+			if currentInstruction == nil {
+				// Fetch a new operation
+				opcode := device.state.incrementPC()
+
+				if device.debugger != nil {
+					device.debugger.opcodeHook(opcode)
+				}
+
+				currentInstruction, err = device.opcodeMapper.getInstruction(opcode)
+				if err != nil {
+					return err
+				}
 			}
 
-			// Fetch and run an operation
-			opcode := device.state.incrementPC()
-
-			if device.debugger != nil {
-				device.debugger.opcodeHook(opcode)
-			}
-
-			opTime, err = device.opcodeMapper.run(opcode)
-			if err != nil {
-				return err
-			}
-			device.state.instructionDone()
+			// Run the next step in the instruction
+			currentInstruction = currentInstruction(device.state)
 		}
 
-		device.timers.tick(opTime)
-		device.state.mmu.tick(opTime)
-		device.videoController.tick(opTime)
-		device.SoundController.tick(opTime)
+		device.timers.tick()
+		device.state.mmu.tick()
+		device.videoController.tick()
+		device.SoundController.tick()
 
 		// Process any delayed requests to toggle the master interrupt switch.
 		// These are created by the EI and DI instructions.
@@ -341,10 +341,7 @@ func (device *Device) Start(onExit chan bool) error {
 }
 
 const (
-	// interruptDispatchCycles is the number of CPU clock cycles consumed while an
+	// interruptDispatchMCycles is the number of M-Cycles consumed while an
 	// interrupt is being dispatched.
-	interruptDispatchCycles = 20
-	// unhaltCycles is the number of CPU clock cycles consumed while taking the CPU
-	// out of halt mode.
-	unhaltCycles = 4
+	interruptDispatchMCycles = 5
 )

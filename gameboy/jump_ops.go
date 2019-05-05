@@ -25,7 +25,7 @@ func jr(state *State) int {
 // to the operation at address PC + offset if the given flag is at the expected
 // setting.
 func makeJRIfFlag(flagMask uint8, isSet bool) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		flagState := state.regF.get()&flagMask == flagMask
 		offset := int8(state.incrementPC())
 
@@ -35,15 +35,15 @@ func makeJRIfFlag(flagMask uint8, isSet bool) instruction {
 		}
 		// A relative jump didn't happen, so the instruction took fewer cycles
 		return 8
-	}
+	})
 }
 
 // jp loads a 16-bit address and jumps to it.
-func jp(state *State) int {
+func jp(state *State) instruction {
 	// M-Cycle 0: This instruction doesn't do anything
 
 	// M-Cycle 1: Load the least significant bit of the target address
-	/*return func(state *State) {
+	return func(state *State) instruction {
 		lsb := state.incrementPC()
 
 		// M-Cycle 2: Load the most significant bit of the target address
@@ -56,19 +56,13 @@ func jp(state *State) int {
 				return nil
 			}
 		}
-	}*/
-
-	lsb := state.incrementPC()
-
-	msb := state.incrementPC()
-	state.regPC.set(combine16(lsb, msb))
-	return 16
+	}
 }
 
 // makeJPIfFlag creates an instruction that loads a 16-bit address and jumps to
 // it if the given flag is at the expected setting.
 func makeJPIfFlag(flagMask uint8, isSet bool) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		flagState := state.regF.get()&flagMask == flagMask
 		address := combine16(state.incrementPC(), state.incrementPC())
 
@@ -78,16 +72,16 @@ func makeJPIfFlag(flagMask uint8, isSet bool) instruction {
 		}
 		// A jump didn't happen, so the instruction took fewer cycles
 		return 12
-	}
+	})
 }
 
 // jpToHL jumps to the address specified by register HL.
-func jpToHL(state *State) int {
+func jpToHL(state *State) instruction {
 	hlVal := state.regHL.get()
 
 	state.regPC.set(hlVal)
 
-	return 4
+	return nil
 }
 
 // relativeJump moves the program counter by the given signed value.

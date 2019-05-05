@@ -2,11 +2,11 @@ package gameboy
 
 // makeLD creates an instruction that loads the value of reg2 into reg1.
 func makeLD(reg1, reg2 register8) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		reg1.set(reg2.get())
 
 		return 4
-	}
+	})
 }
 
 // ldHLToSP puts the value of register HL into register SP.
@@ -21,45 +21,45 @@ func ldHLToSP(state *State) int {
 // makeLDToMem creates an instruction that loads the value of reg2 into the
 // memory address specified by reg1.
 func makeLDToMem(reg1 register16, reg2 register8) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		state.mmu.set(reg1.get(), reg2.get())
 
 		return 8
-	}
+	})
 }
 
 // makeLDFromMem creates an instruction that loads the value in the memory
 // address specified by reg2 into reg1.
 func makeLDFromMem(reg1 register8, reg2 register16) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		val := state.mmu.at(reg2.get())
 		reg1.set(val)
 
 		return 8
-	}
+	})
 }
 
 // makeLD8BitImm creates an instruction that loads an 8-bit immediate value
 // into the given register.
 func makeLD8BitImm(reg register8) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		imm := state.incrementPC()
 
 		reg.set(imm)
 
 		return 8
-	}
+	})
 }
 
 // makeLD16BitImm creates an instruction that loads a 16-bit immediate value
 // into the specified 16-bit register.
-func makeLD16BitImm(reg register16) func(*State) int {
-	return func(state *State) int {
+func makeLD16BitImm(reg register16) func(*State) instruction {
+	return adapter(func(state *State) int {
 		imm := combine16(state.incrementPC(), state.incrementPC())
 		reg.set(imm)
 
 		return 12
-	}
+	})
 }
 
 // ldTo16BitImmMem saves the value of register A to an address in memory
@@ -84,9 +84,9 @@ func ldFrom16BitImmMem(state *State) int {
 	return 16
 }
 
-// makeLD8BitImmToMemHL loads an 8-bit immediate value into the memory address
+// ld8BitImmToMemHL loads an 8-bit immediate value into the memory address
 // specified by the HL register.
-func makeLD8BitImmToMemHL(state *State) int {
+func ld8BitImmToMemHL(state *State) int {
 	imm := state.incrementPC()
 
 	state.mmu.set(state.regHL.get(), imm)
@@ -129,9 +129,9 @@ func ldFromMemC(state *State) int {
 	return 8
 }
 
-// makeLDIToMem loads register A into the memory address specified by register
-// HL, then increments register HL.
-func makeLDIToMem(state *State) int {
+// ldiToMem loads register A into the memory address specified by register HL,
+// then increments register HL.
+func ldiToMem(state *State) int {
 	state.mmu.set(state.regHL.get(), state.regA.get())
 
 	state.regHL.set(state.regHL.get() + 1)
@@ -139,9 +139,9 @@ func makeLDIToMem(state *State) int {
 	return 8
 }
 
-// makeLDDToMem loads register A into the memory address specified by register
-// HL, then decrements register HL.
-func makeLDDToMem(state *State) int {
+// lddToMem loads register A into the memory address specified by register HL,
+// then decrements register HL.
+func lddToMem(state *State) int {
 	state.mmu.set(state.regHL.get(), state.regA.get())
 
 	state.regHL.set(state.regHL.get() - 1)
@@ -220,19 +220,19 @@ func ldhl(state *State) int {
 // makePUSH creates an instruction that decrements the stack pointer by 2, then
 // puts the value of the given register at its position.
 func makePUSH(reg register16) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		state.pushToStack16(reg.get())
 
 		return 16
-	}
+	})
 }
 
 // makePOP creates an instruction that loads the two bytes at the top of the
 // stack in the given register and increments the stack pointer by 2.
 func makePOP(reg register16) instruction {
-	return func(state *State) int {
+	return adapter(func(state *State) int {
 		reg.set(state.popFromStack16())
 
 		return 12
-	}
+	})
 }

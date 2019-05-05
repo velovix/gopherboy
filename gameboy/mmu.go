@@ -159,9 +159,9 @@ func (m *mmu) at(addr uint16) uint8 {
 	}
 }
 
-// tick progresses the MMU by the given number of cycles.
-func (m *mmu) tick(opTime int) {
-	for i := 0; i < opTime; i++ {
+// tick progresses the MMU by one m-cycle.
+func (m *mmu) tick() {
+	for i := 0; i < ticksPerMCycle; i++ {
 		if m.dmaActive {
 			// Work on a DMA transfer
 			lower, _ := split16(m.dmaCursor)
