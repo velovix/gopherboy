@@ -5,7 +5,7 @@ package gameboy
 // halfCarryOut value is 1, otherwise 0.
 func add(a, b, carry uint8) (val, carryOut, halfCarryOut uint8) {
 	val = a + b + carry
-	if val < a {
+	if val < a || (carry == 1 && val == a) {
 		carryOut = 1
 	}
 	// Calculate half carry by adding the lower nibbles of all the values

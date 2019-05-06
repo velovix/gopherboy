@@ -65,12 +65,12 @@ func (reg *normalRegister16) set(val uint16) uint16 {
 }
 
 func (reg *normalRegister16) setLower(val uint8) uint8 {
-	reg.val = (reg.val & 0xF0) | uint16(val)
+	reg.val = (reg.val & 0xFF00) | uint16(val)
 	return val
 }
 
 func (reg *normalRegister16) setUpper(val uint8) uint8 {
-	reg.val = (uint16(val) << 8) | uint16(reg.val)
+	reg.val = (uint16(val) << 8) | (reg.val & 0x00FF)
 	return val
 }
 

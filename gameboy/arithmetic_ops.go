@@ -46,18 +46,17 @@ func makeADDToHL(reg register16) instruction {
 		// M-Cycle 0: Fetch instruction and set the L register
 
 		regLowerByte, _ := split16(reg.get())
-		hlLowerByte, _ := split16(state.regHL.get())
 
-		lVal, carry, _ := add(regLowerByte, hlLowerByte, 0)
+		lVal, carry, _ := add(regLowerByte, state.regL.get(), 0)
+
 		state.regL.set(lVal)
 
 		return func(state *State) instruction {
 			// M-Cycle 1: Set the H register
 
 			_, regUpperByte := split16(reg.get())
-			_, hlUpperByte := split16(state.regHL.get())
 
-			hVal, carry, halfCarry := add(regUpperByte, hlUpperByte, carry)
+			hVal, carry, halfCarry := add(regUpperByte, state.regH.get(), carry)
 
 			state.setHalfCarryFlag(halfCarry == 1)
 			state.setCarryFlag(carry == 1)
@@ -735,8 +734,8 @@ func cp8BitImm(state *State) instruction {
 
 		result, borrow, halfBorrow := subtract(state.regA.get(), imm, 0)
 
-		state.setHalfCarryFlag(halfBorrow == 0)
-		state.setCarryFlag(borrow == 0)
+		state.setHalfCarryFlag(halfBorrow == 1)
+		state.setCarryFlag(borrow == 1)
 		state.setZeroFlag(result == 0)
 		state.setSubtractFlag(true)
 
