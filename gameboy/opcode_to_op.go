@@ -125,7 +125,7 @@ func (mapper *opcodeMapper) generateMap() {
 		0x15: makeDEC8Bit(mapper.state.regD),
 		0x16: makeLD8BitImm(mapper.state.regD),
 		0x17: adapter(rla),
-		0x18: adapter(jr),
+		0x18: jr,
 		0x19: makeADDToHL(mapper.state.regDE),
 		0x1A: makeLDFromMem(mapper.state.regA, mapper.state.regDE),
 		0x1B: makeDEC16Bit(mapper.state.regDE),
