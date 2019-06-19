@@ -29,6 +29,8 @@ func newInterruptManager(state *State, timers *timers) *interruptManager {
 // check checks for any interrupts that have happened, and triggers an
 // interrupt handler by moving the program counter where appropriate.
 func (mgr *interruptManager) check() {
+	clearedInterruptFlags := mgr.interruptFlags
+
 	// The address of the handler to jump to
 	var target uint16
 
@@ -40,29 +42,31 @@ func (mgr *interruptManager) check() {
 	if mgr.interruptEnable&mgr.interruptFlags&0x01 == 0x01 {
 		// VBlank interrupt
 		target = vblankInterruptTarget
-		mgr.interruptFlags &= ^uint8(0x01)
+		clearedInterruptFlags &= ^uint8(0x01)
 	} else if mgr.interruptEnable&mgr.interruptFlags&0x02 == 0x02 {
 		// LCDC interrupt
 		target = lcdcInterruptTarget
-		mgr.interruptFlags &= ^uint8(0x02)
+		clearedInterruptFlags &= ^uint8(0x02)
 	} else if mgr.interruptEnable&mgr.interruptFlags&0x04 == 0x04 {
 		// TIMA overflow interrupt
 		target = timaOverflowInterruptTarget
-		mgr.interruptFlags &= ^uint8(0x04)
+		clearedInterruptFlags &= ^uint8(0x04)
 	} else if mgr.interruptEnable&mgr.interruptFlags&0x08 == 0x08 {
 		// Serial interrupt
 		target = serialInterruptTarget
-		mgr.interruptFlags &= ^uint8(0x08)
+		clearedInterruptFlags &= ^uint8(0x08)
 	} else if mgr.interruptEnable&mgr.interruptFlags&0x10 == 0x10 {
 		// P10-P13 interrupt
 		target = p1Thru4InterruptTarget
-		mgr.interruptFlags &= ^uint8(0x10)
+		clearedInterruptFlags &= ^uint8(0x10)
 	}
 
 	if target != 0 {
 		if mgr.state.interruptsEnabled {
 			// Dispatch the interrupt
 			mgr.state.interruptsEnabled = false
+			// Clear the interrupt flag
+			mgr.interruptFlags = clearedInterruptFlags
 			// Push the current program counter to the stack for later use
 			mgr.state.pushToStack16(mgr.state.regPC.get())
 			mgr.state.regPC.set(target)
@@ -71,7 +75,7 @@ func (mgr *interruptManager) check() {
 		}
 
 		if mgr.state.halted {
-			// Take the Game Boy off halt mode. Note that this will happen even
+			// Take the Game Boy of halt mode. Note that this will happen even
 			// if the master interrupt switch is disabled
 			mgr.state.halted = false
 			mgr.timers.tick(unhaltCycles)
