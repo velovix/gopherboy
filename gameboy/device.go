@@ -291,8 +291,6 @@ func (device *Device) Start(onExit chan bool) error {
 			}
 		}
 
-		device.interruptManager.check()
-
 		device.joypad.tick()
 		if device.state.stopped {
 			// We're in stop mode, don't do anything
@@ -300,13 +298,23 @@ func (device *Device) Start(onExit chan bool) error {
 			continue
 		}
 
-		if !device.state.halted {
+		if device.state.halted {
+			// The device is halted. Process no new instructions, but check for
+			// interrupts.
+			device.interruptManager.check()
+		} else if !device.state.halted {
 			// Notify the debugger that we're at this PC value
 			/*if device.debugger != nil {
 				device.debugger.pcHook(device.state.regPC.get())
 			}*/
 
 			if currentInstruction == nil {
+				// Process interrupts before fetching a new instruction. Note
+				// that this means interrupt processing does not happen while
+				// an instruction is being executed
+				// TODO(velovix): Is this the right behavior?
+				device.interruptManager.check()
+
 				// Fetch a new operation
 				opcode := device.state.incrementPC()
 
