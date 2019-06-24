@@ -35,8 +35,6 @@ const (
 	// nr10Addr points to the "Sound Mode 1 Sweep" register. This controls the
 	// frequency sweep effect of the pulse A sound channel.
 	//
-	// TODO(velovix): A better job at documenting this
-	//
 	// Bit 7: Unused, always 1
 	// Bits 6-4: Controls the length of the frequency sweep. The length is
 	//           n/128Hz, where N is the value written here.

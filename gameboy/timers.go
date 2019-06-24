@@ -60,10 +60,11 @@ func newTimers(state *State) *timers {
 	t.state.mmu.subscribeTo(timaAddr, t.onTIMAWrite)
 	t.state.mmu.subscribeTo(tmaAddr, t.onTMAWrite)
 
-	// The CPU runs 2 NOPs before the boot ROM starts. Fake these NOPs by
-	// incrementing the timer.
-	// TODO(velovix): Is this sufficient or do these NOPs effect any other
-	// subsystem?
+	// The CPU is busy for 2 M-Cycles before running the boot ROM. The first
+	// apparently sets up something related to the CPU's reset functionality.
+	// The second pre-fetches the first instruction of the boot ROM. These
+	// specifics are all internal details though so it's sufficient to simply
+	// increment the timers.
 	t.tick()
 	t.tick()
 
