@@ -274,7 +274,7 @@ func (device *Device) Start(onExit chan bool) error {
 	for {
 		// Check periodically (but not every tick for performance reasons) if
 		// the main loop should be exited
-		if device.timers.cpuClock%65536 == 0 {
+		if device.timers.cpuClock == 0 {
 			select {
 			case <-onExit:
 				// Save the game, if necessary
@@ -328,7 +328,7 @@ func (device *Device) Start(onExit chan bool) error {
 				}
 			}
 
-			// Run the next step in the instruction
+			// Get the next step in the instruction
 			currentInstruction = currentInstruction(device.state)
 		}
 
