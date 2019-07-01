@@ -298,6 +298,8 @@ func (device *Device) Start(onExit chan bool) error {
 			continue
 		}
 
+		device.timers.tick()
+
 		if device.state.halted {
 			// The device is halted. Process no new instructions, but check for
 			// interrupts.
@@ -332,7 +334,6 @@ func (device *Device) Start(onExit chan bool) error {
 			currentInstruction = currentInstruction(device.state)
 		}
 
-		device.timers.tick()
 		device.state.mmu.tick()
 		device.videoController.tick()
 		device.SoundController.tick()
