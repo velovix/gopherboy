@@ -32,7 +32,7 @@ require (
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/stamblerre/gocode v0.0.0-20190327203809-810592086997 // indirect
 	github.com/stretchr/objx v0.2.0 // indirect
-	github.com/veandco/go-sdl2 v0.3.0
+	github.com/veandco/go-sdl2 v0.3.1-0.20190809154531-da65661eff7f
 	github.com/zmb3/gogetdoc v0.0.0-20190228002656-b37376c5da6a // indirect
 	golang.org/x/arch v0.0.0-20190312162104-788fe5ffcd8c // indirect
 	golang.org/x/crypto v0.0.0-20190424203555-c05e17bb3b2d // indirect
