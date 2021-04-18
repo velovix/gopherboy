@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"syscall/js"
 	"time"
 )
@@ -11,6 +12,7 @@ import (
 type videoDriver struct {
 	targetFPS     int
 	lastFrameTime time.Time
+	frameBuffer   js.Value
 }
 
 const framePeriod = time.Second / 50
@@ -20,15 +22,17 @@ func newVideoDriver(scaleFactor float64) (*videoDriver, error) {
 }
 
 func (vd *videoDriver) Render(frameData []uint8) error {
-	jsFrameData := js.TypedArrayOf(frameData)
-	defer jsFrameData.Release()
+	if vd.frameBuffer.Equal(js.Undefined()) {
+		fmt.Println("Initializing frame buffer...")
+		vd.frameBuffer = js.Global().Get("Uint8ClampedArray").New(len(frameData))
+	}
+	js.CopyBytesToJS(vd.frameBuffer, frameData)
 
-	jsClamped := js.Global().Get("Uint8ClampedArray").New(jsFrameData)
-
-	js.Global().Call("postMessage",
+	js.Global().Call(
+		"postMessage",
 		[]interface{}{
 			"NewFrame",
-			jsClamped,
+			vd.frameBuffer,
 		},
 	)
 
